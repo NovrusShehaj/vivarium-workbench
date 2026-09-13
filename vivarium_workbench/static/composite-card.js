@@ -710,13 +710,15 @@
 
     var topNote = '<p class="muted pcard-toplevel-note">Top-level composite — its interface is the internal wiring (see Explore), not bridge ports.</p>';
     var runBar = _pcardRunBar(
-      // The ▶ RUN label IS the run button (its whole side of the bar), with the
-      // Steps selector beside it — no separate Run button on the right.
-      c.read_only
+      // Mirror the loom Explore run bar: a ◇ steps mode pill, then the solid
+      // teal ▶ Run button, then the Steps field — same order and look, so the
+      // collapsed card and the open-loom surface are one design.
+      '<span class="pcard-run-kind" title="Step network — advances in discrete integer steps.">◇ steps</span>' +
+      (c.read_only
         ? '<span class="pcard-run-go pcard-run-go-disabled" aria-disabled="true">▶ Run</span>' +
           '<span class="muted pcard-run-note">read-only composite — enable running inside Explore to run in place</span>'
         : '<button class="pcard-run-go" type="button" onclick="_runComposite(this)">▶ Run</button>' +
-          '<label class="loom-run-field loom-run-interval-field">Steps <input type="number" step="1" min="1" class="pcard-run-time" placeholder="e.g. 10"></label>');
+          '<label class="loom-run-field loom-run-interval-field">Steps <input type="number" step="1" min="1" class="pcard-run-time" placeholder="e.g. 10"></label>'));
 
     // Outputs = the launched run's live status → its visualizations. A composite
     // run is detached; _runComposite stores the run_id and _pollCompositeRun
@@ -758,9 +760,16 @@
           '</div>' +
         '</div>' +
         '<div class="pcard-acc">' +
-          // The card body is now the FULL stacked loom surface — Configure/Inputs,
-          // the bigraph, Run/Step, and Outputs all live inside it. No more card
-          // re-implementations of those sections (which had diverging semantics).
+          // Card-level Run + Outputs, surfaced on the COLLAPSED card so a
+          // composite is runnable (and its results/visualizations viewable)
+          // without first opening Explore. When Explore IS open, the loom's own
+          // full stacked surface owns run+outputs and these are hidden (CSS,
+          // keyed on .pcard-loom-open) so the two run bars never both show —
+          // that was the "diverging semantics" the earlier refactor guarded.
+          runBar +
+          _pcardSection('outputs', 'Outputs', '', outputsBody, { resizable: true }) +
+          // Explore = the FULL stacked loom surface — Configure/Inputs, the
+          // bigraph, Run/Step, and Outputs all live inside it (lazy-mounted).
           _pcardSection('explore', 'Explore', '<span class="pcard-sec-hint">◆ Configure · run · outputs — click to open</span>', _compositeLoomExplore(c), { wide: true, feature: true }) +
         '</div>' +
       '</div>' +
