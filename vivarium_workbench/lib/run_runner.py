@@ -382,7 +382,93 @@ def _resolve_emit_paths(req: RunRequest, state: dict, *,
     from_state = _emit_paths_from_state(state)
     if from_state:
         return from_state, "state"
+    # Last resort. For a TEMPORAL composite, emitting every store each tick
+    # deep-copies the full state (incl. the huge `unique`/`bulk` stores) into the
+    # loom trajectory and blows the snapshot budget (#754). Fall back to a safe,
+    # bounded set (global_time + listeners if present) instead — the composite's
+    # own parquet sink still captures full fidelity. Only a non-temporal (static)
+    # composite, whose whole state is small, still falls through to all-stores.
+    if _state_has_process(state):
+        return _safe_temporal_emit_paths(state), "safe-temporal"
     return cr.all_store_paths(state), "all-stores"
+
+
+# Top-level stores too heavy to snapshot into the loom trajectory every tick
+# (megabytes each for a whole-cell model). The declared parquet sink still
+# captures them at full fidelity; the loom playback only needs the lighter,
+# viz-relevant stores, so they are dropped from the sqlite history's emit set.
+_HEAVY_TRAJECTORY_STORES = {"bulk", "unique"}
+# Target number of trajectory snapshots for a long run; longer runs subsample.
+_TRAJECTORY_TARGET_FRAMES = 400
+
+
+def _has_heavy_descendant(node: dict) -> bool:
+    """True if `node`'s store subtree contains a heavy store (bulk/unique) at any
+    depth. Skips process/step nodes and schema keys; never descends INTO a heavy
+    store (its huge value doesn't matter — its presence does)."""
+    if not isinstance(node, dict):
+        return False
+    for k, v in node.items():
+        if k in _HEAVY_TRAJECTORY_STORES:
+            return True
+        if k.startswith("_") or not isinstance(v, dict):
+            continue
+        if v.get("_type") in ("process", "step"):
+            continue
+        if _has_heavy_descendant(v):
+            return True
+    return False
+
+
+def _light_store_paths(state: dict) -> list[str]:
+    """Store paths for a bounded loom trajectory, computed from the ACTUAL state
+    (robust to agent-nesting like `agents/0/bulk` and to mismatched/declared
+    paths). Emits each store as a coarse blob, but descends past any level that
+    holds a heavy store (bulk/unique) so those — and only those — are excluded.
+    The composite's own parquet sink still captures full fidelity."""
+    out: list[str] = []
+
+    def emit_children(node: dict, path: list[str]) -> None:
+        for k, v in node.items():
+            if k in _HEAVY_TRAJECTORY_STORES or k.startswith("_"):
+                continue                                    # heavy / schema key
+            if isinstance(v, dict) and v.get("_type") in ("process", "step"):
+                continue                                    # not a store
+            if not isinstance(v, dict):
+                out.append("/".join(path + [k]))            # scalar / leaf store
+            elif _has_heavy_descendant(v):
+                emit_children(v, path + [k])                # descend to shed heavy
+            else:
+                out.append("/".join(path + [k]))            # light subtree → blob
+
+    emit_children(state, [])
+    return out or ["global_time"]
+
+
+def _safe_temporal_emit_paths(state: dict) -> list[str]:
+    """Bounded emit set for a temporal composite with no readable emitter
+    declaration — every store except the heavy ones (bulk/unique), at any depth."""
+    return _light_store_paths(state)
+
+
+def _history_emit_paths(state: dict) -> list[str]:
+    """The loom-trajectory emit set: every store except the heavy per-tick stores
+    (bulk/unique), computed from the actual state so agent-nested `agents/0/bulk`
+    is excluded too. The declared parquet sink keeps full fidelity."""
+    return _light_store_paths(state)
+
+
+def _history_subsample(steps) -> int:
+    """Stride so a long run's loom trajectory keeps ~<= _TRAJECTORY_TARGET_FRAMES
+    snapshots. 1 (every tick) for short runs."""
+    try:
+        n = int(steps)
+    except (TypeError, ValueError):
+        return 1
+    if n <= _TRAJECTORY_TARGET_FRAMES:
+        return 1
+    import math
+    return max(1, math.ceil(n / _TRAJECTORY_TARGET_FRAMES))
 
 
 def _emit_paths_for(req: RunRequest, state: dict, *,
@@ -1060,22 +1146,39 @@ def execute(request_path: Path) -> int:
         # self-terminate: raising _RunTimeout aborts the broker's run loop and
         # is caught below, preserving the prior failed-status behavior.
         started = time.monotonic()
+        # composite-runs.db is SHARED across every run in the workspace, so its
+        # total size reflects all prior runs, not this one. Budget THIS run's
+        # growth (delta from the size at start) — otherwise a workspace with a
+        # large accumulated history trips the guard on step 1 of every new run.
+        try:
+            _snapshot_baseline = os.path.getsize(req.db_file) if req.db_file else 0
+        except OSError:
+            _snapshot_baseline = 0
 
         def _progress(step: int) -> None:
             cr.update_progress(conn, run_id=req.run_id, progress_step=step,
                                heartbeat_at=time.time())
             if time.monotonic() - started > MAX_RUNTIME_SEC:
                 raise _RunTimeout(step)
-            # Snapshot-budget guard: stop a run whose loom DB is ballooning
-            # before it becomes multi-GB and unloadable. Checked every N steps
-            # so we don't stat the file on every tick.
+            # Snapshot-budget guard: stop a run whose OWN loom-DB contribution is
+            # ballooning before it becomes multi-GB and unloadable. Checked every
+            # N steps so we don't stat the file on every tick.
             if step % _SNAPSHOT_CHECK_EVERY == 0 and req.db_file:
                 try:
-                    sz = os.path.getsize(req.db_file)
+                    grew = os.path.getsize(req.db_file) - _snapshot_baseline
                 except OSError:
-                    sz = 0
-                if sz > MAX_SNAPSHOT_BYTES:
-                    raise _SnapshotBudgetExceeded((step, sz))
+                    grew = 0
+                if grew > MAX_SNAPSHOT_BYTES:
+                    raise _SnapshotBudgetExceeded((step, grew))
+
+        # Loom trajectory (sqlite history) budget: keep it bounded independently
+        # of the full-fidelity parquet sink — drop the heavy stores (bulk/unique)
+        # and subsample long runs. A whole-cell generation (2700 ticks) then fits
+        # comfortably instead of tripping the 1 GiB snapshot budget.
+        history_paths = _history_emit_paths(state)
+        history_subsample = _history_subsample(req.steps)
+        _write_log(req, f"loom trajectory: {len(history_paths)} store(s), "
+                        f"bulk/unique excluded, subsample x{history_subsample}")
 
         cr.set_phase(conn, run_id=req.run_id, phase="simulating")
         try:
@@ -1083,7 +1186,8 @@ def execute(request_path: Path) -> int:
                 name=name, state=state, run_id=req.run_id, emit_paths=emit_paths,
                 out_dir=str(run_dir), core=core, steps=req.steps,
                 db_file=req.db_file, progress_cb=_progress, spec=decl_source,
-                also_sqlite_history=True)
+                also_sqlite_history=True,
+                history_paths=history_paths, history_subsample=history_subsample)
         except _RunTimeout as exc:
             step = exc.args[0] if exc.args else req.steps
             msg = (f"run exceeded max runtime ({MAX_RUNTIME_SEC}s) — "
