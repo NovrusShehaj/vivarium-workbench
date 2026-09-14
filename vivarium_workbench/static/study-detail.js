@@ -106,13 +106,13 @@
     });
     if (kind === 'tests') { _loadTestsPanel(window._study); }
     if (kind === 'readouts') { _loadReadouts(); _loadReadoutsDownloadPointer(); }
-    if (kind === 'visualize') { _loadCharts('viz-charts-panel'); _loadNativeGallery(); }
+    if (kind === 'visualize') { _loadCharts('viz-charts-panel'); _loadNativeGallery(); _loadRemoteFigures(); }
     if (kind === 'compose') { _loadModelConfig(); _loadModelCards(); }
     // Study-spine reorg (spec §1, §3.2/3.3/3.4): Simulations keeps only the
     // runs table now; the analysis-files zip + raw-data bulk that used to
     // trigger here moved onto their own Evidence panels (Analyses/Results).
     if (kind === 'simulate') { _loadStudySims(); }
-    if (kind === 'analyses') { _loadAnalyses(); }
+    if (kind === 'analyses') { _loadAnalyses(); _loadRemoteAnalyses(); }
     if (kind === 'results') { _loadResults(); }
     // Study-spine reorg (spec §1, §3.7/§3.8): Audit + Build complete the
     // Assurance trio — dispatched the same way as the other lazy-loaded
@@ -339,6 +339,59 @@
       });
   }
   window._loadAnalyses = _loadAnalyses;
+
+  // Analyses tab: list the study's completed remote sims' ptools/EcoCyc overlay
+  // .tsv files for download, read from their S3 result_uri via the remote
+  // setting (complements the local "Analysis result files" above and the
+  // figures in the Visualizations tab). Silent when unavailable.
+  var _remoteAnalysesLoaded = false;
+  function _loadRemoteAnalyses() {
+    var anchor = document.getElementById('data-files');
+    if (!anchor || _remoteAnalysesLoaded) return;
+    _remoteAnalysesLoaded = true;
+    var slug = anchor.getAttribute('data-study') || studyName();
+    if (!slug) return;
+    var panel = document.getElementById('remote-analyses-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'remote-analyses-panel';
+      anchor.parentNode.insertBefore(panel, anchor.nextSibling);
+    }
+    fetch('/api/study-remote-figures?study=' + encodeURIComponent(slug) + '&limit=8')
+      .then(function (r) { return r.ok ? r.json() : { available: false }; })
+      .then(function (d) {
+        if (!d || !d.available || !(d.sims || []).length) {
+          panel.innerHTML = ''; _remoteAnalysesLoaded = false; return;
+        }
+        var enc = encodeURIComponent, esc = escapeHtmlForTests;
+        var rows = (d.sims || []).map(function (s) {
+          return (s.analyses || []).map(function (a) {
+            var links = (a.ptools || []).map(function (pp) {
+              var fname = pp.replace(/^ptools\//, '');
+              var url = '/api/remote-analysis-figure?simulation_id=' + enc(s.simulation_id)
+                + '&analysis=' + enc(a.name) + '&path=' + enc(pp);
+              return '<li><a href="' + url + '" download="' + esc(fname) + '">' + esc(fname) + '</a></li>';
+            }).join('');
+            var more = a.n_ptools > (a.ptools || []).length
+              ? ' <span class="muted">(showing ' + (a.ptools || []).length + ' of ' + a.n_ptools + ')</span>' : '';
+            return '<div style="margin:10px 0">'
+              + '<div style="font-weight:600">' + esc(s.sim_name) + '</div>'
+              + '<div class="muted" style="font-size:0.85em">' + esc(a.name) + ' — '
+              + a.n_ptools + ' ptools · ' + a.n_figures + ' figures' + more + '</div>'
+              + '<ul style="columns:3;-webkit-columns:3;font-size:0.82em;margin:4px 0">' + links + '</ul>'
+              + '</div>';
+          }).join('');
+        }).join('');
+        panel.innerHTML =
+          '<h4 style="margin-top:18px">Remote ptools / EcoCyc overlays (S3)</h4>'
+          + '<p class="muted">Rendered on GovCloud, read from S3 via the remote setting — showing '
+          + d.shown_sims + ' of ' + d.total_completed_remote_sims
+          + ' completed remote sims. Rendered figures are in the Visualizations tab.</p>'
+          + rows;
+      })
+      .catch(function () { panel.innerHTML = ''; _remoteAnalysesLoaded = false; });
+  }
+  window._loadRemoteAnalyses = _loadRemoteAnalyses;
 
   function _emitStatusBadge(status) {
     var e = escapeHtmlForTests;
@@ -680,6 +733,62 @@
   // a self-contained Altair/Plotly doc, so it renders in its own srcdoc iframe
   // (innerHTML would not execute the embedded vega/plotly <script> tags).
   var _nativeGalleryLoaded = false;
+  var _remoteFiguresLoaded = false;
+
+  // Visualizations tab: render the study's completed remote sims' rendered
+  // figures straight from their S3 result_uri (via /api/study-remote-figures +
+  // /api/remote-analysis-figure). This is the "accessible through the remote
+  // setting" path — figures live on S3, not landed locally. Volume-capped
+  // server-side; degrades silently to nothing when unavailable (no creds,
+  // local-only workspace, or a study with no remote figures).
+  function _loadRemoteFigures() {
+    var anchor = document.getElementById('native-gallery-panel');
+    if (!anchor || _remoteFiguresLoaded) return;
+    _remoteFiguresLoaded = true;
+    var slug = studyName();
+    var panel = document.getElementById('remote-figures-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'remote-figures-panel';
+      anchor.parentNode.insertBefore(panel, anchor.nextSibling);
+    }
+    fetch('/api/study-remote-figures?study=' + encodeURIComponent(slug) + '&limit=8')
+      .then(function (r) { return r.ok ? r.json() : { available: false }; })
+      .then(function (d) {
+        if (!d || !d.available || !(d.sims || []).length) {
+          panel.innerHTML = ''; _remoteFiguresLoaded = false; return;
+        }
+        var enc = encodeURIComponent;
+        var cards = [];
+        (d.sims || []).forEach(function (s) {
+          (s.analyses || []).forEach(function (a) {
+            (a.figures || []).forEach(function (fp) {
+              var url = '/api/remote-analysis-figure?simulation_id=' + enc(s.simulation_id)
+                + '&analysis=' + enc(a.name) + '&path=' + enc(fp);
+              cards.push('<div class="figure-card">'
+                + '<iframe src="' + url + '" loading="lazy" '
+                + 'class="figure-media-frame figure-media-frame--native"></iframe>'
+                + '<div class="figure-caption-row">'
+                + '<span class="figure-source-chip">remote · S3</span>'
+                + '<span class="figure-title">'
+                + escapeHtmlForTests(s.sim_name + ' · ' + fp.replace(/^viz\//, '')) + '</span>'
+                + '<span class="muted" style="margin-left:6px">(' + a.n_figures
+                + ' figs · ' + a.n_ptools + ' ptools)</span>'
+                + '</div></div>');
+            });
+          });
+        });
+        panel.innerHTML =
+          '<div class="figure-section-head" style="font-weight:600;margin:10px 0 6px">'
+          + 'Remote analysis figures (S3) — showing ' + d.shown_sims + ' of '
+          + d.total_completed_remote_sims + ' completed remote sims</div>'
+          + cards.join('');
+        _figuresSourceState.native = true;
+        _updateFiguresEmptyState();
+      })
+      .catch(function () { panel.innerHTML = ''; _remoteFiguresLoaded = false; });
+  }
+  window._loadRemoteFigures = _loadRemoteFigures;
   function _loadNativeGallery() {
     var host = document.getElementById('native-gallery-panel');
     if (!host || _nativeGalleryLoaded) return;
@@ -794,8 +903,12 @@
     fetch(url).then(function (r) { return r.text(); }).then(function (t) {
       var d = {}; try { d = t ? JSON.parse(t) : {}; } catch (e) {}
       if (!d.present) {
-        mount.innerHTML = '<p class="empty-message">' +
-          escapeHtmlForTests(d.reason || 'No run data to preview yet.') + '</p>';
+        // The preview reads the latest LOCAL run's store; a remote-only study
+        // has none, so don't leave a bare "no runs yet" over a list of remote
+        // runs — point at where the runs actually are.
+        mount.innerHTML = '<p class="empty-message">No local run preview yet — ' +
+          'if this study has remote runs, browse them in <strong>Raw simulation data</strong> ' +
+          'below, or see rendered figures in the <strong>Visualizations</strong> tab.</p>';
         return;
       }
       var stores = d.stores || [];
@@ -865,18 +978,66 @@
         bulkBtn.style.display = withDataCount ? '' : 'none';
         bulkBtn.textContent = '⬇ Download all raw data (' + withDataCount + ')';
       }
-      mount.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88em">' +
-        rows.map(function (row) {
-          var runId = row.run_id || '', hasData = !!(row.store_path || row.db_path);
-          var label = row.sim_name || row.label || runId;
-          var loc = window.SimTable ? window.SimTable.location(row) : esc(row.store_path || row.db_path || '');
-          var dl = hasData
-            ? '<a class="action-btn" download href="' + (window.__BASE_PATH__ || "") + '/api/simulation-run-download?run_id=' + encodeURIComponent(runId) + '">⬇ Data</a>'
-            : '<span class="muted" style="font-size:0.82em">no store</span>';
-          return '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:5px 8px"><code style="font-size:0.85em">' + esc(label) + '</code></td>' +
-            '<td style="padding:5px 8px">' + loc + '</td>' +
-            '<td style="padding:5px 8px;text-align:right">' + dl + '</td></tr>';
-        }).join('') + '</table>';
+      // Navigate 100s of runs: fold by launch campaign (the leading simNNN — one
+      // fan-out per campaign), show status, and filter live. Turns a flat dump
+      // into a browsable index.
+      function _campaignOf(row) {
+        var n = String(row.sim_name || row.label || row.run_id || '');
+        var m = n.match(/^(sim\d+)/i);
+        return m ? m[1].toLowerCase() : 'other';
+      }
+      function _statusOf(row) { return String(row.status || '').toLowerCase() || 'unknown'; }
+      function _stColor(st) {
+        return st === 'completed' ? '#059669' : st === 'failed' ? '#dc2626'
+          : st === 'running' ? '#2563eb' : st === 'cancelled' ? '#b45309' : '#9ca3af';
+      }
+      var byStatus = {};
+      rows.forEach(function (r) { var s = _statusOf(r); byStatus[s] = (byStatus[s] || 0) + 1; });
+      var statusSummary = Object.keys(byStatus).sort().map(function (s) {
+        return '<span style="color:' + _stColor(s) + ';font-weight:600">' + byStatus[s] + '</span> ' + esc(s);
+      }).join(' · ');
+      var groups = {};
+      rows.forEach(function (r) { var c = _campaignOf(r); (groups[c] = groups[c] || []).push(r); });
+      function _rowHtml(row) {
+        var runId = row.run_id || '', hasData = !!(row.store_path || row.db_path);
+        var label = row.sim_name || row.label || runId;
+        var loc = window.SimTable ? window.SimTable.location(row) : esc(row.store_path || row.db_path || '');
+        var st = _statusOf(row);
+        var dl = hasData
+          ? '<a class="action-btn" download href="' + (window.__BASE_PATH__ || "") + '/api/simulation-run-download?run_id=' + encodeURIComponent(runId) + '">⬇ Data</a>'
+          : '<span class="muted" style="font-size:0.82em">no store</span>';
+        return '<tr class="rawrow" data-name="' + esc(label.toLowerCase()) + '" style="border-bottom:1px solid #f3f4f6">' +
+          '<td style="padding:5px 8px"><code style="font-size:0.85em">' + esc(label) + '</code></td>' +
+          '<td style="padding:5px 8px"><span style="color:' + _stColor(st) + ';font-size:0.8em;font-weight:600">' + esc(st) + '</span></td>' +
+          '<td style="padding:5px 8px">' + loc + '</td>' +
+          '<td style="padding:5px 8px;text-align:right">' + dl + '</td></tr>';
+      }
+      var groupsHtml = Object.keys(groups).sort().map(function (c) {
+        var g = groups[c];
+        var done = g.filter(function (r) { return _statusOf(r) === 'completed'; }).length;
+        return '<details class="rawgroup" open style="margin:6px 0">' +
+          '<summary style="cursor:pointer;font-weight:600;padding:4px 0">' + esc(c) +
+          ' <span class="muted" style="font-weight:400">(' + g.length + ' runs · ' + done + ' complete)</span></summary>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:0.88em">' + g.map(_rowHtml).join('') + '</table>' +
+          '</details>';
+      }).join('');
+      mount.innerHTML =
+        '<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;flex-wrap:wrap">' +
+        '<strong>' + rows.length + ' runs</strong><span class="muted" style="font-size:0.88em">' + statusSummary + '</span>' +
+        '<input id="rawdata-search" placeholder="filter runs…" ' +
+        'style="margin-left:auto;padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.85em">' +
+        '</div>' + groupsHtml;
+      var _search = document.getElementById('rawdata-search');
+      if (_search) _search.addEventListener('input', function () {
+        var q = this.value.toLowerCase();
+        mount.querySelectorAll('tr.rawrow').forEach(function (tr) {
+          tr.style.display = (!q || (tr.getAttribute('data-name') || '').indexOf(q) >= 0) ? '' : 'none';
+        });
+        mount.querySelectorAll('details.rawgroup').forEach(function (grp) {
+          var any = Array.prototype.slice.call(grp.querySelectorAll('tr.rawrow')).some(function (tr) { return tr.style.display !== 'none'; });
+          grp.style.display = any ? '' : 'none';
+        });
+      });
     }).catch(function () {
       mount.innerHTML = '<p class="empty-message">Could not load runs.</p>';
       if (bulkBtn) bulkBtn.style.display = 'none';
