@@ -9,6 +9,9 @@ description = "Web-based workbench for Vivarium / process-bigraph workspaces"
 authors = [{name = "Vivarium Collective", email = "team@vivarium-collective.org"}]
 requires-python = ">=3.11"
 dependencies = [
+    # boto3: the remote analysis figures read S3 directly (lib/remote_analysis_figures.py,
+    # #1072/#1078). Without it that path reports s3-unavailable in the image.
+    "boto3>=1.34",
     "jinja2",
     "pyyaml",
     "jsonschema[format-nongpl]>=4.21",
