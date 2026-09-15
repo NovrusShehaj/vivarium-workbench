@@ -20,6 +20,14 @@ name: Build and Push Image
 # confirmed-broken tag+Release from an automatic run; cutting a Release here is
 # documentation, and the image is published by this manual dispatch (or by
 # `deploy/build-and-push.sh`, the same command this workflow runs).
+#
+# Version provenance (#1114): a semver `version` input is gated -- it must be
+# dispatched from `main`, match `pyproject.toml` exactly, and have an existing
+# `v<version>` tag pointing at the exact checked-out commit, and the ghcr tag
+# must not already exist. `deploy/bump-and-release.sh` produces all of this
+# correctly in one command; a bare `version` input typed into the dispatch form
+# by hand will fail this gate unless it already satisfies it. An empty
+# `version` (short-sha build) is exempt -- it is self-describing already.
 on:
   workflow_dispatch:
     inputs:
@@ -50,6 +58,13 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Both required for the provenance gate below: fetch-depth:0 for the
+          # full commit history (v<version> may not be a recent commit), and
+          # fetch-tags explicitly since actions/checkout does not reliably
+          # fetch tags from fetch-depth alone.
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -61,6 +76,51 @@ jobs:
           username: ${{ github.actor }}
           # Reuse the org GHCR_PAT (as sms-api does); fall back to GITHUB_TOKEN.
           password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Enforce version provenance (#1114)
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          VERSION="${VERSION#v}"
+
+          if [[ -z "${VERSION}" ]]; then
+            echo "no version given -- short-sha build, self-describing, provenance rule does not apply"
+            exit 0
+          fi
+
+          if [[ ! "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "'${VERSION}' is not strict X.Y.Z semver -- omit version for a short-sha build, or use deploy/bump-and-release.sh" >&2
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "a semver version must be dispatched from main (this run's ref: ${GITHUB_REF}) -- deploy/bump-and-release.sh does this for you" >&2
+            exit 1
+          fi
+
+          PYPROJECT_VERSION="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/^version = "(.*)"$/\1/')"
+          if [[ "${PYPROJECT_VERSION}" != "${VERSION}" ]]; then
+            echo "pyproject.toml says ${PYPROJECT_VERSION}, dispatch asked for ${VERSION} -- these must match exactly" >&2
+            exit 1
+          fi
+
+          TAG_SHA="$(git rev-list -n1 "v${VERSION}" 2>/dev/null || true)"
+          if [[ -z "${TAG_SHA}" ]]; then
+            echo "tag v${VERSION} does not exist -- deploy/bump-and-release.sh creates it before dispatching" >&2
+            exit 1
+          fi
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [[ "${TAG_SHA}" != "${HEAD_SHA}" ]]; then
+            echo "tag v${VERSION} (${TAG_SHA}) does not point at the checked-out commit (${HEAD_SHA}) -- the tag and the build would be provably different things" >&2
+            exit 1
+          fi
+
+          if docker manifest inspect "ghcr.io/${{ github.repository_owner }}/vivarium-workbench:${VERSION}" >/dev/null 2>&1; then
+            echo "ghcr.io/${{ github.repository_owner }}/vivarium-workbench:${VERSION} already exists -- never silently overwrite a published image" >&2
+            exit 1
+          fi
+
+          echo "provenance OK: v${VERSION} == pyproject.toml == HEAD (${HEAD_SHA}), ghcr tag unused"
 
       - name: Build + push (linux/amd64)
         env:

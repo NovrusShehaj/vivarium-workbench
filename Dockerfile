@@ -161,6 +161,31 @@ print('workbench server env ok')"
 # on the container's ephemeral overlay fs, a DIFFERENT device from /workspace.
 ENV UV_LINK_MODE=hardlink
 
+# ─── image provenance (#1114) ────────────────────────────────────────────────
+# A published image otherwise carries no record of the commit it was built
+# from, and nothing enforces that its version tag means anything -- see #1114
+# for the real cost that created (9 of 80 published versions turned out to have
+# no recoverable commit at all).
+#
+# Deliberately placed HERE, after every expensive layer above (apt/uv sync/npm
+# build/sanity check): VERSION/VCS_REF/BUILD_DATE are unique per build, so
+# declaring them earlier would invalidate the dependency-install cache on every
+# single build for no benefit.
+ARG VERSION=dev
+ARG VCS_REF=unknown
+ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.title="vivarium-workbench" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.source="https://github.com/vivarium-collective/vivarium-workbench" \
+      org.opencontainers.image.created="${BUILD_DATE}"
+
+# Same three values, readable straight off a running pod with no registry
+# access -- the thing you actually want when identifying what's deployed:
+#   kubectl exec -n <ns> deploy/workbench -- cat /app/BUILD_INFO.json
+RUN printf '{"version":"%s","revision":"%s","created":"%s"}\n' \
+        "${VERSION}" "${VCS_REF}" "${BUILD_DATE}" > /app/BUILD_INFO.json
+
 # ─── serve ───────────────────────────────────────────────────────────────────
 # The workspace (workspace.yaml + studies/investigations/.git/runs.db AND its
 # own .venv) is mounted from the private EBS PVC at /workspace (see deploy/).

@@ -32,11 +32,24 @@ VERSION="${1:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD)}"
 ORG="${2:-vivarium-collective}"
 IMAGE="ghcr.io/${ORG}/vivarium-workbench:${VERSION}"
 
-# ${arr[@]+"${arr[@]}"} (not bare "${arr[@]}") so an empty BUILD_ARGS never
-# trips `set -u`'s unbound-variable check on bash < 4.4 (this Mac's stock
-# /bin/bash is 3.2.57). Since #932 removed WORKSPACE_IMAGE, BUILD_ARGS really
-# can be empty -- the guard stopped being theoretical.
-BUILD_ARGS=()
+# Image provenance (#1114): stamp the exact commit + build time into the image
+# itself (OCI labels + /app/BUILD_INFO.json), so a published tag is no longer
+# the only record of what it was built from. `-dirty` matters: a hand-build
+# from an uncommitted tree should say so in its own label, since that is
+# exactly how past unrecoverable images came to exist.
+VCS_REF="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+git -C "${ROOT_DIR}" diff --quiet HEAD || VCS_REF="${VCS_REF}-dirty"
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ${arr[@]+"${arr[@]}"} below (not bare "${arr[@]}") guards against `set -u`'s
+# unbound-variable check on bash < 4.4 (this Mac's stock /bin/bash is 3.2.57)
+# if BUILD_ARGS is ever empty again in the future -- kept defensive even though
+# the three provenance args below now always populate it.
+BUILD_ARGS=(
+  --build-arg "VERSION=${VERSION}"
+  --build-arg "VCS_REF=${VCS_REF}"
+  --build-arg "BUILD_DATE=${BUILD_DATE}"
+)
 if [[ -n "${PBG_PTOOLS_REF:-}" ]]; then
   BUILD_ARGS+=(--build-arg "PBG_PTOOLS_REF=${PBG_PTOOLS_REF}")
 fi
