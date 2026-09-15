@@ -39,6 +39,30 @@ deploy/build-and-push.sh [version] [org]
 Then pin that tag in sms-api's stanford overlay (`images:` → `newTag`) and deploy
 sms-api. (Requires `docker buildx` + a ghcr login.)
 
+Every image carries its own provenance: OCI labels (`docker inspect`/`crane
+config`) and `/app/BUILD_INFO.json` (`kubectl exec ... -- cat
+/app/BUILD_INFO.json`) both record the exact commit it was built from — see
+`Dockerfile`'s own "image provenance" section and #1114. A semver-shaped
+`version` (`X.Y.Z`) is refused outright unless the tree is clean, `main` is
+checked out, and `v<version>` already points at HEAD — i.e. unless it could
+only have come from `bump-and-release.sh` below. A non-semver `version` (the
+default short git sha, or any other ad-hoc tag) is unrestricted, same as
+always.
+
+### Cutting a real, semver-tagged release
+
+```bash
+deploy/bump-and-release.sh <version> [org]   # e.g. 0.3.86
+```
+Bumps `pyproject.toml`, commits, creates an annotated `v<version>` tag, pushes
+both, and dispatches this same build against `main` — refusing first unless the
+tree is clean, `main` is checked out and in sync with `origin/main`, `<version>`
+is a real semver increase over the current `pyproject.toml`, and neither the
+tag nor the ghcr image already exist. `build-and-push.yml`'s own CI gate
+enforces the same rules server-side for any semver `version` dispatched by
+hand — a bare short-sha dispatch (the default, `version` left blank) is
+unaffected.
+
 ## Deployment (lives in sms-api/kustomize)
 
 The workbench runs as a Deployment+Service in the sms-api EKS cluster, under the

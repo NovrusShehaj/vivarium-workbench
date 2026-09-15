@@ -32,11 +32,63 @@ VERSION="${1:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD)}"
 ORG="${2:-vivarium-collective}"
 IMAGE="ghcr.io/${ORG}/vivarium-workbench:${VERSION}"
 
-# ${arr[@]+"${arr[@]}"} (not bare "${arr[@]}") so an empty BUILD_ARGS never
-# trips `set -u`'s unbound-variable check on bash < 4.4 (this Mac's stock
-# /bin/bash is 3.2.57). Since #932 removed WORKSPACE_IMAGE, BUILD_ARGS really
-# can be empty -- the guard stopped being theoretical.
-BUILD_ARGS=()
+# Image provenance (#1114), part 2: a semver-shaped VERSION run from a laptop
+# is refused unless it could only have come from deploy/bump-and-release.sh --
+# clean tree, on main, a v<version> tag already pointing at HEAD, and the ghcr
+# tag not already published. This is what makes a hand-built semver image
+# actually IMPOSSIBLE rather than merely traceable via the -dirty label below:
+# the CI gate in build-and-push.yml only binds `gh workflow run`, not this
+# script run directly, and a bare-string VERSION run by hand from a laptop is
+# exactly how the 9 unrecoverable images in #1114 were published. A non-semver
+# VERSION (the short-sha default, or any other ad-hoc debug tag) is
+# unaffected -- it was always self-describing.
+STATUS_PORCELAIN="$(git -C "${ROOT_DIR}" status --porcelain)"
+if [[ "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+  fail() { echo "refusing: $*" >&2; exit 1; }
+  if [[ -n "${STATUS_PORCELAIN}" ]]; then
+    fail "'${VERSION}' is semver but the tree is not clean -- use deploy/bump-and-release.sh, or pass a non-semver tag for an ad-hoc build"
+  fi
+  if [[ "$(git -C "${ROOT_DIR}" rev-parse --abbrev-ref HEAD)" != "main" ]]; then
+    fail "'${VERSION}' is semver but HEAD is not on main -- use deploy/bump-and-release.sh, or pass a non-semver tag for an ad-hoc build"
+  fi
+  TAG_SHA="$(git -C "${ROOT_DIR}" rev-list -n1 "v${VERSION}" 2>/dev/null || true)"
+  if [[ -z "${TAG_SHA}" || "${TAG_SHA}" != "$(git -C "${ROOT_DIR}" rev-parse HEAD)" ]]; then
+    fail "'${VERSION}' is semver but tag v${VERSION} doesn't exist or doesn't point at HEAD -- use deploy/bump-and-release.sh, which creates it before building"
+  fi
+  # Distinguish "tag genuinely doesn't exist yet" (docker's own "manifest
+  # unknown") from any other failure (an expired ghcr login, a network blip) --
+  # an indeterminate failure must NOT be read as "safe to publish", or an
+  # auth problem would silently permit exactly the overwrite this exists to
+  # prevent.
+  MANIFEST_ERR="$(docker manifest inspect "ghcr.io/${ORG}/vivarium-workbench:${VERSION}" 2>&1 >/dev/null || true)"
+  if [[ -z "${MANIFEST_ERR}" ]]; then
+    fail "ghcr.io/${ORG}/vivarium-workbench:${VERSION} already exists -- never silently overwrite a published image"
+  elif [[ "${MANIFEST_ERR}" != *"manifest unknown"* && "${MANIFEST_ERR}" != *"not found"* ]]; then
+    fail "couldn't confirm ghcr.io/${ORG}/vivarium-workbench:${VERSION} doesn't already exist (docker manifest inspect: ${MANIFEST_ERR}) -- check \`docker login ghcr.io\` and retry rather than assume"
+  fi
+fi
+
+# Image provenance (#1114), part 1: stamp the exact commit + build time into the image
+# itself (OCI labels + /app/BUILD_INFO.json), so a published tag is no longer
+# the only record of what it was built from. `-dirty` matters: a hand-build
+# from an uncommitted tree should say so in its own label, since that is
+# exactly how past unrecoverable images came to exist. Reuses the same
+# `git status --porcelain` computed above (not `git diff --quiet HEAD`, which
+# returns clean with untracked files present -- confirmed, and would have kept
+# mislabeling exactly the kind of build this label exists to catch).
+VCS_REF="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+[[ -z "${STATUS_PORCELAIN}" ]] || VCS_REF="${VCS_REF}-dirty"
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ${arr[@]+"${arr[@]}"} below (not bare "${arr[@]}") guards against `set -u`'s
+# unbound-variable check on bash < 4.4 (this Mac's stock /bin/bash is 3.2.57)
+# if BUILD_ARGS is ever empty again in the future -- kept defensive even though
+# the three provenance args below now always populate it.
+BUILD_ARGS=(
+  --build-arg "VERSION=${VERSION}"
+  --build-arg "VCS_REF=${VCS_REF}"
+  --build-arg "BUILD_DATE=${BUILD_DATE}"
+)
 if [[ -n "${PBG_PTOOLS_REF:-}" ]]; then
   BUILD_ARGS+=(--build-arg "PBG_PTOOLS_REF=${PBG_PTOOLS_REF}")
 fi
