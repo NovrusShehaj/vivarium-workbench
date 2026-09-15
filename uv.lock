@@ -7467,6 +7467,7 @@ version = "0.3.46"
 source = { editable = "." }
 dependencies = [
     { name = "bigraph-schema" },
+    { name = "boto3" },
     { name = "fastapi" },
     { name = "investigation-contracts" },
     { name = "jinja2" },
@@ -7516,6 +7517,7 @@ viz = [
 [package.metadata]
 requires-dist = [
     { name = "bigraph-schema", specifier = ">=1.4.3" },
+    { name = "boto3", specifier = ">=1.34" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "imageio", marker = "extra == 'viz'" },
