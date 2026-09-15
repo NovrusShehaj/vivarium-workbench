@@ -42,7 +42,12 @@ sms-api. (Requires `docker buildx` + a ghcr login.)
 Every image carries its own provenance: OCI labels (`docker inspect`/`crane
 config`) and `/app/BUILD_INFO.json` (`kubectl exec ... -- cat
 /app/BUILD_INFO.json`) both record the exact commit it was built from — see
-`Dockerfile`'s own "image provenance" section and #1114.
+`Dockerfile`'s own "image provenance" section and #1114. A semver-shaped
+`version` (`X.Y.Z`) is refused outright unless the tree is clean, `main` is
+checked out, and `v<version>` already points at HEAD — i.e. unless it could
+only have come from `bump-and-release.sh` below. A non-semver `version` (the
+default short git sha, or any other ad-hoc tag) is unrestricted, same as
+always.
 
 ### Cutting a real, semver-tagged release
 

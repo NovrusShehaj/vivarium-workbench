@@ -32,7 +32,30 @@ VERSION="${1:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD)}"
 ORG="${2:-vivarium-collective}"
 IMAGE="ghcr.io/${ORG}/vivarium-workbench:${VERSION}"
 
-# Image provenance (#1114): stamp the exact commit + build time into the image
+# Image provenance (#1114), part 2: a semver-shaped VERSION run from a laptop
+# is refused unless it could only have come from deploy/bump-and-release.sh --
+# clean tree, on main, and a v<version> tag already pointing at HEAD. This is
+# what makes a hand-built semver image actually IMPOSSIBLE rather than merely
+# traceable via the -dirty label below: the CI gate in build-and-push.yml only
+# binds `gh workflow run`, not this script run directly, and a bare-string
+# VERSION run by hand from a laptop is exactly how the 9 unrecoverable images
+# in #1114 were published. A non-semver VERSION (the short-sha default, or any
+# other ad-hoc debug tag) is unaffected -- it was always self-describing.
+if [[ "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+  fail() { echo "refusing: $*" >&2; exit 1; }
+  if [[ -n "$(git -C "${ROOT_DIR}" status --porcelain)" ]]; then
+    fail "'${VERSION}' is semver but the tree is not clean -- use deploy/bump-and-release.sh, or pass a non-semver tag for an ad-hoc build"
+  fi
+  if [[ "$(git -C "${ROOT_DIR}" rev-parse --abbrev-ref HEAD)" != "main" ]]; then
+    fail "'${VERSION}' is semver but HEAD is not on main -- use deploy/bump-and-release.sh, or pass a non-semver tag for an ad-hoc build"
+  fi
+  TAG_SHA="$(git -C "${ROOT_DIR}" rev-list -n1 "v${VERSION}" 2>/dev/null || true)"
+  if [[ -z "${TAG_SHA}" || "${TAG_SHA}" != "$(git -C "${ROOT_DIR}" rev-parse HEAD)" ]]; then
+    fail "'${VERSION}' is semver but tag v${VERSION} doesn't exist or doesn't point at HEAD -- use deploy/bump-and-release.sh, which creates it before building"
+  fi
+fi
+
+# Image provenance (#1114), part 1: stamp the exact commit + build time into the image
 # itself (OCI labels + /app/BUILD_INFO.json), so a published tag is no longer
 # the only record of what it was built from. `-dirty` matters: a hand-build
 # from an uncommitted tree should say so in its own label, since that is
