@@ -2507,6 +2507,14 @@
   var CHAIN_PROGRESS_POLL_MS = 8000;
   var _chainProgressTimer = null;
 
+  // Task 4.1: set to the run_id/simulation_id of a Tests-tab-initiated
+  // baseline dispatch (runStudyTests' no_run branch) right after that
+  // dispatch resolves, so _pollChainProgress's terminal handler knows to
+  // reload the Tests tab once THAT SPECIFIC run finishes -- scoped by id
+  // (not a bare boolean) so an unrelated "Run current spec" / "Reproduce"
+  // click, or a later unrelated run reaching terminal, never triggers it.
+  var _gradeAfterRunId = null;
+
   function _chainProgressEl() {
     var el = document.getElementById('study-chain-progress');
     if (!el) {
@@ -2552,6 +2560,20 @@
         _renderChainProgress(d);
         if (!d.terminal && d.phase !== 'not_a_campaign' && d.phase !== 'not_found') {
           _chainProgressTimer = setTimeout(function () { _pollChainProgress(runId); }, CHAIN_PROGRESS_POLL_MS);
+          return;
+        }
+        // Polling has stopped (real completion, or nothing trackable e.g. a
+        // local-engine run with no AWS chain). Only a genuine terminal
+        // completion (d.terminal) of THIS SAME run (matched by id) warrants
+        // reloading the Tests tab -- a 'not_a_campaign'/'not_found' phase
+        // can fire immediately for a local dispatch, long before that run
+        // actually finishes, so it must clear the flag without triggering a
+        // premature reload; and a terminal event for some OTHER run (e.g. a
+        // plain "Run current spec" click while a graded run is still in
+        // flight, or vice versa) must never trigger this run's reload.
+        if (_gradeAfterRunId != null && String(_gradeAfterRunId) === String(runId)) {
+          _gradeAfterRunId = null;
+          if (d.terminal) _reloadStudyAndTests();
         }
       })
       .catch(function () {
@@ -3724,8 +3746,328 @@
       });
     }
 
-    host.innerHTML = '<div style="font-weight:600">' + passed + '/' + total + ' gates passed</div>';
+    var e = escapeHtmlForTests;
+    var html = '<div style="font-weight:600">' + passed + '/' + total + ' gates passed</div>';
+
+    // Task 4.2 (fixed): tie Tests to the Decision — a short line naming the
+    // pipeline_gate's proceed condition and the SAME 3-state gate status
+    // (pass/warn/fail) as the severity-gate badge in loadTestsTab, via the
+    // shared _gateStatusInfo — so this line can never contradict that badge
+    // (a `warn` study used to show green "gate passes" here while the badge
+    // showed amber "gate: warn"). Omitted when the study declares no
+    // pipeline_gate (older specs / studies with no downstream dependent).
+    var pg = spec && spec.pipeline_gate;
+    if (pg && pg.proceed_condition) {
+      var cond = String(pg.proceed_condition);
+      if (cond.length > 140) cond = cond.slice(0, 137) + '…';
+      var gateStatus = spec && spec.gate && spec.gate.status;
+      var gi = gateStatus ? _gateStatusInfo(gateStatus) : null;
+      html += '<div class="muted" style="margin-top:4px;font-size:0.85em">'
+        + 'Decision: proceed when <em>' + e(cond) + '</em> — '
+        + (gi
+            ? '<span style="color:' + gi[0] + ';font-weight:600">' + e(gi[2]) + '</span>'
+            : '<span class="muted">gate not yet evaluated</span>')
+        + '</div>';
+    }
+    host.innerHTML = html;
   }
+
+  // Gate status (spec.gate.status: pass/warn/fail) → [color, badge label,
+  // decision-line label] — the SINGLE source both the severity-gate badge
+  // (loadTestsTab) and the tab-header Decision line (_renderTestsGateSummary,
+  // above) read, so the two can never disagree about the same gate.
+  var _GATE_STATUS_GL = {
+    pass: ['#16a34a', '✓ gate: pass', 'gate passes'],
+    warn: ['#d97706', '≈ gate: warn', 'gate: warn — proceed with caution'],
+    fail: ['#dc2626', '✗ gate: fail', 'gate fails']
+  };
+  function _gateStatusInfo(status) {
+    return _GATE_STATUS_GL[status] || ['#64748b', 'gate: ' + status, 'gate: ' + status];
+  }
+
+  // Verdict-chip vocabulary for a test's graded axis (outcome.axis.verdict) —
+  // wording distinct from the report-card pill (_rcPill) since a test card
+  // reads as a sentence ("within tolerance") rather than a table cell, but
+  // reuses _RC_GL's colours so a test card and a report-card axis row stay
+  // visually consistent across the tab.
+  var _TEST_VERDICT_LABEL = {
+    within_tol: '✓ within tolerance',
+    drift: '≈ drift',
+    mismatch: '✗ mismatch',
+    ungraded: 'pending'
+  };
+
+  // PASS/FAIL/SKIP/PARTIAL pill colours — mirrors the server-rendered
+  // _pill_bg/_pill_fg/_pill_text mapping in study-detail.html (kept in sync
+  // by hand; both read the same closed result vocabulary).
+  var _TEST_RESULT_PILL = {
+    PASS: ['#d1fae5', '#065f46', '✓ PASS'],
+    FAIL: ['#fee2e2', '#991b1b', '✗ FAIL'],
+    SKIP: ['#fef3c7', '#92400e', '⏭ SKIP'],
+    PARTIAL: ['#fde68a', '#92400e', '◐ PARTIAL']
+  };
+
+  // Classification badge tint — mirrors the four-way border colour the
+  // server template already uses for the <li> left border (primary/
+  // supporting/diagnostic/regression), plus "secondary" (the DATA CONTRACT's
+  // spelling for this task) mapped onto the same blue as "supporting".
+  var _CLASS_BADGE = {
+    primary: ['#d1fae5', '#065f46'],
+    secondary: ['#dbeafe', '#1e3a8a'],
+    supporting: ['#dbeafe', '#1e3a8a'],
+    diagnostic: ['#fef3c7', '#92400e'],
+    regression: ['#f1f5f9', '#475569']
+  };
+
+  // Format a number for display: integers print bare, everything else is
+  // rounded to 4 significant figures with trailing zeros trimmed. Pure
+  // display helper — never used for grading.
+  function _fmtNum(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return String(n);
+    if (n % 1 === 0) return String(n);
+    var s = n.toPrecision(4);
+    if (s.indexOf('e') === -1 && s.indexOf('.') !== -1) {
+      s = s.replace(/0+$/, '').replace(/\.$/, '');
+    }
+    return s;
+  }
+
+  // Render a study.yaml `pass_if` block as a human sentence fragment
+  // ("expected within [0.7, 1.0]", "expected ≤ 10", "expected ≈ 5 (±10%)"…).
+  // Covers the closed op vocabulary study_evaluator._expected_from_pass_if
+  // grades (range/band, comparators + synonyms, ==/tolerance, predicate) —
+  // mirrored here for display only; grading itself stays server-side.
+  function _humanPassIf(passIf) {
+    if (!passIf || typeof passIf !== 'object') return '';
+    var op = String(passIf.op || passIf.operator || '').trim();
+    var num = function (k) { var v = passIf[k]; return (typeof v === 'number') ? v : null; };
+    var lo = num('low') != null ? num('low') : num('lo');
+    var hi = num('high') != null ? num('high') : num('hi');
+    if (lo != null && hi != null) {
+      return 'expected within [' + _fmtNum(lo) + ', ' + _fmtNum(hi) + ']';
+    }
+    var target = num('value');
+    if (target == null) target = num('target');
+    if (target == null) target = num('threshold');
+    var tol = num('tolerance');
+    var tolf = num('tolerance_fraction');
+    if (['<=', 'max_le', 'at_most', 'less-than-or-equal'].indexOf(op) !== -1 && target != null) {
+      return 'expected ≤ ' + _fmtNum(target);
+    }
+    if (['<', 'max_lt', 'less-than'].indexOf(op) !== -1 && target != null) {
+      return 'expected < ' + _fmtNum(target);
+    }
+    if (['>=', 'min_ge', 'at_least', 'greater-than-or-equal', 'greater-than'].indexOf(op) !== -1 && target != null) {
+      return 'expected ≥ ' + _fmtNum(target);
+    }
+    if (['>', 'min_gt'].indexOf(op) !== -1 && target != null) {
+      return 'expected > ' + _fmtNum(target);
+    }
+    if (['==', 'eq', 'equals'].indexOf(op) !== -1 && target != null) {
+      if (tolf != null) return 'expected ≈ ' + _fmtNum(target) + ' (±' + (tolf * 100).toFixed(0) + '%)';
+      if (tol != null) return 'expected ≈ ' + _fmtNum(target) + ' (±' + _fmtNum(tol) + ')';
+      return 'expected = ' + _fmtNum(target);
+    }
+    if (passIf.statement) return 'expected ' + String(passIf.statement);
+    if (op) return 'expected ' + op + (target != null ? ' ' + _fmtNum(target) : '');
+    return '';
+  }
+
+  // Meter-normalized margin bar for a test report card: a track with the
+  // pass boundary fixed at 50% and a fill to axis.meter (already computed by
+  // test_contract.check() to be scale-normalized into [0,1], 0.5 = boundary
+  // — see viva_superpowers/test_contract.py _meter/check). Ported from the
+  // server-side reference renderer vivarium_workbench/lib/behavior_test_card.py
+  // _margin_bar_html so the client and the (behavior-tests card's) server
+  // rendering agree pixel-for-pixel on what the bar means. Colored by
+  // axis.verdict via _RC_GL (same palette used everywhere else on this tab).
+  // Returns '' when axis carries no numeric meter — never guesses from
+  // margin, which is a different, unnormalized quantity.
+  function _meterBar(axis) {
+    if (!axis || typeof axis.meter !== 'number' || !isFinite(axis.meter)) return '';
+    var pct = Math.max(0, Math.min(1, axis.meter)) * 100;
+    var color = (_RC_GL[axis.verdict] || _RC_GL.ungraded)[0];
+    var left, width;
+    if (pct >= 50) { left = 50; width = pct - 50; } else { left = pct; width = 50 - pct; }
+    width = Math.max(width, 1.5);
+    var marginLabel = '';
+    if (typeof axis.margin === 'number' && isFinite(axis.margin)) {
+      marginLabel = '<span style="color:#475569;font-size:0.82em;font-variant-numeric:tabular-nums">'
+        + 'Δ-to-pass ' + (axis.margin >= 0 ? '+' : '') + axis.margin.toPrecision(3)
+        + (axis.severity ? ' · ' + escapeHtmlForTests(String(axis.severity)) : '') + '</span>';
+    }
+    return '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">'
+      + '<div style="position:relative;height:9px;flex:1;max-width:220px;background:#eef2f7;'
+        + 'border-radius:5px" title="pass boundary at centre">'
+      + '<div style="position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:#94a3b8"></div>'
+      + '<div style="position:absolute;left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;'
+        + 'top:0;bottom:0;background:' + color + ';border-radius:5px;opacity:0.85"></div>'
+      + '</div>' + marginLabel + '</div>';
+  }
+
+  // Statuses that count as "completed" for canonical-run selection — mirrors
+  // viva_workspace.outcomes._COMPLETE exactly.
+  var _COMPLETE_RUN_STATUSES = { complete: 1, completed: 1, ran: 1, done: 1 };
+
+  // The canonical run: an explicit canonical:true run (last one wins), else
+  // the newest COMPLETED run by timestamp, else the last run, else null.
+  // Ported verbatim from viva_workspace.outcomes.canonical_run — the SAME
+  // selection spec.latest_outcomes (and so every test card's outcome) is
+  // built from server-side, so the footer run link always points at the run
+  // that actually produced the shown value (fix for a prior version that
+  // picked the array-LAST run merely containing this test's outcome, which
+  // can be a different run than the canonical one).
+  function _canonicalRunForLink() {
+    var runs = ((window._study && window._study.runs) || []).filter(function (r) {
+      return r && typeof r === 'object';
+    });
+    if (!runs.length) return null;
+    var flagged = runs.filter(function (r) { return r.canonical === true; });
+    if (flagged.length) return flagged[flagged.length - 1];
+    var completed = runs.filter(function (r) {
+      return !!_COMPLETE_RUN_STATUSES[String(r.status || '').toLowerCase()];
+    });
+    if (completed.length) {
+      return completed.reduce(function (best, r) {
+        return (String(r.timestamp || '') > String(best.timestamp || '')) ? r : best;
+      }, completed[0]);
+    }
+    return runs[runs.length - 1];
+  }
+
+  // Task 4.2: the redesigned per-test report card — the single, self-
+  // contained rendering of one declared behavior test over its already-
+  // graded outcome. Replaces the plain server-rendered body of each
+  // #bt-<name> <li> (report_card-kind rows are untouched — they keep their
+  // own inline _renderRichReportCard expander). Escapes all interpolated
+  // text via escapeHtmlForTests; reuses _marginBar (margin-bar styling),
+  // _changeBadge (since-last-run badge) and _RC_GL (verdict colours) rather
+  // than re-deriving any of that.
+  function _renderTestReportCard(test, outcome, diff) {
+    var e = escapeHtmlForTests;
+    test = test || {};
+    var name = test.name || '(unnamed)';
+    var cls = test.classification || 'unclassified';
+    var clsColor = _CLASS_BADGE[cls] || ['#f1f5f9', '#475569'];
+    var axis = (outcome && outcome.axis && typeof outcome.axis === 'object') ? outcome.axis : null;
+    var vKey = (axis && axis.verdict) || 'ungraded';
+    var vColor = (_RC_GL[vKey] || _RC_GL.ungraded)[0];
+    var vLabel = _TEST_VERDICT_LABEL[vKey] || _TEST_VERDICT_LABEL.ungraded;
+    var resPill = outcome && _TEST_RESULT_PILL[outcome.result];
+
+    // 1. Header — name · classification badge · verdict chip · result pill.
+    var header = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      + '<strong style="font-size:0.95em;color:#111827">' + e(name) + '</strong>'
+      + '<span style="font-size:0.7em;font-weight:600;padding:2px 9px;border-radius:9999px;'
+        + 'background:' + clsColor[0] + ';color:' + clsColor[1] + '">' + e(cls) + '</span>'
+      + '<span style="font-size:0.72em;font-family:monospace;padding:2px 10px;border-radius:9999px;'
+        + 'background:' + vColor + ';color:#fff">' + e(vLabel) + '</span>'
+      + (resPill
+          ? '<span style="font-size:0.72em;font-family:monospace;padding:2px 9px;border-radius:9999px;'
+            + 'background:' + resPill[0] + ';color:' + resPill[1] + '">' + e(resPill[2]) + '</span>'
+          : '')
+      + (test.requires_simulation
+          ? '<span class="muted" style="font-size:0.72em;margin-left:auto">requires: <code>'
+            + e(String(test.requires_simulation)) + '</code></span>'
+          : '')
+      + '</div>';
+
+    // 2. What it checks.
+    var whatItChecks = test.description
+      ? '<div style="margin-top:6px;font-size:0.92em;color:#334155">' + e(String(test.description)) + '</div>'
+      : '';
+
+    // 3. Band + measured.
+    var passIf = test.pass_if || test.expect || null;
+    var bandText = _humanPassIf(passIf);
+    var mv = outcome ? outcome.measured_value : null;
+    var mvText;
+    if (mv == null) mvText = '—  (not yet graded)';
+    else if (typeof mv === 'number') mvText = _fmtNum(mv);
+    else if (typeof mv === 'object') { try { mvText = JSON.stringify(mv); } catch (err) { mvText = String(mv); } }
+    else mvText = String(mv);
+    var bandLine = '<div style="margin-top:8px;font-size:0.85em;color:#475569">'
+      + (bandText ? e(bandText) : '<span class="muted">no pass_if band declared</span>')
+      + ' <span style="margin-left:10px"><strong>measured:</strong> ' + e(mvText) + '</span>'
+      + '</div>';
+
+    // 4. Margin bar — fixed: this MUST read axis.meter (check() already
+    // scale-normalizes it to [0,1], boundary at 0.5), NOT axis.margin (a
+    // raw, unnormalized signed value in the test's own physical units —
+    // clamping that straight to [-1,1] saturates or vanishes the bar for
+    // most real tests). _marginBar(axis) reads .margin and is the wrong
+    // helper here; _meterBar(axis) below ports the correct reference
+    // renderer (vivarium_workbench/lib/behavior_test_card.py's
+    // _margin_bar_html) to JS. Omits gracefully when axis.meter is absent.
+    var marginBarHtml = _meterBar(axis);
+
+    // 5. Evidence — basis + cites/calibration_anchor (checked on pass_if
+    // first per the DATA CONTRACT, falling back to the older top-level
+    // b.cites/b.calibration_anchor spelling for older specs).
+    var prov = (passIf && passIf.provenance) || {};
+    var cites = (passIf && passIf.cites) || test.cites || [];
+    var anchor = (passIf && passIf.calibration_anchor) || test.calibration_anchor || null;
+    var evidenceBits = [];
+    if (prov.note) evidenceBits.push('<span class="muted">basis:</span> ' + e(String(prov.note)));
+    if (Array.isArray(cites) && cites.length) {
+      evidenceBits.push('<span class="muted">cites:</span> ' + e(cites.join('; ')));
+    }
+    if (anchor) {
+      var anchorText = (typeof anchor === 'string') ? anchor : JSON.stringify(anchor);
+      evidenceBits.push('<span class="muted">calibration anchor:</span> ' + e(anchorText));
+    }
+    var evidence = evidenceBits.length
+      ? '<div style="margin-top:8px;font-size:0.82em;color:#475569;padding:6px 8px;'
+        + 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px">'
+        + evidenceBits.join('<br>') + '</div>'
+      : '';
+
+    // 6. Since last run.
+    var diffLine = '';
+    if (diff && diff.change) {
+      var badge = _changeBadge(diff.change);
+      if (badge) {
+        var mdText = (typeof diff.margin_delta === 'number' && diff.margin_delta !== 0)
+          ? ' <span class="muted" style="font-size:0.78em">(Δmargin '
+            + (diff.margin_delta > 0 ? '+' : '') + diff.margin_delta.toFixed(2) + ')</span>'
+          : '';
+        diffLine = '<div style="margin-top:8px;font-size:0.82em">'
+          + '<span class="muted">since last run:</span> ' + badge + mdText + '</div>';
+      }
+    }
+
+    // 7. Footer — run link + collapsed Assertion. Fixed: attribute the link
+    // to the CANONICAL run (the run latest_outcomes/this outcome actually
+    // came from), not merely the array-last run that happens to mention this
+    // test name — those can differ, which used to point the link at a run
+    // that didn't produce the value shown above it. Only shown when there is
+    // an outcome to attribute (a pending/absent test has no run to link).
+    var runIdent = null;
+    if (outcome) {
+      var _canonRun = _canonicalRunForLink();
+      runIdent = _canonRun ? (_canonRun.run_id || _canonRun.name) : null;
+    }
+    var runLink = runIdent
+      ? '<a href="#run-' + e(runIdent) + '" onclick="_setStudyTab(\'simulate\')" style="color:#3b82f6">'
+        + 'from run ' + e(runIdent) + ' ↗</a>'
+      : '<span class="muted">no run recorded yet</span>';
+    var assertionRaw;
+    try {
+      assertionRaw = JSON.stringify({ measure: test.measure || null, pass_if: passIf || test.expect || null }, null, 2);
+    } catch (err) {
+      assertionRaw = String(err);
+    }
+    var footer = '<div style="margin-top:8px;font-size:0.82em">' + runLink + '</div>'
+      + '<details style="margin-top:6px;font-size:0.82em">'
+      + '<summary class="muted" style="cursor:pointer">Assertion</summary>'
+      + '<pre style="background:#fff;padding:8px;margin:4px 0 0 0;border:1px solid #e2e8f0;'
+        + 'border-radius:3px;overflow-x:auto">' + e(assertionRaw) + '</pre></details>';
+
+    return '<div class="test-report-card" data-verdict="' + e(vKey) + '">'
+      + header + whatItChecks + bandLine + marginBarHtml + evidence + diffLine + footer
+      + '</div>';
+  }
+  window._renderTestReportCard = _renderTestReportCard;
 
   function loadTestsTab(spec) {
     var cfg = (spec && spec.tests) || {};
@@ -3783,10 +4125,7 @@
     // the per-test-outcome rollup above.
     var _gate = spec && spec.gate;
     if (_gate && _gate.status) {
-      var _gc = {pass: ['#16a34a', '✓ gate: pass'],
-                 warn: ['#d97706', '≈ gate: warn'],
-                 fail: ['#dc2626', '✗ gate: fail']}[_gate.status] ||
-                ['#64748b', 'gate: ' + _gate.status];
+      var _gc = _gateStatusInfo(_gate.status);
       var _nhard = (_gate.gated_by || []).length;
       var _glabel = _gc[1] + (_gate.status === 'fail' && _nhard
         ? ' (' + _nhard + ' hard axis' + (_nhard === 1 ? '' : 'es') + ')' : '');
@@ -3797,7 +4136,61 @@
         'color:#fff;background:' + _gc[0] + '">' + _glabel + '</span>');
     }
 
+    // --- Task 4.2: per-test report cards ---------------------------------
+    // Enrich each server-rendered #bt-<name> item (behavioral-kind rows only
+    // — report_card-kind rows keep their own inline _renderRichReportCard
+    // expander, untouched) into the full report-card layout, single-sourced
+    // from spec.latest_outcomes (the SAME canonical-run outcome the gate
+    // summary/rollup above reads, so a card can't disagree with the strip)
+    // and spec.test_diff.per — matched via the SAME (card, group, id) triple
+    // _axisChange already uses for report-card axis rows (test_diff.per[]
+    // entries are keyed on that triple, per viva_superpowers/test_diff.py;
+    // matching by id alone risks attaching a same-named axis from an
+    // unrelated card). A plain behavioral test carries no card/group of its
+    // own, so it has no valid triple to match — the badge is then gracefully
+    // omitted (see _diffForBehaviorTest) rather than guessed. Runs BEFORE the
+    // legacy per-test computed-outcomes block below so that block's
+    // insertAdjacentHTML('beforeend', ...) still lands after this card,
+    // inside the same <li> — nothing is duplicated for studies that don't
+    // populate the separate (parallel) computed_outcomes surface.
+    var _btAll = (spec && (spec.behavior_tests || spec.expected_behavior)) || [];
+    if (_btAll.length) {
+      var _latestOutcomes = (spec && spec.latest_outcomes) || {};
+      var _diffForBehaviorTest = function (t) {
+        if (!t || !t.card || !t.group) return null;
+        return _axisChange(t.card, t.group, t.name);
+      };
+      _btAll.forEach(function (t) {
+        if (!t || !t.name) return;
+        if ((t.kind || 'behavioral') === 'report_card') return;
+        var li = document.getElementById('bt-' + t.name);
+        if (!li) return;
+        li.innerHTML = _renderTestReportCard(t, _latestOutcomes[t.name] || null, _diffForBehaviorTest(t));
+      });
+      // Grouped: primary tests first, then secondary, then everything else —
+      // a DOM reorder of the existing <li> nodes (moves, doesn't recreate),
+      // so #bt-<name> anchors and any bound listeners survive untouched.
+      var _testsList = document.getElementById('tests-list');
+      if (_testsList && _testsList.classList.contains('expected-behavior-list')) {
+        var _clsOrder = { primary: 0, secondary: 1 };
+        Array.prototype.slice.call(_testsList.children).sort(function (a, b) {
+          var ca = a.getAttribute('data-classification') || 'unclassified';
+          var cb = b.getAttribute('data-classification') || 'unclassified';
+          var ra = _clsOrder.hasOwnProperty(ca) ? _clsOrder[ca] : 2;
+          var rb = _clsOrder.hasOwnProperty(cb) ? _clsOrder[cb] : 2;
+          return ra - rb;
+        }).forEach(function (li) { _testsList.appendChild(li); });
+      }
+    }
+
     // --- Per-test code-computed outcomes (spine B3) ---------------------
+    // NOTE (Task 4.2): this is a SEPARATE, parallel data surface
+    // (runs[].computed_outcomes — the code-vs-authored reconciliation
+    // ledger) from the graded outcomes/axis the report card above renders.
+    // Kept as-is (not retired) because tests/test_spine_present_b_outcomes.py
+    // asserts _renderComputedOutcomeRow and its markup are still present;
+    // it only appends anything when a run actually carries computed_outcomes,
+    // which the report card above does not otherwise surface.
     // Render each test's LATEST code-computed outcome (measured_value /
     // result / operator / evaluated_by) connected to the run that produced
     // it and the pass_if band it was judged against — with the code-computed
@@ -3998,12 +4391,31 @@
     }
   }
 
+  // Task 4.1: re-fetch the study spec and re-render the Tests tab from it --
+  // reused after a study-grade success AND after a Tests-tab-initiated
+  // baseline run completes (see _gradeAfterRunId / _pollChainProgress above).
+  // Reuses window.DataSource.loadStudy (the page's existing study-reload
+  // path, also used by _dispatchRemotePinned) rather than a bespoke fetch.
+  function _reloadStudyAndTests() {
+    var slug = studyName();
+    var reload = (window.DataSource && window.DataSource.loadStudy)
+      ? window.DataSource.loadStudy(slug)
+      : fetch('/api/study/' + encodeURIComponent(slug)).then(function(r) { return r.json(); });
+    return reload.then(function(spec) {
+      window._study = spec;
+      _loadTestsPanel(spec);   // _renderTestsGateSummary + report cards + loadTestsTab
+    }).catch(function(err) {
+      alert('Reload failed: ' + (err && err.message ? err.message : err));
+    });
+  }
+  window._reloadStudyAndTests = _reloadStudyAndTests;
+
   function runStudyTests() {
     var btn = document.getElementById('run-tests-btn');
     if (!btn) return;
     btn.disabled = true;
-    btn.textContent = 'Running…';
-    fetch('/api/study-tests-run', {
+    btn.textContent = 'Grading…';
+    fetch('/api/study-grade', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({study: studyName()}),
@@ -4011,13 +4423,49 @@
       return resp.json().then(function(d) { return {status: resp.status, body: d}; });
     }).then(function(r) {
       if (r.status !== 200) {
-        alert('Test run failed: ' + (r.body && r.body.error || r.status));
+        alert('Grade failed: ' + (r.body && r.body.error || r.status));
         return;
       }
-      renderTestResults(r.body);
+      if (r.body.graded) { _reloadStudyAndTests(); return; }
+      // graded:false carries one of SIX reasons: no_run, run_not_found,
+      // no_tests, store_unresolved, evaluator_unavailable:…, runner_error:….
+      // Only no_run means "nothing to grade yet -- simulate". Every other
+      // reason means a run exists but can't be graded for some OTHER cause
+      // that a new simulation can't fix (missing tests, unresolved store,
+      // evaluator down, etc.) -- dispatching a costly baseline there would
+      // silently paper over the real problem, so just surface it.
+      if (r.body.reason !== 'no_run') {
+        alert('Cannot grade: ' + (r.body.reason || 'unknown') + '. No usable run to grade.');
+        return;
+      }
+      // No run yet -- run the study's CURRENT baseline spec (its flush
+      // auto-evaluates), then reload once that specific run reaches a real
+      // terminal state. Returned (not fire-and-forget) so the outer chain's
+      // finally-handler below waits for the dispatch itself to settle --
+      // confirm dialog included -- before re-enabling the button; otherwise
+      // a second click during "Simulating…" could launch a duplicate run.
+      btn.textContent = 'Simulating…';
+      return _dispatchCurrentSpecBaseline().then(function(res) {
+        if (res && res.body && res.body.cancelled) return;
+        if (res && (res.status === 200 || res.status === 202)) {
+          var runId = res.body && (res.body.run_id || res.body.simulation_id);
+          if (runId) {
+            if (typeof _loadStudySims === 'function') _loadStudySims(true);
+            _gradeAfterRunId = runId;   // scope the reload to THIS run only
+            _pollChainProgress(runId);
+          }
+        } else {
+          alert('Run failed: ' + (res && res.body && res.body.error || (res && res.status)));
+        }
+      }).catch(function(err) {
+        alert('Run failed: network error — ' + err);
+      });
     }).catch(function(err) {
-      alert('Test run error: ' + err);
+      alert('Grade error: ' + err);
     }).then(function() {
+      // Reached only once grading -- and, when it happened, the dispatch
+      // itself -- has settled (success, cancel, or error alike): safe to
+      // hand control back to the user either way.
       btn.disabled = false;
       btn.textContent = 'Run tests';
     });
@@ -4025,7 +4473,14 @@
 
   var runBtn = document.getElementById('run-tests-btn');
   if (runBtn) {
-    runBtn.addEventListener('click', runStudyTests);
+    // Snapshot/read-only bundle: no live backend to grade or dispatch a run
+    // against -- hide it, mirroring how #study-reproduce / #study-run-current-spec
+    // are hidden for the same reason (study-detail.html's snapshot-mode block).
+    if (_isSnapshot()) {
+      runBtn.style.display = 'none';
+    } else {
+      runBtn.addEventListener('click', runStudyTests);
+    }
   }
 
   // ── Stage-3c: Tracked Feedback panel ─────────────────────────────────────
