@@ -211,3 +211,140 @@ def test_grade_study_targets_canonical_run_on_divergence(ws_with_canonical_diver
     assert status == 200
     assert body["graded"] is True
     assert body["run_id"] == "run-001"
+
+
+# ---------------------------------------------------------------------------
+# Store-optional grading: a run-less (params-only) study whose tests are all
+# store-less kinds (config_value / derived_scalar) grades without a run store.
+# ---------------------------------------------------------------------------
+
+_STUDY_YAML_STORELESS_NO_RUN = """\
+name: params-study
+conditions:
+  baseline:
+    params:
+      my_param: 5.0
+behavior_tests:
+- name: param_in_range
+  measure:
+    kind: config_value
+    field: my_param
+  pass_if:
+    op: ">="
+    value: 4.0
+"""
+
+
+@pytest.fixture
+def ws_storeless_no_run(tmp_path) -> Path:
+    """Run-less study whose only test is a store-less config_value check."""
+    study_dir = tmp_path / "studies" / "params-study"
+    study_dir.mkdir(parents=True)
+    (study_dir / "study.yaml").write_text(
+        _STUDY_YAML_STORELESS_NO_RUN, encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_grade_study_storeless_synthesizes_eval_run(ws_storeless_no_run):
+    """A params-only study with no run grades store-less via a synthesized
+    evaluation-only run — config_value reads the declared param, no store."""
+    import yaml as _yaml
+
+    body, status = study_grade.grade_study(ws_storeless_no_run, "params-study")
+    assert status == 200
+    assert body["graded"] is True
+    assert body["outcome_rollup"]["PASS"] == 1
+    assert body["outcome_rollup"]["total"] == 1
+    assert body["run_id"] == "params-study-evaluation"
+
+    # The evaluation-only run was persisted with its outcomes.
+    spec = _yaml.safe_load(
+        (ws_storeless_no_run / "studies" / "params-study" / "study.yaml").read_text()
+    )
+    runs = spec["runs"]
+    assert len(runs) == 1
+    ev = runs[0]
+    assert ev["run_id"] == "params-study-evaluation"
+    assert ev["evaluation_only"] is True
+    assert ev["outcomes"]["param_in_range"]["result"] == "PASS"
+
+
+def test_grade_study_storeless_is_idempotent(ws_storeless_no_run):
+    """Grading twice reuses the one evaluation-only run — no duplicate rows."""
+    import yaml as _yaml
+
+    study_grade.grade_study(ws_storeless_no_run, "params-study")
+    study_grade.grade_study(ws_storeless_no_run, "params-study")
+    spec = _yaml.safe_load(
+        (ws_storeless_no_run / "studies" / "params-study" / "study.yaml").read_text()
+    )
+    assert len(spec["runs"]) == 1
+
+
+_STUDY_YAML_DERIVED_NO_RUN = """\
+name: derived-study
+behavior_tests:
+- name: growth_ok
+  measure:
+    kind: derived_scalar
+    field: my_derived
+  pass_if:
+    op: range
+    low: 0.8
+    high: 0.9
+"""
+
+
+def test_grade_study_no_run_tests_is_config_dict(tmp_path):
+    """A run-less study whose ``tests:`` is the pytest-config DICT (not a
+    behavior-test list) must not be treated as store-less-gradeable — it
+    returns no_run without iterating the dict's keys (regression: that raised
+    500 in the live endpoint)."""
+    study_dir = tmp_path / "studies" / "cfg-study"
+    study_dir.mkdir(parents=True)
+    study_dir.joinpath("study.yaml").write_text(
+        "name: cfg-study\n"
+        "baseline: []\n"
+        "tests:\n"
+        "  auto_discover: true\n"
+        "  data_source: latest_run\n",
+        encoding="utf-8",
+    )
+    body, status = study_grade.grade_study(tmp_path, "cfg-study")
+    assert status == 200
+    assert body == {"graded": False, "reason": "no_run"}
+    # No evaluation run was synthesized.
+    import yaml as _yaml
+    spec = _yaml.safe_load((study_dir / "study.yaml").read_text())
+    assert not spec.get("runs")
+
+
+def test_grade_study_storeless_derived_scalar_with_registered_computer(tmp_path, monkeypatch):
+    """A run-less derived_scalar study grades store-less when the workspace
+    registers a derived-scalar computer — the field resolves through the #298
+    registry (via ObservableNotFound with reader=None), not the run store. This
+    is the ParCa-study path: derived_scalar IS store-less-gradeable."""
+    import yaml as _yaml
+    import viva_superpowers.study_evaluator as se
+
+    study_dir = tmp_path / "studies" / "derived-study"
+    study_dir.mkdir(parents=True)
+    (study_dir / "study.yaml").write_text(_STUDY_YAML_DERIVED_NO_RUN, encoding="utf-8")
+
+    # Register a workspace derived-scalar computer for the declared field.
+    monkeypatch.setattr(
+        se, "load_workspace_derived_scalars",
+        lambda ws_root: {"my_derived": lambda reader, test, ws: 0.85},
+    )
+
+    body, status = study_grade.grade_study(tmp_path, "derived-study")
+    assert status == 200
+    assert body["graded"] is True
+    assert body["outcome_rollup"]["PASS"] == 1
+    assert body["run_id"] == "derived-study-evaluation"
+
+    spec = _yaml.safe_load((study_dir / "study.yaml").read_text())
+    oc = spec["runs"][-1]["outcomes"]["growth_ok"]
+    assert oc["result"] == "PASS"
+    assert oc["measured_value"] == 0.85
