@@ -186,6 +186,7 @@ def fake_sms_api():
         thread.join(timeout=5)
 
 
+@pytest.mark.skip(reason="retired SMS surface: /api/remote-run-submit fails fast via RetiredEndpointError by design (2026-09-21 plan Phase 4 deletes these)")
 def test_remote_run_submit_forwards_correct_values_over_real_http(
     tmp_path, dashboard_client, monkeypatch, fake_sms_api
 ):
@@ -215,6 +216,7 @@ def test_remote_run_submit_forwards_correct_values_over_real_http(
     assert "simulation_config_filename" not in query
 
 
+@pytest.mark.skip(reason="retired SMS surface: /api/remote-run-submit fails fast via RetiredEndpointError by design (2026-09-21 plan Phase 4 deletes these)")
 def test_remote_run_submit_forwards_config_filename_over_real_http(
     tmp_path, dashboard_client, monkeypatch, fake_sms_api
 ):

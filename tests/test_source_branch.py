@@ -89,14 +89,15 @@ def test_branch_push_non_git_409(tmp_path, monkeypatch):
 
 
 def test_register_simulator_posts_upload(monkeypatch):
+    """The build-remote flow backed onto the retired simulator-build registry
+    (viva-api core separation). The shim's typed error surfaces through the
+    view's existing SmsApiError handling as an honest 502 naming the
+    retirement — the interim contract until Phase 4 deletes the route and
+    its branch-source.js caller."""
     from vivarium_workbench.lib import sms_api_client as sac
-    seen = {}
-    monkeypatch.setattr(sac.SmsApiClient, "_post",
-                        lambda self, path, params=None, json_body=None: seen.update(path=path, body=json_body) or {"database_id": 99})
-    out = sac.SmsApiClient("http://x").register_simulator("https://github.com/o/r", "main", "abc1234")
-    assert out["database_id"] == 99
-    assert seen["path"] == "/core/v1/simulator/upload"
-    assert seen["body"]["git_branch"] == "main" and seen["body"]["git_commit_hash"] == "abc1234"
+    obj, code = _sbv.build_remote({"repo": "https://github.com/o/r", "branch": "main"})
+    assert code == 502
+    assert "retired SMS endpoint" in obj["error"]
 
 
 def test_build_remote_endpoint(monkeypatch):

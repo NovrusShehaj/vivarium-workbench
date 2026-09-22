@@ -6,6 +6,8 @@ through the study-sync endpoint (behavioral).
 """
 from pathlib import Path
 
+import pytest
+
 from viva_superpowers import study_io, run_registry
 from vivarium_workbench.lib import lifecycle_mutations, study_runs
 
@@ -44,7 +46,23 @@ def _nested_ws(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 def test_study_sync_endpoint_rolls_up_investigation_acceptance(tmp_path: Path):
     """Syncing a member study writes the parent investigation's
-    executive.computed_acceptance on disk."""
+    executive.computed_acceptance on disk — provided the installed
+    viva_superpowers implements study_outcomes.sync_investigation.
+
+    The SP1 plan pinned in viva-superpowers 9e4e740f (docs/plans/2026-06-11-sp1-
+    downstream-persistence-plan.md) still has its implementation boxes UNCHECKED:
+    sync_investigation was never shipped upstream, so the workbench's
+    _sync_parent_investigation hook (correctly) no-ops. The wiring contract is
+    pinned by test_hook_wired_at_all_study_sync_sites below; this behavioral
+    test fires only once the dependency ships the function.
+    """
+    from viva_superpowers import study_outcomes
+    if not hasattr(study_outcomes, "sync_investigation"):
+        pytest.skip(
+            "viva_superpowers.study_outcomes.sync_investigation not implemented "
+            "upstream (SP1 plan unchecked at the pinned rev) — hook no-ops by design"
+        )
+
     ws, inv_dir, _study_dir = _nested_ws(tmp_path)
 
     resp, code = lifecycle_mutations.study_sync_runs(ws, {"study": "s1"})

@@ -35,7 +35,7 @@ def _patch_ok(monkeypatch, payload):
     def fake_urlopen(req, timeout=None):
         return _Resp(payload)
 
-    monkeypatch.setattr("vivarium_workbench.lib.sms_api_client.urlopen", fake_urlopen)
+    monkeypatch.setattr("vivarium_workbench.lib.remote_api_client.urlopen", fake_urlopen)
 
 
 def _patch_unreachable(monkeypatch, sentinel=None):
@@ -44,7 +44,7 @@ def _patch_unreachable(monkeypatch, sentinel=None):
             sentinel.append(1)
         raise URLError("connection refused")
 
-    monkeypatch.setattr("vivarium_workbench.lib.sms_api_client.urlopen", fake_urlopen)
+    monkeypatch.setattr("vivarium_workbench.lib.remote_api_client.urlopen", fake_urlopen)
 
 
 def _fresh(name):
@@ -79,7 +79,7 @@ def test_get_on_down_link_is_fast_and_no_urlopen(monkeypatch):
     client = SmsApiClient(base)
     t0 = time.monotonic()
     with pytest.raises(CircuitOpen):
-        client.list_simulators()
+        client.capabilities()
     assert time.monotonic() - t0 < 0.5  # microseconds, not the timeout budget
     assert called == []  # urlopen never reached
 
@@ -87,9 +87,9 @@ def test_get_on_down_link_is_fast_and_no_urlopen(monkeypatch):
 def test_force_bypasses_open_breaker(monkeypatch):
     base = "http://test-force:8080"
     link(base).mark_down("wedged")
-    _patch_ok(monkeypatch, {"versions": []})
+    _patch_ok(monkeypatch, {"capabilities": []})
     client = SmsApiClient(base, force_link=True)
-    assert client.list_simulators() == {"versions": []}  # not blocked
+    assert client.capabilities() == {"capabilities": []}  # not blocked
     assert link(base).state == STATE_UP  # and the success marked it back up
 
 
@@ -127,7 +127,7 @@ def test_not_due_does_not_probe():
 def test_successful_get_marks_up(monkeypatch):
     base = "http://test-markup:8080"
     _patch_ok(monkeypatch, {"versions": [1]})
-    SmsApiClient(base).list_simulators()
+    SmsApiClient(base).capabilities()
     assert link(base).state == STATE_UP
     assert link(base).last_ok is not None
 
@@ -136,7 +136,7 @@ def test_connection_failure_marks_down(monkeypatch):
     base = "http://test-markdown:8080"
     _patch_unreachable(monkeypatch)
     with pytest.raises(SmsApiError):
-        SmsApiClient(base, max_retries=1).list_simulators()
+        SmsApiClient(base, max_retries=1).capabilities()
     assert link(base).state == STATE_DOWN
 
 
@@ -148,9 +148,9 @@ def test_http_error_does_not_trip_breaker(monkeypatch):
 
         raise HTTPError(req.full_url, 404, "not found", {}, io.BytesIO(b"nope"))
 
-    monkeypatch.setattr("vivarium_workbench.lib.sms_api_client.urlopen", fake_urlopen)
+    monkeypatch.setattr("vivarium_workbench.lib.remote_api_client.urlopen", fake_urlopen)
     with pytest.raises(SmsApiError):
-        SmsApiClient(base, max_retries=1).list_simulators()
+        SmsApiClient(base, max_retries=1).capabilities()
     # 404 means the server answered — the tunnel is alive, breaker untouched.
     assert link(base).state != STATE_DOWN
 
@@ -176,7 +176,7 @@ def test_probe_http_error_is_reachable(monkeypatch):
 
         raise HTTPError(req.full_url, 501, "Error response", {}, io.BytesIO(b"nope"))
 
-    monkeypatch.setattr("vivarium_workbench.lib.sms_api_client.urlopen", fake_urlopen)
+    monkeypatch.setattr("vivarium_workbench.lib.remote_api_client.urlopen", fake_urlopen)
     assert lk.probe() is True
     assert lk.state == STATE_UP
 

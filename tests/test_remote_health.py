@@ -7,6 +7,7 @@ degrade cleanly (never raise) so a fresh operator/Chris always gets a clear sign
 import pytest
 
 from vivarium_workbench.lib import sms_api_client as sac
+from vivarium_workbench.lib import remote_api_client as rac
 from vivarium_workbench.lib import workspace_deps_views as wdv
 from vivarium_workbench.lib.sms_api_client import SmsApiError
 
@@ -86,12 +87,12 @@ class _Resp:
 
 
 def test_ping_parses_json_string_version(monkeypatch):
-    monkeypatch.setattr(sac, "urlopen", lambda req, timeout=None: _Resp(b'"0.9.27"'))
+    monkeypatch.setattr(rac, "urlopen", lambda req, timeout=None: _Resp(b'"0.9.27"'))
     assert sac.SmsApiClient("http://x").ping() == "0.9.27"
 
 
 def test_ping_parses_dict_version(monkeypatch):
-    monkeypatch.setattr(sac, "urlopen", lambda req, timeout=None: _Resp(b'{"version": "1.2.3"}'))
+    monkeypatch.setattr(rac, "urlopen", lambda req, timeout=None: _Resp(b'{"version": "1.2.3"}'))
     assert sac.SmsApiClient("http://x").ping() == "1.2.3"
 
 
@@ -101,6 +102,6 @@ def test_ping_raises_smsapierror_when_unreachable(monkeypatch):
     def _boom(req, timeout=None):
         raise URLError("connection refused")
 
-    monkeypatch.setattr(sac, "urlopen", _boom)
+    monkeypatch.setattr(rac, "urlopen", _boom)
     with pytest.raises(SmsApiError, match="unreachable"):
         sac.SmsApiClient("http://x").ping()

@@ -55,6 +55,7 @@ from vivarium_workbench.lib import job_status_views as _job_status_views
 from vivarium_workbench.lib import run_jobs as _run_jobs
 from vivarium_workbench.lib import remote_run_jobs as _remote_run_jobs
 from vivarium_workbench.lib import remote_run_views as _remote_run_views
+from vivarium_workbench.lib import smoldyn_run_views as _smoldyn_run_views
 from vivarium_workbench.lib import remote_analysis_figures as _remote_analysis_figures
 from vivarium_workbench.lib import auth_views as _auth_views
 from vivarium_workbench.lib import composite_run_views as _cr_views
@@ -6842,6 +6843,24 @@ def create_app() -> FastAPI:
         ws: Path = Depends(get_workspace),
     ) -> JSONResponse:
         body, status = _remote_run_views.remote_run_build_start(ws, req or {})
+        return JSONResponse(status_code=status, content=body)
+
+    # -- Remote Smoldyn backend (Phase 3 of the 2026-09-21 SMS-retirement
+    # plan): bounded synchronous runs on the viva-smoldyn service, called
+    # directly (no core proxy — that deviation was deliberately removed).
+    @app.post("/api/smoldyn-run", tags=["Runs"],
+              summary="Run a composite on the remote Smoldyn service (bounded, synchronous)")
+    def smoldyn_run(
+        req: Union[dict, None] = Body(default=None),
+        ws: Path = Depends(get_workspace),
+    ) -> JSONResponse:
+        body, status = _smoldyn_run_views.smoldyn_run(ws, req or {})
+        return JSONResponse(status_code=status, content=body)
+
+    @app.get("/api/smoldyn-status", tags=["Runs"],
+             summary="Remote Smoldyn backend health (configured/reachable)")
+    def smoldyn_status() -> JSONResponse:
+        body, status = _smoldyn_run_views.smoldyn_status()
         return JSONResponse(status_code=status, content=body)
 
     @app.post("/api/remote-run-submit", tags=["Runs"], status_code=202,

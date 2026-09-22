@@ -1091,7 +1091,10 @@ def test_post_create_from_composite_creates_v2_spec(workspace_server):
     suffix = auto_name[len('study-chromosome-partition-'):]
     assert len(suffix) == 6, f"expected 6-char suffix, got {suffix!r}"
 
-    inv_dir = workspace_server.root / 'investigations' / auto_name
+    # Study directories now live under studies/ (the investigations/ tree is
+    # parent investigation ownership; create_from_composite also guards name
+    # collisions there).
+    inv_dir = workspace_server.root / 'studies' / auto_name
     spec_path = inv_dir / 'spec.yaml'
     assert spec_path.is_file(), f"spec.yaml not found at {spec_path}"
 
@@ -1780,7 +1783,9 @@ def test_get_catalog_marks_out_of_sync_when_import_fails(workspace_server, monke
     ws.setdefault("imports", {})["foo"] = {
         "source": "https://example.invalid/foo.git",
         "ref": "main",
-        "mode": "reference",
+        # NOT reference-mode: reference imports are browse-only by design and
+        # are deliberately exempt from the sync check (never flagged), so the
+        # out-of-sync scenario requires an installable (non-reference) import.
         "path": "external/foo",
         "description": "Fake module for sync test",
         "installed": True,

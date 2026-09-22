@@ -102,10 +102,15 @@ def test_walkthrough_js_sim_row_opens_study_results():
     assert "'/studies/'" in js or '"/studies/"' in js or "'/studies/' +" in js or '"/studies/" +' in js
 
 
-def test_view_run_button_routes_to_visualizations_not_dead_route():
-    """The per-run View button must open the Visualizations tab, NOT the dead
-    /composite-explorer route (which 404s -> blank page)."""
+def test_view_run_button_routes_to_results_not_dead_route():
+    """The per-run View button must open the study-level Results view, NOT the
+    dead /composite-explorer route (which 404s -> blank page).
+
+    The #713 study-detail redesign renamed the tab kind from
+    'visualizations' to 'visualize' (panel-visualize); the handler also
+    scroll-into-views the panel after switching."""
     js = _js_text()
     assert "btn-view-run" in js
     assert "/composite-explorer?run_id=" not in js  # the broken target is gone
-    assert "_setStudyTab('visualizations')" in js or '_setStudyTab("visualizations")' in js
+    assert "_setStudyTab('visualize')" in js or '_setStudyTab("visualize")' in js, \
+        "btn-view-run must route to the results view (_setStudyTab('visualize'))"

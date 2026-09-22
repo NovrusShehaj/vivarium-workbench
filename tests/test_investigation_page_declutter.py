@@ -22,7 +22,14 @@ def test_header_export_cluster_and_icon_refresh():
     assert '_downloadInvestigationNotebook()' in cluster, "notebook button not in export cluster"
     # Refresh is icon-only now (no text label on the button itself)
     assert '↻ Refresh</button>' not in HTML, "Refresh button still has a text label"
-    assert 'id="investigation-detail-refresh"' in dv, "refresh button id lost"
+    # The toolbar declutter (4387bd8d, "simplify investigation toolbar") removed
+    # the dedicated refresh (↻) button entirely; the JS handler survives as a
+    # guarded no-op for stale callers. Re-adding a button without updating this
+    # contract is fine — assert only that the handler still exists.
+    assert 'id="investigation-detail-refresh"' not in dv, \
+        "refresh button was removed from the toolbar; update this contract if reintroduced"
+    assert "function _refreshInvestigationDetail" in JS, \
+        "the guarded refresh handler must stay available for re-render paths"
 
 
 def test_report_button_downloads_not_just_opens():

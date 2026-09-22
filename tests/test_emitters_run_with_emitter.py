@@ -6,6 +6,7 @@ one scalar store) and assert each output_kind's store is produced and reads back
 through the SAME broker the read side uses (``read_source`` / ``reader_for``).
 """
 import pytest
+from pathlib import Path
 
 from bigraph_schema import allocate_core
 from process_bigraph.composite import Process
@@ -145,13 +146,16 @@ def test_run_with_emitter_default_name_is_xarray(tmp_path):
 
 
 def test_run_with_emitter_short_run_does_not_silently_empty(tmp_path):
-    """A run too short to fill the xarray buffer must NOT silently yield an empty
-    store. A 1-emit-tick run deterministically under-fills the flat-Step buffer
-    (the close-time final flush asserts ``not include_static``) → an empty
-    ``.zarr``; the broker's content guard fires and falls back to sqlite with a
-    diagnosable warning. (Regression test for Finding 1: that AssertionError used
-    to be swallowed, leaving an empty store + empty charts with no user-visible
-    error.)"""
+    """A short run must NEVER silently yield an empty store.
+
+    Regression test for Finding 1 (a close-time AssertionError used to be
+    swallowed, leaving an empty store + empty charts with no user-visible
+    error). The broker delivers the invariant in two ways depending on the
+    installed pbg-emitters: newer writers flush a 1-tick store WITH observable
+    data (zarr branch), while an under-filled/unreadable store trips the
+    content guard → sqlite fall-back with a diagnosable warning. Assert the
+    invariant across both branches rather than pinning one upstream behavior.
+    """
     pytest.importorskip("xarray")
     pytest.importorskip("zarr")
     db_file = str(tmp_path / "runs.db")
@@ -160,20 +164,27 @@ def test_run_with_emitter_short_run_does_not_silently_empty(tmp_path):
         emit_paths=["counter_store"], out_dir=str(tmp_path), core=_core(),
         steps=1, db_file=db_file)
 
-    # Guard fired: fell back to a readable sqlite store with a recorded warning.
-    assert prov["output_kind"] == "sqlite"
-    assert prov["store_path"] == db_file
-    assert "warning" in prov and prov["warning"]
-
-    # The fall-back store holds the run's data (so the run is NOT empty).
-    import viva_emitters
-    rows = viva_emitters.load_history(db_file, "r-short")
-    series = [r.get("counter_store_value") for r in rows]
-    assert len(rows) >= 1
-    assert any((v or 0) > 0 for v in series)
-
-    # The empty/partial zarr store was cleaned up (not left to be mis-resolved).
-    assert not (tmp_path / "r-short.zarr").exists()
+    if prov["output_kind"] == "sqlite":
+        # Guard fired: fell back to a readable sqlite store with a warning.
+        assert prov["store_path"] == db_file
+        assert "warning" in prov and prov["warning"]
+        # The fall-back store holds the run's data (so the run is NOT empty).
+        import viva_emitters
+        rows = viva_emitters.load_history(db_file, "r-short")
+        series = [r.get("counter_store_value") for r in rows]
+        assert len(rows) >= 1
+        assert any((v or 0) > 0 for v in series)
+        # The empty/partial zarr store was cleaned up (not left to be mis-resolved).
+        assert not (tmp_path / "r-short.zarr").exists()
+    else:
+        # The writer flushed a short store WITH data — it must genuinely hold
+        # observable content (the same probe the broker's guard uses).
+        assert prov["output_kind"] == "zarr"
+        store = prov["store_path"]
+        assert Path(store).exists()
+        assert emitters._zarr_store_has_observable_data(store), \
+            "1-tick run produced a zarr store with no observable data " \
+            "(and no sqlite fall-back) — the short run WOULD chart empty"
 
 
 # ---------------------------------------------------------------------------
@@ -207,19 +218,28 @@ def test_run_with_emitter_xarray_writes_zarr(tmp_path):
     assert isinstance(times, list) and isinstance(values, list)
 
 
-def test_run_with_emitter_zarr_fallback_uses_fresh_state(tmp_path):
+def test_run_with_emitter_zarr_fallback_uses_fresh_state(tmp_path, monkeypatch):
     """MINOR 3: the empty-STORE fall-back drives a Composite from `state` once
     (xarray) then re-drives a NEW Composite from the same `state` (sqlite). Assert
     (a) the caller's `state` is left pristine for the fresh re-run, and (b) the
     progress heartbeat double-counts (the documented, harmless re-count: the
-    re-drive replays 1..steps so the max-runtime guard stays armed)."""
+    re-drive replays 1..steps so the max-runtime guard stays armed).
+
+    The empty-store condition is forced deterministically by having the store
+    content probe report empty — newer pbg-emitters flush a 1-tick store with
+    data, so the historical steps=1 vehicle no longer triggers the guard on
+    every installable version. The subject here is the BROKER's fall-back
+    mechanics, not the writer's flush behavior.
+    """
     pytest.importorskip("xarray")
     pytest.importorskip("zarr")
+    monkeypatch.setattr(
+        emitters, "_zarr_store_has_observable_data", lambda store: False)
     db_file = str(tmp_path / "runs.db")
     state = _doc()
     seen = []
-    # steps=1 deterministically under-fills the flat-Step buffer → empty store →
-    # the zarr branch (which already drove `steps` ticks) falls back to sqlite.
+    # Forced-empty probe → the zarr branch (which already drove `steps` ticks)
+    # falls back to sqlite.
     prov = emitters.run_with_emitter(
         "xarray", state=state, run_id="r-fresh", emit_paths=["counter_store"],
         out_dir=str(tmp_path), core=_core(), steps=1, db_file=db_file,

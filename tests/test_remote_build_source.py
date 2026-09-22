@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from vivarium_workbench.lib import sms_api_client as sac
+from vivarium_workbench.lib import remote_api_client as rac
 from vivarium_workbench.lib import remote_build_source as rbs
 
 
@@ -31,57 +32,52 @@ class _Resp:
         return result
 
 
-def test_list_simulators_hits_versions_endpoint(monkeypatch):
-    seen = {}
-
-    def fake_urlopen(req, timeout=None):
-        seen["url"] = req.full_url
-        return _Resp(json.dumps({"versions": [{"database_id": 1}]}).encode())
-
-    monkeypatch.setattr(sac, "urlopen", fake_urlopen)
-    out = sac.SmsApiClient("http://x").list_simulators()
-    assert out == {"versions": [{"database_id": 1}]}
-    assert seen["url"] == "http://x/core/v1/simulator/versions"
+def test_list_simulators_is_retired(monkeypatch):
+    """The simulator-build registry retired with the SMS surface; the method
+    now fails fast client-side (typed error, no HTTP round-trip)."""
+    from vivarium_workbench.lib.sms_api_client import RetiredEndpointError
+    with pytest.raises(RetiredEndpointError):
+        sac.SmsApiClient("http://x").list_simulators()
 
 
-def test_download_workspace_streams_to_file(monkeypatch, tmp_path):
+def test_download_compose_results_streams_to_file(monkeypatch, tmp_path):
+    """Generic tarball-streaming semantics, repointed to the RETAINED compose
+    results download after the SMS retirement (plan Phase 1) — same urlopen
+    plumbing, same write-to-file contract the retired workspace download had."""
     seen = {}
 
     def fake_urlopen(req, timeout=None):
         seen["url"] = req.full_url
         return _Resp(b"TARBALLBYTES")
 
-    monkeypatch.setattr(sac, "urlopen", fake_urlopen)
-    out = sac.SmsApiClient("http://x").download_workspace(45, tmp_path)
-    assert out == tmp_path / "workspace.tar.gz"
+    monkeypatch.setattr(rac, "urlopen", fake_urlopen)
+    out = sac.SmsApiClient("http://x").download_compose_results(45, tmp_path)
+    assert out == tmp_path / "results.tar.gz"
     assert out.read_bytes() == b"TARBALLBYTES"
-    assert seen["url"] == "http://x/api/v1/simulations/workspace?simulator_id=45"
+    assert seen["url"] == "http://x/compose/v1/simulation/45/results"
 
 
-def test_download_workspace_honors_per_call_timeout(monkeypatch, tmp_path):
+def test_download_compose_results_honors_per_call_timeout(monkeypatch, tmp_path):
     seen = {}
     def fake_urlopen(req, timeout=None):
         seen["timeout"] = timeout
         return _Resp(b"X")
-    monkeypatch.setattr(sac, "urlopen", fake_urlopen)
-    sac.SmsApiClient("http://x", timeout=30).download_workspace(45, tmp_path, timeout=600)
+    monkeypatch.setattr(rac, "urlopen", fake_urlopen)
+    sac.SmsApiClient("http://x", timeout=30).download_compose_results(45, tmp_path, timeout=600)
     assert seen["timeout"] == 600
 
 
-def test_download_workspace_defaults_to_download_timeout(monkeypatch, tmp_path):
-    """A multi-GB workspace tarball must not inherit the small client-wide
+def test_download_compose_results_defaults_to_download_timeout(monkeypatch, tmp_path):
+    """A multi-GB results tarball must not inherit the small client-wide
     default (30s here) meant for status/JSON calls -- it should fall back to
     the module's generous DOWNLOAD_TIMEOUT instead (CD2 pipeline audit
-    §3.12). This test previously asserted the OLD, buggy behavior (that the
-    download silently inherited the 30s client default); that was the bug
-    this PR fixes, so the assertion was updated to the intended contract
-    rather than the client's small default."""
+    §3.12). Contract carried over from the retired workspace download."""
     seen = {}
     def fake_urlopen(req, timeout=None):
         seen["timeout"] = timeout
         return _Resp(b"X")
-    monkeypatch.setattr(sac, "urlopen", fake_urlopen)
-    sac.SmsApiClient("http://x", timeout=30).download_workspace(45, tmp_path)
+    monkeypatch.setattr(rac, "urlopen", fake_urlopen)
+    sac.SmsApiClient("http://x", timeout=30).download_compose_results(45, tmp_path)
     assert seen["timeout"] == sac.DOWNLOAD_TIMEOUT
     assert sac.DOWNLOAD_TIMEOUT > 30
 

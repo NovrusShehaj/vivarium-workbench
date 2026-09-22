@@ -135,11 +135,23 @@ def test_run_baseline_investigation(server):
 
 
 def test_detail_after_run(server):
-    _post(f"{server['url']}/api/investigation-run", {"name": "baseline"})
-    status, body = _get(f"{server['url']}/api/investigation/baseline")
+    """After a run, the study detail reflects the executed state.
+
+    The fixture's investigations/baseline/ holds a pre-split-era STUDY
+    (spec.yaml), so the detail payload is GET /api/study/<slug> — the
+    investigation-detail route (GET /api/investigation/<slug>) requires an
+    investigation.yaml and 404s here by design. The run response carries the
+    run count; the detail carries the modern shape (status, visualizations,
+    last_run) that replaced the old spec/runs_summary/viz_files payload.
+    """
+    status, run = _post(f"{server['url']}/api/investigation-run", {"name": "baseline"})
+    assert status == 200, run
+    assert run["n_runs"] == 4
+    status, body = _get(f"{server['url']}/api/study/baseline")
     assert status == 200
     # See test_run_baseline_investigation above: post-run status is "ran",
     # not "complete" (which is reserved for user-set Decide confirmation).
-    assert body["spec"]["status"] == "ran"
-    assert len(body["runs_summary"]) == 4
-    assert any(v["name"] == "levels" for v in body["viz_files"])
+    assert body["status"] == "ran"
+    # The run wrote a last_run stamp and the declared viz is present.
+    assert body.get("last_run")
+    assert any(v["name"] == "levels" for v in body["visualizations"])

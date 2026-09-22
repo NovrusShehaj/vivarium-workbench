@@ -106,7 +106,6 @@ dev = ["pytest>=7.4", "pytest-timeout", "pytest-json-report>=1.5", "pytest-xdist
 # fail. Install with: uv pip install -e ".[dev,test]". See CONTRIBUTING.md.
 # (zarr is needed alongside xarray for DataTree.to_zarr in the zarr tests.)
 test = ["polars", "xarray", "zarr", "pyarrow"]
-demo = ["v2ecoli", "pbg-ptools"]
 
 [project.scripts]
 # New canonical console scripts.
@@ -117,16 +116,6 @@ vivarium-workbench-publish = "vivarium_workbench.publish:main"
 vivarium-dashboard = "vivarium_workbench.cli:main"
 vdash = "vivarium_workbench.cli:main"
 vivarium-dashboard-publish = "vivarium_workbench.publish:main"
-
-# DEMO-BRANCH ONLY: the `demo` extra pulls v2ecoli, which pins Python ==3.12.12
-# exactly. The workbench package itself supports >=3.11, but a universal `uv lock`
-# must then also solve the 3.11 slice, where v2ecoli is unsatisfiable → "no
-# solution". Constrain lock resolution on this (combined-with-v2ecoli) branch to
-# 3.12.12 — the version the demo image is built on — so `uv lock` /
-# `uv sync --extra demo` resolve. This does NOT change the package's declared
-# requires-python (>=3.11 for standalone use); it only scopes the lock.
-[tool.uv]
-environments = ["python_full_version == '3.12.12'"]
 
 # Git source for the bare pbg-basic-processes dependency (not on PyPI). uv reads
 # this when vivarium-dashboard is the root project; consumers that depend on it
@@ -147,7 +136,7 @@ environments = ["python_full_version == '3.12.12'"]
 # breakage risk resurfaces, the fix is to pin ALL of them (here + copasi/tellurium)
 # to the same rev, not just this one. Drop the source + pin a PyPI floor once
 # viva-superpowers ships a release that requires viva-emitters.
-viva-superpowers = { git = "https://github.com/vivarium-collective/viva-superpowers.git", branch = "main" }
+viva-superpowers = { git = "https://github.com/vivarium-collective/viva-superpowers.git", rev = "9e4e740f4f65381c2e00fc8e05e268bb8b344c82" }
 pbg-basic-processes = { git = "https://github.com/vivarium-collective/pbg-basic-processes.git", branch = "main" }
 viva-marketplace = { git = "https://github.com/vivarium-collective/viva-marketplace.git", branch = "main" }
 viva-workspace = { git = "https://github.com/vivarium-collective/viva-workspace.git", branch = "main" }
@@ -161,19 +150,16 @@ viva-workspace = { git = "https://github.com/vivarium-collective/viva-workspace.
 # deliberately when adopting upstream changes. Equals the currently-locked rev,
 # so this is a no-op resolve.
 investigation-contracts = { git = "https://github.com/vivarium-collective/investigation-contracts.git", rev = "65c793fd231d952e49a9cfe4244797dadde1bedc" }
-# v2ecoli is NOT a runtime dependency of the vivarium-workbench package — it is
-# only needed for the demos/v2ecoli/ scripts. Declare it in [tool.uv.sources]
-# so `uv sync --extra demo` resolves the local checkout. The bare `v2ecoli`
-# requirement is listed in [project.optional-dependencies] → `demo`.
-v2ecoli = { path = "../v2ecoli", editable = true }
-# pbg-ptools is the Pathway Tools Omics-Viewer plugin (extracted from v2ecoli).
-# LOCAL PATH source on purpose: pbg-ptools depends back on vivarium-workbench,
-# and with a path source its own `../vivarium-workbench` resolves to the real
-# sibling (== this root project), so uv unifies them — no "conflicting URLs".
-# (A git source here would collide with the root, which is why `main` installs
-# pbg-ptools via the Dockerfile instead.) This gives the local `--extra demo`
-# dev env the PTools viewer, matching the deployed image.
-pbg-ptools = { path = "../pbg-ptools", editable = true }
+# process-bigraph and bigraph-schema are declared bare above (URLs kept out of
+# published metadata). They previously resolved from git main via unification
+# with the demo chain (v2ecoli); removing the `demo` extra (SMS-retirement plan
+# Phase 0) removed that anchor, and a bare requirement floats to PyPI on
+# re-lock — PyPI process-bigraph 1.8.3 predates `process_bigraph.workflow`
+# (run_workflow/CompositeTask), which tests/test_study_to_composite.py imports
+# at collection. Pinned to the CI-tested revs (issue #483's no-float rule;
+# bump deliberately when adopting upstream changes).
+process-bigraph = { git = "https://github.com/vivarium-collective/process-bigraph.git", rev = "8b9830f9128b0506d72c0ab2e2f885654efd9d21" }
+bigraph-schema = { git = "https://github.com/vivarium-collective/bigraph-schema.git", rev = "c45cd66e76472fe3f61664d350dc6caf92a6db99" }
 
 
 # bigraph-loom was previously a PEP 508 direct git URL (not on PyPI), which

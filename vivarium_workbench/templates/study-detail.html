@@ -767,6 +767,11 @@
     <p class="muted" style="font-size:0.85em;margin:0">Loading composite card(s)…</p>
   </div>
 
+  {# Remote Smoldyn quick-run (Phase 3 of the 2026-09-21 SMS-retirement plan).
+     smoldyn-quickrun.js checks GET /api/smoldyn-status first and removes this
+     host entirely when the backend is unconfigured — zero cost when off. #}
+  <div id="smoldyn-quickrun" data-study="{{ study.name }}"></div>
+
   {# Build-block visibility mirrors the pre-merge panel-build guard exactly (model_change/impl_reqs/conditions/baseline) so non-v3 studies keep their Model + Conditions sections. #}
   {% set _has_build = study.model_change or study.implementation_requirements or study.conditions or study.baseline %}
   {% if _has_build %}
@@ -1944,9 +1949,8 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
     {# ── Discovery implications ─────────────────────────────────────────────
        Where this study's results leave the mechanism model and what to
        investigate next. Mirrors the report's discovery_implications block
-       (static/walkthrough.js v3StudySection). Spine C1c: ELEVATED to the top of
-       the Decide tab (was buried at the bottom) — it's high-signal for the next
-       studies, so it leads, above the verdict form + synthesised conclusion. #}
+       (static/walkthrough.js v3StudySection). Closes the narrative after the
+       verdicts card in the #713 one-narrative layout. #}
     {% if study.discovery_implications %}
     {% set _di = study.discovery_implications %}
     <div class="overview-section" id="discovery-implications-section" style="margin-top:18px">
@@ -2261,6 +2265,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
 <script src="/loom-embed.js"></script>
 <script src="/composite-card.js"></script>
 <script src="/study-detail.js"></script>
+<script src="/smoldyn-quickrun.js"></script>
 <script>
 // Re-assert the refresh-aware seed handlers AFTER study-detail.js (which
 // defines its own navigate-away _seedFollowupStudy). The embedded

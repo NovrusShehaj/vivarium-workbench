@@ -1,11 +1,12 @@
-"""Thread-C / Task 3 (C1c): un-bury the spine-critical content.
+"""Spine visibility contract for the study-detail page.
 
-Purpose, the behavioral-tests summary, and the multi-axis status were
-collapsed-by-default (<details>), and discovery implications were buried at the
-BOTTOM of the Conclusions tab. C1c surfaces them: purpose + tests-summary become
-visible blocks, the status panel opens by default, and discovery implications
-move ABOVE the conclusion text. Genuinely-secondary content (key assumptions,
-pipeline-gate internals) stays collapsible.
+History: Thread-C / Task 3 (C1c) un-buried spine-critical content (purpose,
+tests summary, multi-axis status, discovery implications). The page was later
+fully redesigned (#713, "audit-grade, one narrative"), which re-authored that
+markup: purpose renders as the promoted question headline, key assumptions and
+pipeline gate are visible sections under "Plan & assumptions", and discovery
+implications closes the narrative after the verdicts card. These tests pin the
+POST-redesign contract.
 
 Structural (no JS harness): assert the markup.
 """
@@ -17,44 +18,42 @@ _PKG = Path(__file__).parent.parent / "vivarium_workbench"
 _HTML = (_PKG / "templates" / "study-detail.html").read_text(encoding="utf-8")
 
 
-def test_purpose_is_not_collapsed_by_default():
-    # Promoted to a visible block, no longer a <details>/<summary>.
-    assert '<h2 class="overview-label">Purpose</h2>' in _HTML
-    assert '<summary class="overview-label">Purpose</summary>' not in _HTML
+def test_purpose_is_promoted_to_question_headline():
+    """Purpose is no longer an Overview-panel h2 nor a <details>: the redesign
+    promotes purpose.question (or the legacy top-level question) to the
+    #study-question-headline element directly above the tab nav — the study's
+    second line, the most visible slot on the page."""
+    assert 'id="study-question-headline"' in _HTML, \
+        "study-detail.html missing the promoted #study-question-headline"
+    assert "study.purpose.question if study.purpose" in _HTML, \
+        "headline must source purpose.question (v3) before the legacy question"
 
 
-def test_behavioral_tests_summary_removed_from_overview():
-    # Fable A #8: the "un-bury" premise (visible-not-collapsed) is moot — the
-    # Overview tests-count strip was deleted outright, not un-buried; Tests
-    # owns the count. See test_study_detail_render.py for the render-level
-    # absence assertion.
-    assert '<h2 class="overview-label">Behavioral tests</h2>' not in _HTML
-    assert '<summary class="overview-label">Behavioral tests</summary>' not in _HTML
-
-
-def test_multi_axis_status_stepper_visible_by_default():
-    # Overview redesign: the six-axis status is a compact one-line lifecycle
-    # stepper whose <summary> lists every axis (with its value) inline — so the
-    # spine-critical status stays UN-BURIED at a glance — while only the verbose
-    # per-axis rows sit behind the expander. (Supersedes the earlier
-    # "open by default" rule from C1c; the un-bury intent is preserved.)
-    assert 'class="status-detail-panel"' in _HTML
-    idx = _HTML.index('class="status-detail-panel"')
-    seg = _HTML[idx:idx + 400]
-    # the axis stepper lives inside the <summary>, visible without expanding.
-    assert '<summary>' in seg
-    assert 'status-stepper' in seg
-
-
-def test_discovery_implications_elevated_above_conclusion_text():
+def test_discovery_implications_close_the_narrative_after_verdicts():
+    """Discovery implications render as the page's closing forward-looking
+    section ("where this study's results leave the mechanism model — and what
+    to investigate next"), after the conclusion_verdicts card, in the #713
+    one-narrative layout. (The C1c-era position — above the verdict form —
+    was superseded by the redesign.)"""
     di = _HTML.index('id="discovery-implications-section"')
     verdicts = _HTML.index('data-narrative-card="conclusion_verdicts"')
-    # Discovery implications now render at the TOP of the Decide tab, above the
-    # verdict form + the synthesised conclusion text.
-    assert di < verdicts
+    assert di > verdicts, "discovery implications must follow the verdicts card"
 
 
-def test_secondary_content_stays_collapsible():
-    # Key assumptions + pipeline-gate internals remain <details>-collapsed.
-    assert '<summary class="overview-label">Key assumptions</summary>' in _HTML
-    assert '<summary class="overview-label">Pipeline gate</summary>' in _HTML
+def test_secondary_content_is_visible_under_plan_and_assumptions():
+    """Key assumptions + pipeline gate are no longer <details>-collapsed: the
+    redesign renders them as visible overview-label sections under the
+    "Plan & assumptions" heading. Only genuinely-secondary provenance
+    ("Limitations & provenance") remains collapsed."""
+    plan = _HTML.index("Plan &amp; assumptions")
+    assumptions = _HTML.index('<h3 class="overview-label">Key assumptions</h3>')
+    gate = _HTML.index('<h3 class="overview-label">Pipeline gate</h3>')
+    assert plan < gate and plan < assumptions, \
+        "key assumptions and pipeline gate must be visible sections under Plan & assumptions"
+    # And neither may be inside a <details> drawer.
+    collapsed = _HTML.rfind("<details", 0, assumptions)
+    if collapsed != -1:
+        assert "</details>" in _HTML[collapsed:assumptions], \
+            "key assumptions must not sit inside a collapsed <details>"
+
+

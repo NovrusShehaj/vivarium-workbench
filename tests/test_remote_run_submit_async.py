@@ -1,4 +1,15 @@
-"""Regression tests for backlog item 51 (remote-run-submit-client-timeout-
+"""RETIRED-SURFACE TESTS (pending Phase 4 deletion) — see the note below.
+
+These tests exercise ``POST /api/remote-run-submit``, whose backing endpoint
+(``POST /api/v1/simulations``) was retired by the viva-api core separation.
+The route now fails fast with a typed ``RetiredEndpointError``; the UX
+contracts proven here (fast failure on huge dispatches, honest 502
+``reachable:false`` error mapping, real-HTTP status-transition polling) moved
+to the retained surface in ``tests/test_smoldyn_endpoints.py`` and
+``tests/test_smoldyn_backend.py``. Deleted with the route in Phase 4 of
+docs/superpowers/plans/2026-09-21-workbench-sms-retirement-and-smoldyn-backend-plan.md.
+
+Regression tests for backlog item 51 (remote-run-submit-client-timeout-
 too-short-for-large-dispatch), candidate fix B.
 
 Real, live bug found 2026-08-14 during a real 1000-seed x 10-generation
@@ -163,6 +174,7 @@ def _pin(monkeypatch, base_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(reason="retired SMS surface: fails fast via RetiredEndpointError by design; replacement coverage in test_smoldyn_endpoints.py (Phase 4 deletes this file)")
 def test_remote_run_submit_returns_fast_for_large_chain_dispatch_over_real_http(
     tmp_path, dashboard_client, monkeypatch, fake_sms_api
 ):
@@ -194,6 +206,7 @@ def test_remote_run_submit_returns_fast_for_large_chain_dispatch_over_real_http(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(reason="retired SMS surface: fails fast via RetiredEndpointError by design; replacement coverage in test_smoldyn_endpoints.py (Phase 4 deletes this file)")
 def test_remote_run_submit_surfaces_upstream_error_as_502_not_generic_500_over_real_http(
     tmp_path, dashboard_client, monkeypatch, fake_sms_api
 ):
@@ -226,6 +239,7 @@ def test_remote_run_submit_surfaces_upstream_error_as_502_not_generic_500_over_r
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(reason="retired SMS surface: fails fast via RetiredEndpointError by design; replacement coverage in test_smoldyn_endpoints.py (Phase 4 deletes this file)")
 def test_remote_run_submit_then_poll_reflects_real_status_transition_over_real_http(
     tmp_path, dashboard_client, monkeypatch, fake_sms_api
 ):

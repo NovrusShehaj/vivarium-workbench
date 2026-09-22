@@ -548,13 +548,30 @@ def test_snapshot_repo_label_in_template():
         "index.html.j2 missing .viv-repo-label class"
 
 
-def test_snapshot_css_hides_switcher_and_shows_label():
-    """snapshot-readonly.css must hide #viv-workspace-switcher and show #snapshot-repo-label."""
+def test_snapshot_css_keeps_switcher_and_hides_superseded_label():
+    """snapshot-readonly.css must keep the workspace switcher visible in snapshot
+    and hide the superseded static #snapshot-repo-label.
+
+    Since the published-Source-page rework (see 'Repo switcher' rule in
+    snapshot-readonly.css), the live repo + branch chip STAYS: it opens the
+    Source page, which is now the published workspace switcher. The compact
+    static label was superseded and is hidden instead. The old assertion
+    (hide switcher + show label) asserted the pre-rework contract.
+    """
+    import re
+
     text = (STATIC_DIR / "snapshot-readonly.css").read_text()
-    assert "#viv-workspace-switcher" in text, \
-        "snapshot-readonly.css missing rule to hide #viv-workspace-switcher"
-    assert "#snapshot-repo-label" in text, \
-        "snapshot-readonly.css missing rule to show #snapshot-repo-label"
+    # No display:none rule may target the switcher itself (the .glyph color
+    # rule for body.readonly is fine and must stay).
+    for rule in re.findall(r"[^{}]+\{[^}]*\}", text):
+        selector = rule.split("{")[0].strip()
+        if "#viv-workspace-switcher" in selector and "glyph" not in selector:
+            assert "display: none" not in rule, \
+                "snapshot must keep the workspace switcher visible " \
+                f"(offending rule: {rule.strip()!r})"
+    # The superseded static label must be hidden.
+    assert "body.snapshot #snapshot-repo-label" in text, \
+        "snapshot-readonly.css missing rule to hide the superseded #snapshot-repo-label"
 
 
 def test_walkthrough_sets_repo_label():
@@ -596,11 +613,18 @@ def test_initmenunav_snapshot_whitelists_include_simulations_and_visualizations(
 # QA fixes — BUG 2: Studies rail section hidden in snapshot
 # ---------------------------------------------------------------------------
 
-def test_snapshot_css_hides_studies_rail_section():
-    """snapshot-readonly.css must hide #viv-rail-studies-section in snapshot."""
+def test_snapshot_css_shows_studies_rail_section():
+    """snapshot-readonly.css must NOT hide #viv-rail-studies-section.
+
+    Since 'fix(snapshot): show the studies rail section' the per-investigation
+    studies rail is deliberately SHOWN in snapshot (opening an investigation
+    syncs its studies into the rail; only the legacy flat Studies PAGE is
+    redirected). The old assertion required a hide rule for the section.
+    """
     text = (STATIC_DIR / "snapshot-readonly.css").read_text()
-    assert "viv-rail-studies-section" in text, \
-        "snapshot-readonly.css missing rule to hide #viv-rail-studies-section"
+    assert "viv-rail-studies-section" not in text, \
+        "snapshot-readonly.css must not hide #viv-rail-studies-section " \
+        "(the studies rail is deliberately shown in snapshot)"
 
 
 def test_template_has_studies_rail_section_id():
