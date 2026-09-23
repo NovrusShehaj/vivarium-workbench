@@ -45,9 +45,9 @@
     },
     "vivarium_workbench/static/style.css": {
       "dark_rules": 331,
-      "hex": 506,
+      "hex": 346,
       "inline_color": 0,
-      "rgb": 61,
+      "rgb": 29,
       "style_star": 19
     },
     "vivarium_workbench/static/walkthrough.js": {
@@ -59,9 +59,9 @@
     },
     "vivarium_workbench/templates/index.html.j2": {
       "dark_rules": 130,
-      "hex": 122,
+      "hex": 120,
       "inline_color": 8,
-      "rgb": 45,
+      "rgb": 43,
       "style_star": 0
     },
     "vivarium_workbench/templates/investigation-report.html": {

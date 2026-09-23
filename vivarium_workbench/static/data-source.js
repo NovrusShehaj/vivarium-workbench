@@ -181,10 +181,10 @@
       : "/api/catalog";
   }
 
-  function _compositesUrl() {
+  function _compositesUrl(refresh) {
     return cfg().mode === "snapshot"
       ? _base() + "/api/composites.json"
-      : "/api/composites";
+      : "/api/composites" + (refresh ? "?refresh=1" : "");
   }
 
   function _registryUrl(refresh) {
@@ -365,8 +365,8 @@
      * Local mode:    fetches GET /api/composites
      * Snapshot mode: fetches /api/composites.json from the static bundle
      */
-    async loadComposites() {
-      return _get(_compositesUrl());
+    async loadComposites(refresh) {
+      return _get(_compositesUrl(refresh));
     },
 
     /**

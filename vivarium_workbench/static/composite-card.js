@@ -716,6 +716,27 @@
   }
   window._regPortColumn = _regPortColumn;
 
+  function _compositeOriginBadge(c) {
+    var origin = (c && c.origin) || (c && c.kind === 'generator' ? 'generator'
+      : (c && c.read_only ? 'federated' : (c && c.workspace_local ? 'workspace' : 'installed')));
+    var label = { workspace: 'Local', installed: 'Installed', federated: 'Federated', generator: 'Generator' }[origin] || origin;
+    return '<span class="tag-pill" style="margin-left:6px;background:var(--surface-3);color:var(--text-secondary);border:1px solid var(--border)">' + _esc(label) + '</span>';
+  }
+  window._compositeOriginBadge = _compositeOriginBadge;
+
+  function _compositeRemoveButton(c) {
+    if (!c || c.origin !== 'workspace' || !c.workspace_local) return '';
+    if (window.__DASH_CONFIG__ && window.__DASH_CONFIG__.mode === 'snapshot') return '';
+    var id = String(c.id || '');
+    var marker = '.composites.';
+    var at = id.indexOf(marker);
+    if (at < 0) return '';
+    var stem = id.slice(at + marker.length);
+    if (!stem) return '';
+    return '<button type="button" class="btn-mini" onclick="event.stopPropagation();if(window._removeWorkspaceComposite)window._removeWorkspaceComposite(\'' + _esc(stem) + '\')">Remove</button>';
+  }
+  window._compositeRemoveButton = _compositeRemoveButton;
+
   // Compact composite card (Cards / medium zoom) — mirrors the process grid
   // card: name · badge · address · short desc · usage stats.
   function _renderCompositeCardGrid(c) {
@@ -748,13 +769,14 @@
       '<button type="button" onclick="event.stopPropagation();_setRegistryZoom(\'full\')" ' +
         'title="Open the full card (Configure · Inputs · Run)" ' +
         'style="height:26px;padding:0 9px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border-2);border-radius:5px;cursor:pointer">Full card</button>' +
+      _compositeRemoveButton(c) +
     '</div>';
     return '<div class="registry-card' + selCls + '" data-address="' + idA + '" data-kind="composite"' +
         ' onclick="_selectRegistryEntry(\'' + idA + '\')" ondblclick="_enterMaxcardMode(\'' + idA + '\',\'composite\')"' +
         ' title="Double-click to Explore (maximized bigraph)">' +
       '<div class="reg-card-row">' +
         '<div class="reg-card-main">' +
-          '<div class="reg-card-head"><strong class="reg-card-name">' + _esc(c.name) + '</strong>' + _compositeBadge() + _compositeTierBadge(c) + wsPill + '</div>' +
+          '<div class="reg-card-head"><strong class="reg-card-name">' + _esc(c.name) + '</strong>' + _compositeBadge() + _compositeOriginBadge(c) + _compositeTierBadge(c) + wsPill + '</div>' +
           '<code class="reg-card-addr">' + _esc(addr) + '</code>' +
           meta +
           (short ? '<p class="reg-card-desc">' + _esc(short) + '</p>' : '') +
@@ -903,7 +925,8 @@
       '<div class="loom-card loom-card-stack loom-card-composite">' +
         '<div class="pcard-top">' +
           '<div class="pcard-header pcard-title" onclick="_pinCardTop(this)" ondblclick="event.stopPropagation();_maximizeCardFromHeader(this)" title="Click to pin to top · double-click to maximize">' +
-            '<span class="loom-name">' + _esc(c.name) + '</span>' + _compositeBadge() + _compositeTierBadge(c) + wsPill + roPill +
+            '<span class="loom-name">' + _esc(c.name) + '</span>' + _compositeBadge() + _compositeOriginBadge(c) + _compositeTierBadge(c) + wsPill + roPill +
+            _compositeRemoveButton(c) +
             '<span class="pcard-runtarget" data-role="runtarget" title="checking where a Run will execute…" ' +
               'style="display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;' +
               'background:var(--surface-3);color:var(--text-muted);vertical-align:middle">Runs: …</span>' +

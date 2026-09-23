@@ -127,11 +127,22 @@
     return rows;
   }
 
-  function renderUnifiedDiff(text) {
+  function renderUnifiedDiff(text, meta) {
     var wrap = el('div', 'asst-diff-wrap');
+    var rows = parseUnifiedDiff(text);
+    var adds = 0, dels = 0;
+    rows.forEach(function (r) { if (r.kind === 'add') adds++; else if (r.kind === 'del') dels++; });
+    if (meta && meta.path) {
+      var head = el('div', 'asst-diff-filehead');
+      if (meta.op) head.appendChild(el('span', 'asst-op asst-op-' + meta.op, meta.opLabel || meta.op));
+      head.appendChild(el('code', 'asst-path', meta.path));
+      head.appendChild(el('span', 'asst-counts', '+' + (meta.additions != null ? meta.additions : adds) +
+        ' −' + (meta.deletions != null ? meta.deletions : dels)));
+      wrap.appendChild(head);
+    }
     var table = el('table', 'asst-diff');
     var tbody = el('tbody');
-    parseUnifiedDiff(text).forEach(function (r) {
+    rows.forEach(function (r) {
       var tr = el('tr', 'asst-diff-' + r.kind);
       if (r.kind === 'hunk' || r.kind === 'file' || r.kind === 'note') {
         var td = el('td', 'asst-diff-meta', r.text);
@@ -183,7 +194,8 @@
       });
     }
 
-    function act(action, paths, commit) {
+    function act(action, paths, commit, source) {
+      if (source) { source.disabled = true; source.setAttribute('aria-busy', 'true'); }
       return api('POST', '/api/ext/assistant/proposals/' + encodeURIComponent(proposalId) + '/' + action,
                  action === 'revert' ? {} : { paths: paths || null, commit: !!commit })
         .then(function (res) {
@@ -202,7 +214,10 @@
           if (res.reverted === false || res.reason) msgs.push(res.reason || 'Revert failed.');
           if (msgs.length) note(msgs.join(' '));
           if (opts.onChange) opts.onChange(res);
-        }, function (e) { note(e.message); });
+        }, function (e) {
+          if (source) { source.disabled = false; source.removeAttribute('aria-busy'); }
+          note(e.message);
+        });
     }
 
     var noteEl = null;
@@ -246,19 +261,22 @@
         var details = el('details', 'asst-diff-details');
         if (p.files.length === 1 || f.status === 'pending') details.open = true;
         details.appendChild(el('summary', null, 'Diff'));
-        details.appendChild(renderUnifiedDiff(f.unified_diff));
+        details.appendChild(renderUnifiedDiff(f.unified_diff, {
+          path: f.path, op: f.op, opLabel: OP_LABEL[f.op] || f.op,
+          additions: f.additions, deletions: f.deletions,
+        }));
         fileBox.appendChild(details);
         if (f.message) fileBox.appendChild(el('p', 'asst-bad', f.message));
         var actions = el('div', 'asst-actions');
         if (f.status === 'pending' && opts.canApply !== false) {
-          actions.appendChild(button(f.op === 'delete' ? 'Delete file' : 'Apply', 'asst-btn asst-btn-primary', function () {
+          actions.appendChild(button(f.op === 'delete' ? 'Delete file' : 'Apply', 'asst-btn asst-btn-primary', function (e) {
             var go = f.op === 'delete' ? confirmDelete(f.path) : Promise.resolve(true);
-            go.then(function (ok) { if (ok) act('apply', [f.path], false); });
+            go.then(function (ok) { if (ok) act('apply', [f.path], false, e.currentTarget); });
           }));
-          actions.appendChild(button('Reject', 'asst-btn', function () { act('reject', [f.path]); }));
+          actions.appendChild(button('Reject', 'asst-btn', function (e) { act('reject', [f.path], false, e.currentTarget); }));
         }
         if (f.status === 'applied') {
-          actions.appendChild(button('Undo', 'asst-btn', function () { act('undo', [f.path]); }));
+          actions.appendChild(button('Undo changes', 'asst-btn', function (e) { act('undo', [f.path], false, e.currentTarget); }));
         }
         if (actions.childNodes.length) fileBox.appendChild(actions);
         card.appendChild(fileBox);
@@ -268,17 +286,17 @@
       if (pending.length && opts.canApply !== false) {
         if (nonDelete.length) {
           all.appendChild(button('Apply all' + (nonDelete.length < pending.length ? ' edits' : ''), 'asst-btn asst-btn-primary',
-                                 function () { act('apply', nonDelete, false); }));
-          all.appendChild(button('Apply & commit', 'asst-btn', function () { act('apply', nonDelete, true); }));
+                                 function (e) { act('apply', nonDelete, false, e.currentTarget); }));
+          all.appendChild(button('Apply & commit', 'asst-btn', function (e) { act('apply', nonDelete, true, e.currentTarget); }));
         }
-        all.appendChild(button('Reject all', 'asst-btn', function () {
-          act('reject', pending.map(function (f) { return f.path; }));
+        all.appendChild(button(pending.length > 1 ? 'Reject all' : 'Reject', 'asst-btn', function (e) {
+          act('reject', pending.map(function (f) { return f.path; }), false, e.currentTarget);
         }));
       }
-      if (p.can_undo) all.appendChild(button('Undo all', 'asst-btn', function () { act('undo', null); }));
+      if (p.can_undo) all.appendChild(button('Undo changes', 'asst-btn', function (e) { act('undo', null, false, e.currentTarget); }));
       if (p.commit_sha) {
         all.appendChild(el('span', 'asst-muted', 'commit ' + String(p.commit_sha).slice(0, 10)));
-        all.appendChild(button('Revert commit', 'asst-btn', function () { act('revert'); }));
+        all.appendChild(button('Revert commit', 'asst-btn', function (e) { act('revert', null, false, e.currentTarget); }));
       }
       if (all.childNodes.length) card.appendChild(all);
       if (opts.canApply === false && pending.length) {
@@ -313,10 +331,19 @@
     });
     body.appendChild(el('p', 'asst-label', 'Exact arguments:'));
     var pre = el('pre', 'asst-args');
-    pre.textContent = JSON.stringify(info.arguments || {}, null, 2);
+    var argText = JSON.stringify(info.arguments || {}, null, 2);
+    pre.textContent = argText;
     body.appendChild(pre);
-    var actions = [{ label: 'Deny', value: { decision: 'deny', scope: 'once' }, cancel: true },
-                   { label: 'Allow once', value: { decision: 'approve', scope: 'once' }, primary: true }];
+    body.appendChild(button('Copy arguments', 'asst-btn asst-btn-quiet', function (e) {
+      var b = e.currentTarget;
+      var prev = b.textContent;
+      var nav = root.navigator;
+      var done = function (ok) { b.textContent = ok ? 'Copied' : 'Copy failed'; setTimeout(function () { b.textContent = prev; }, 1500); };
+      if (nav && nav.clipboard && root.isSecureContext !== false) nav.clipboard.writeText(argText).then(function () { done(true); }, function () { done(false); });
+      else done(false);
+    }));
+    var actions = [{ label: 'Deny execution', value: { decision: 'deny', scope: 'once' }, danger: true, cancel: true },
+                   { label: 'Approve once', value: { decision: 'approve', scope: 'once' }, primary: true }];
     if (info.grantable) {
       actions.push({ label: 'Allow for this conversation', value: { decision: 'approve', scope: 'conversation' } });
     }

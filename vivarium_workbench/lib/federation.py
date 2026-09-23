@@ -139,5 +139,6 @@ def federated_composites(ws_root: Path) -> dict[str, dict]:
             rec = dict(rec)
             rec["origin_repo"] = lw.repo
             rec["read_only"] = True
+            rec["origin"] = "federated"
             out.setdefault(spec_id, rec)
     return out

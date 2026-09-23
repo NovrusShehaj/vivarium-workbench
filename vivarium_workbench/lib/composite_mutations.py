@@ -46,6 +46,8 @@ from typing import Any
 import yaml
 
 from vivarium_workbench.lib import study_spec as _study_spec
+from vivarium_workbench.lib.composite_files import install_document, remove_stem
+from vivarium_workbench.lib.composites_query import clear_composites_cache
 from vivarium_workbench.lib.json_serialize import _json_body
 from vivarium_workbench.lib.upload_mutations import _ws_add_to_sys_path
 from vivarium_workbench.lib.workspace_paths import WorkspacePaths
@@ -682,3 +684,26 @@ def delete_investigation_composite(ws_root: Path, body: dict[str, Any]) -> "tupl
     ]
     spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
     return {"ok": True}, 200
+
+
+def import_composite(ws_root: Path, body: dict[str, Any]) -> tuple[dict, int]:
+    """POST /api/composites/import ``{stem, document, replace?}``.
+
+    Writes ``<pkg>/composites/<stem>.composite.json`` after schema validation.
+    409 when the stem already exists unless ``replace`` is true. Does not commit.
+    """
+    stem = body.get("stem") if isinstance(body.get("stem"), str) else ""
+    document = body.get("document")
+    replace = bool(body.get("replace"))
+    body_out, status = install_document(ws_root, stem, document, replace=replace)
+    if status == 200:
+        clear_composites_cache()
+    return body_out, status
+
+
+def remove_composite(ws_root: Path, stem: str) -> tuple[dict, int]:
+    """DELETE /api/composites/{stem}. Workspace catalog files only."""
+    body_out, status = remove_stem(ws_root, stem)
+    if status == 200:
+        clear_composites_cache()
+    return body_out, status

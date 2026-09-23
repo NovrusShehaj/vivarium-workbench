@@ -215,7 +215,7 @@ map in `workspace.yaml`. Defaults (`LAYOUT_DEFAULTS`):
 <workspace>/
 ├── workspace.yaml              # workspace identity + config (name, package_path, layout, ui, ...)
 ├── <package>/                  # the workspace's own Python package (package_path)
-│   └── composites/             #   *.composite.yaml — model definitions
+│   └── composites/             #   *.composite.yaml / *.composite.json — model definitions
 ├── studies/<slug>/             # one experiment per dir
 │   ├── study.yaml              #   the spec (source of truth for the experiment)
 │   ├── runs.db                 #   SQLite — run results for this study (durable output)
@@ -240,6 +240,11 @@ Note studies can live **either** flat under `studies/<slug>/` **or** nested
 under `investigations/<inv>/studies/<slug>/`. Resolution is nested-first
 (`lib/investigations.py: iter_study_dirs / study_dir`).
 
+A user-authored composite is a process-bigraph document (`name` + `state`)
+stored as `<package_path>/composites/<stem>.composite.json`. Its catalog id is
+`<package_path>.composites.<stem>`. `schemaVersion` is optional and defaults to
+1. See `docs/custom-composites.md`.
+
 ### Sources of truth, by artifact
 
 | Artifact | Source of truth | Owner / writer |
@@ -247,7 +252,7 @@ under `investigations/<inv>/studies/<slug>/`. Resolution is nested-first
 | Workspace identity & config | `workspace.yaml` | dashboard + `/pbg-*` skills (both write it) |
 | Experiment design | `studies/<slug>/study.yaml` | dashboard + `/pbg-*` skills |
 | Research-arc structure | `investigations/<slug>/investigation.yaml` | dashboard + `/pbg-*` skills |
-| Model definition | `*.composite.yaml` / generator fn | workspace package / installed pbg-* / pbg-superpowers |
+| Model definition | `*.composite.yaml` / `*.composite.json` / generator fn | workspace package / installed pbg-* / pbg-superpowers |
 | **Run results** | `studies/<slug>/runs.db` (or backend emitter output) | written by process-bigraph emitter during a run |
 | Audit trail | the workspace's **git history** (+ `.pbg/events.jsonl` event log) | dashboard commits most mutations; catalog ops are an exception (see §6) |
 | Validation schemas | `.pbg/schemas/*.json` | **viva-template** (read-only here) |

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vivarium.science/schemas/composite-1.schema.json",
+  "title": "Vivarium composite (schema version 1)",
+  "description": "A process-bigraph composite document. schemaVersion may be omitted; absence means version 1. Unknown properties are preserved. The catalog id comes from the filename stem, not from name.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "state"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "description": { "type": "string", "maxLength": 8000 },
+    "version": { "type": "string", "maxLength": 64 },
+    "author": { "type": "string", "maxLength": 200 },
+    "tags": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "maxLength": 64 }
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": { "enum": ["float", "int", "str", "string", "bool"] },
+          "default": {},
+          "description": { "type": "string" },
+          "min": {},
+          "max": {}
+        },
+        "additionalProperties": true
+      }
+    },
+    "requires": {
+      "type": "object",
+      "properties": {
+        "processes": { "type": "array", "items": { "type": "string" } },
+        "steps": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "state": {
+      "type": "object",
+      "description": "Process-bigraph state tree. Process nodes use _type, address, config, inputs, and outputs. address is a process address such as local:ProcessName, not a filesystem path.",
+      "additionalProperties": true
+    }
+  }
+}

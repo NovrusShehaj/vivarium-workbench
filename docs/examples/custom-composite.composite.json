@@ -1,0 +1,23 @@
+{
+  "$schema": "https://vivarium.science/schemas/composite-1.schema.json",
+  "schemaVersion": 1,
+  "name": "increase-demo",
+  "description": "Trivial linear-growth composite.",
+  "version": "1.0.0",
+  "author": "workspace",
+  "tags": ["fixture"],
+  "parameters": {
+    "rate": { "type": "float", "default": 2.0 }
+  },
+  "requires": { "processes": ["IncreaseProcess"] },
+  "state": {
+    "increase": {
+      "_type": "process",
+      "address": "local:IncreaseProcess",
+      "config": { "rate": "${rate}" },
+      "inputs": { "level": ["stores", "level"] },
+      "outputs": { "level": ["stores", "level"] }
+    },
+    "stores": { "level": 0 }
+  }
+}

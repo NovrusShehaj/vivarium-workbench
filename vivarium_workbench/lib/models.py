@@ -440,6 +440,34 @@ class CompositeRecord(BaseModel):
     name: str
     kind: str = "spec"
     module: str = ""
+    origin: Optional[str] = None
+    format: Optional[str] = None
+    schemaVersion: Optional[int] = None
+
+
+class CompositeIssue(BaseModel):
+    """One workspace composite that failed discovery, or a non-fatal warning."""
+
+    model_config = ConfigDict(extra="allow")
+
+    category: str = ""
+    message: str = ""
+    path: str = ""
+    file: str = ""
+    hint: str = ""
+    severity: str = "error"
+
+
+class CompositeImportRequest(BaseModel):
+    """POST /api/composites/import body.
+
+    ``document`` is the parsed composite object. The server chooses the
+    destination path from ``stem`` and never accepts a client filesystem path.
+    """
+
+    stem: str
+    document: dict[str, Any]
+    replace: bool = False
 
 
 class CompositesPayload(BaseModel):
@@ -453,6 +481,7 @@ class CompositesPayload(BaseModel):
     composites: list[CompositeRecord] = []
     workspace_package: Optional[str] = None
     error: Optional[str] = None
+    composite_errors: list[CompositeIssue] = []
 
 
 class InvestigationRow(BaseModel):

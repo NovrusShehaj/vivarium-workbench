@@ -465,12 +465,17 @@ class ChatService:
         p = prep.params
         spec = s.tools.get(call["name"])
         t0 = time.monotonic()
+
+        def elapsed_ms() -> int:
+            return max(0, int((time.monotonic() - t0) * 1000))
+
         public_args = redact_obj(parsed if isinstance(parsed, dict) else {"_raw": str(call["args"])[:500]})
         if spec is None or spec.name not in offered:
             res = ToolResult(ok=False, content=f"unknown or unavailable tool {call['name']!r}", summary="unknown tool")
             await run.emit("tool.call", {"id": call["id"], "name": call["name"], "arguments": public_args,
                                          "category": "unknown", "requires_approval": False})
-            await run.emit("tool.result", {"id": call["id"], "ok": False, "summary": res.summary, "truncated": False})
+            await run.emit("tool.result", {"id": call["id"], "ok": False, "summary": res.summary,
+                                           "truncated": False, "duration_ms": elapsed_ms()})
             return res
         try:
             args = validate_args(spec, parsed)
@@ -478,7 +483,8 @@ class ChatService:
             res = ToolResult(ok=False, content=f"invalid arguments: {exc}", summary="invalid arguments")
             await run.emit("tool.call", {"id": call["id"], "name": spec.name, "arguments": public_args,
                                          "category": spec.category, "requires_approval": False})
-            await run.emit("tool.result", {"id": call["id"], "ok": False, "summary": res.summary, "truncated": False})
+            await run.emit("tool.result", {"id": call["id"], "ok": False, "summary": res.summary,
+                                           "truncated": False, "duration_ms": elapsed_ms()})
             return res
         h = args_hash(spec.name, args)
         repeats[h] = repeats.get(h, 0) + 1
@@ -514,7 +520,8 @@ class ChatService:
             s.audit.record("denial", session_key=p.session_key, conversation=p.conversation_id, run=run.id,
                            tool=spec.name, args_redacted=public_args, decision="denied", reason=decision.reason)
             res = ToolResult(ok=False, content=f"denied by policy: {decision.reason}", summary="denied")
-            await run.emit("tool.result", {"id": call["id"], "ok": False, "summary": res.summary, "truncated": False})
+            await run.emit("tool.result", {"id": call["id"], "ok": False, "summary": res.summary,
+                                           "truncated": False, "duration_ms": elapsed_ms()})
             return res
         if approval is not None:
             run.status = "awaiting_approval"
@@ -530,7 +537,7 @@ class ChatService:
                                tool=spec.name, args_redacted=public_args, decision="denied_by_user")
                 res = ToolResult(ok=False, content="the user declined to run this tool", summary="declined")
                 await run.emit("tool.result", {"id": call["id"], "ok": False, "summary": res.summary,
-                                               "truncated": False})
+                                               "truncated": False, "duration_ms": elapsed_ms()})
                 return res
             decided = "approved"
             s.audit.record("approval", session_key=p.session_key, conversation=p.conversation_id, run=run.id,
@@ -551,15 +558,15 @@ class ChatService:
             log.warning("tool %s failed: %s", spec.name, type(exc).__name__)
             raw = ToolResult(ok=False, content=f"{spec.name} failed ({type(exc).__name__})", summary="tool error")
         res = shape_result(spec, raw)
-        duration = int((time.monotonic() - t0) * 1000)
+        duration = elapsed_ms()
         s.audit.record("tool_call", session_key=p.session_key, conversation=p.conversation_id, run=run.id,
                        tool=spec.name, category=spec.category, args_redacted=public_args,
                        decision="auto" if decided == "allow" else decided, duration_ms=duration,
                        result_bytes=len(res.content.encode("utf-8")), ok=res.ok)
         state["tool_events"].append({"name": spec.name, "ok": res.ok, "summary": res.summary,
-                                     "decision": decided, "args": public_args})
+                                     "decision": decided, "args": public_args, "duration_ms": duration})
         await run.emit("tool.result", {"id": call["id"], "ok": res.ok, "summary": res.summary,
-                                       "truncated": res.truncated})
+                                       "truncated": res.truncated, "duration_ms": duration})
         if res.data and res.data.get("proposal_id"):
             try:
                 proposal = s.proposals.get(p.ws_root, res.data["proposal_id"], scope=p.scope, persist=prep.persist)

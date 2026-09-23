@@ -77,8 +77,9 @@ def _composite_top_pkg(rec: dict) -> str:
 def filter_composites(records: list, ws_data: dict | None) -> list:
     """Apply the per-workspace registry allow-list to a list of composite dicts.
 
-    Keeps a record when EITHER it is flagged ``workspace_local: True`` (the
-    workspace's own composites are always shown) OR its top-level package (see
+    Keeps a record when it is flagged ``workspace_local: True``, when
+    ``origin`` is ``workspace`` (a user composite stays visible even if the
+    allow-list would hide its package), or when its top-level package (see
     :func:`_composite_top_pkg`) is in the normalized
     ``dashboard.registry.{include,modules}`` allow-list. Reuses
     ``lib.registry._registry_include_pkgs`` so dash/underscore normalization
@@ -96,7 +97,7 @@ def filter_composites(records: list, ws_data: dict | None) -> list:
     def _keep(rec: dict) -> bool:
         if not isinstance(rec, dict):
             return False
-        if rec.get("workspace_local") is True:
+        if rec.get("workspace_local") is True or rec.get("origin") == "workspace":
             return True
         return _composite_top_pkg(rec) in include
 

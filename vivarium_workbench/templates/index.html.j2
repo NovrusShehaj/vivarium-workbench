@@ -46,19 +46,22 @@ window.addEventListener('pageshow', function (e) {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.45);
+  background: var(--overlay);
   z-index: 1000;
   align-items: center;
   justify-content: center;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 .modal-box {
-  background: var(--surface);
-  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
   padding: 24px 28px;
   min-width: 360px;
   max-width: 560px;
   width: 100%;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  box-shadow: var(--shadow-2), var(--inset-highlight);
   position: relative;
 }
 .modal-box h3 { margin-top: 0; }
@@ -70,7 +73,7 @@ window.addEventListener('pageshow', function (e) {
 }
 .modal-box textarea { min-height: 90px; font-family: monospace; }
 .modal-box button[type=submit] {
-  background: #1976d2; color: var(--on-fill); border: none;
+  background: var(--accent); color: var(--on-accent); border: none;
   border-radius: 4px; padding: 8px 18px; cursor: pointer; font-size: 0.95em;
 }
 .modal-box button[type=submit]:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -85,7 +88,7 @@ window.addEventListener('pageshow', function (e) {
   border-radius: 6px; cursor: pointer; font-size: 0.88em;
   transition: background .12s ease, border-color .12s ease;
 }
-.action-btn:hover { background: var(--surface-2); border-color: #9ca3af; }
+.action-btn:hover { background: var(--surface-2); border-color: var(--border-control); }
 /* Compact icon-only button (e.g. a ⟳ refresh) — quiet, not a bold blue slab. */
 .icon-btn {
   width: 28px; height: 28px; padding: 0;
@@ -308,7 +311,7 @@ body.snapshot .viv-wsp-trigger .viv-wsp-dot { color: var(--text-subtle); }
 :root[data-theme="dark"] .viv-wsp-empty { color: var(--text-muted); }
 :root[data-theme="dark"] .viv-wsp-foot { border-top-color: var(--border-faint); background: var(--surface-2); color: var(--text-muted); }
 :root[data-theme="dark"] .viv-wsp-settings { color: var(--link); }
-:root[data-theme="dark"] .modal-box { background: var(--surface); }
+:root[data-theme="dark"] .modal-box { background: var(--surface-elevated); }
 /* Dark theme for the rest of this block's confirmed-live selectors (verified
    against the app's own actually-loaded scripts + rendered template markup —
    several sibling classes here belong to source-switch.js/workspace-switcher.js,

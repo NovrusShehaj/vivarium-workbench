@@ -141,10 +141,11 @@ from vivarium_workbench.lib import chain_views as _chain_views
 from vivarium_workbench.lib import study_variants as _study_variants
 from vivarium_workbench.lib.composite_resolve import resolve_composite_for_request, _degraded_result
 from vivarium_workbench.lib import composite_config_adapt as _composite_config_adapt
-from vivarium_workbench.lib.composites_query import composites_via_subprocess
+from vivarium_workbench.lib.composites_query import clear_composites_cache, composites_via_subprocess
 from vivarium_workbench.lib.models import (
     BibEntry,
     CatalogPayload,
+    CompositeImportRequest,
     CompositeRecord,
     CompositeResolvePayload,
     CompositeRunsList,
@@ -1351,13 +1352,16 @@ def create_app() -> FastAPI:
         tags=["Composites"],
         summary="Discoverable composites (specs + generators)",
     )
-    def composites(ws: Path = Depends(get_workspace)) -> CompositesPayload:
+    def composites(
+        ws: Path = Depends(get_workspace),
+        refresh: bool = False,
+    ) -> CompositesPayload:
         """Composite spec / generator index for this workspace.
 
         Mirrors ``GET /api/composites`` from the stdlib server.  Discovery runs
         in a fresh Python subprocess so that stale ``sys.modules`` in the
         long-running server process cannot hide ``@composite_generator``-decorated
-        entries.
+        entries. ``?refresh=1`` bypasses the short discovery cache.
 
         On subprocess failure (timeout / import error / parse error) the route
         returns ``{"composites": [], "error": "composite discovery unavailable"}``
@@ -1366,7 +1370,7 @@ def create_app() -> FastAPI:
 
         Library-backed via ``lib.composites_query.composites_via_subprocess``.
         """
-        data = composites_via_subprocess(ws)
+        data = composites_via_subprocess(ws, bypass_cache=refresh)
         if data is None:
             return CompositesPayload(
                 composites=[],
@@ -1401,7 +1405,46 @@ def create_app() -> FastAPI:
             composites=[CompositeRecord.model_validate(c) for c in raw_composites],
             workspace_package=data.get("workspace_package"),
             error=data.get("error"),
+            composite_errors=data.get("composite_errors") or [],
         )
+
+    @app.post(
+        "/api/composites/import",
+        tags=["Composites"],
+        summary="Install a user composite JSON document into the workspace catalog",
+    )
+    def composite_import(
+        req: CompositeImportRequest,
+        ws: Path = Depends(get_workspace),
+    ) -> dict:
+        """Copy a validated composite document to ``<pkg>/composites/<stem>.composite.json``.
+
+        400 when the stem or document is invalid, 409 when the stem exists and
+        ``replace`` is false, 403 when the path would leave the workspace,
+        500 when ``workspace.yaml`` cannot be read or the write fails.
+        """
+        body, status = _composite_mut.import_composite(ws, req.model_dump())
+        if status != 200:
+            return JSONResponse(status_code=status, content=body)
+        clear_composites_cache()
+        return body
+
+    @app.delete(
+        "/api/composites/{stem}",
+        tags=["Composites"],
+        summary="Remove a workspace-local composite file",
+    )
+    def composite_remove(stem: str, ws: Path = Depends(get_workspace)) -> dict:
+        """Delete ``<pkg>/composites/<stem>.composite.json`` (and a YAML twin).
+
+        400 on a bad stem, 403 for installed, federated, or generator composites,
+        404 when no workspace file has that stem.
+        """
+        body, status = _composite_mut.remove_composite(ws, stem)
+        if status != 200:
+            return JSONResponse(status_code=status, content=body)
+        clear_composites_cache()
+        return body
 
     @app.get(
         "/api/composite-resolve",

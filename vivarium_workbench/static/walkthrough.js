@@ -2826,7 +2826,10 @@
       var nr = (c.requires && c.requires.processes) ? c.requires.processes.length : 0;
       var sel = (window._registrySelected === c.id) ? ' reg-selected' : '';
       return '<tr class="reg-tr' + sel + '" data-address="' + _esc(c.id) + '" onclick="_selectRegistryEntry(\'' + _esc(c.id) + '\')" ondblclick="_setRegistryZoom(\'full\')" title="Double-click to open the full card">' +
-        '<td class="reg-td-name"><strong>' + _esc(c.name) + '</strong> <code>' + _esc(c.id) + '</code></td>' +
+        '<td class="reg-td-name"><strong>' + _esc(c.name) + '</strong> ' +
+          (window._compositeOriginBadge ? window._compositeOriginBadge(c) : '') +
+          ' <code>' + _esc(c.id) + '</code> ' +
+          (window._compositeRemoveButton ? window._compositeRemoveButton(c) : '') + '</td>' +
         '<td>' + _esc(mod(c)) + '</td>' +
         '<td class="num">' + np + '</td>' +
         '<td class="num">' + nr + '</td>' +
@@ -4371,25 +4374,26 @@
       .catch(function() { body.textContent = 'unavailable'; });
   };
 
-  function _loadComposites(_attempt) {
+  function _loadComposites(_attempt, opts) {
     _attempt = _attempt || 0;
+    opts = opts || {};
     // Discovery re-imports the workspace package in a subprocess (~seconds cold),
     // and a cold pooled worker can briefly answer empty / with an `error`. Show a
     // "Loading…" state on the first attempt (rather than flashing "No composites
     // registered.") and retry a cold/empty/errored response a few times before
     // concluding the workspace genuinely has none.
-    if (_attempt === 0 && !(window._composites && window._composites.length)) {
+    if (_attempt === 0 && !(window._composites && window._composites.length) && !opts.refresh) {
       var _el0 = document.getElementById('registry-composites-container');
       if (_el0) _el0.innerHTML = '<p class="empty-state">Loading composites…</p>';
     }
     var _p = window.DataSource
-      ? window.DataSource.loadComposites()
-      : apiFetch('GET', '/api/composites').then(function(r) { return r.json(); });
+      ? window.DataSource.loadComposites(!!opts.refresh)
+      : apiFetch('GET', '/api/composites' + (opts.refresh ? '?refresh=1' : '')).then(function(r) { return r.json(); });
     var _retry = function () {
       // ~error: definitely transient (cold/unavailable) → retry harder.
       // ~empty, no error: probably genuine, but do one safety retry for a cold
       // race. Non-empty → render.
-      setTimeout(function () { _loadComposites(_attempt + 1); }, 700 + _attempt * 900);
+      setTimeout(function () { _loadComposites(_attempt + 1, opts); }, 700 + _attempt * 900);
     };
     _p
       .then(function(data) {
@@ -4404,15 +4408,127 @@
         window._compositesById = {};
         composites.forEach(function(c) { window._compositesById[c.id] = c; });
         window._composites = composites;
+        window._compositeErrors = (data && data.composite_errors) || [];
 
         // (a) Registry/Processes-page "Composites" tab — accordion cards.
         _renderRegistryComposites(composites);
+        if (opts.selectId) {
+          window._registrySelected = opts.selectId;
+          var node = document.querySelector('[data-address="' + (window.CSS && CSS.escape ? CSS.escape(opts.selectId) : opts.selectId) + '"]');
+          if (node && node.scrollIntoView) node.scrollIntoView({ block: 'nearest' });
+        }
       })
       .catch(function () {
         if (_attempt + 1 < 5) { _retry(); }
       });
   }
   window._loadComposites = _loadComposites;
+
+  function _compositeCatalogTools() {
+    var snap = window.__DASH_CONFIG__ && window.__DASH_CONFIG__.mode === 'snapshot';
+    var controls = snap ? '' :
+      '<div class="composite-catalog-tools" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px">' +
+        '<button type="button" class="btn-mini" onclick="_pickCompositeImport()">Import composite</button>' +
+        '<button type="button" class="btn-mini" onclick="_loadComposites(0,{refresh:true})">Reload</button>' +
+        '<input id="composite-import-file" type="file" accept=".json,application/json" hidden onchange="_importCompositeFile(this)">' +
+      '</div>';
+    var status = window._compositeImportStatus || '';
+    var errs = window._compositeErrors || [];
+    var errHtml = errs.length
+      ? '<div class="form-error" style="margin:0 0 10px">' +
+        '<button type="button" class="btn-mini" onclick="_dismissCompositeErrors()">Dismiss</button>' +
+        errs.map(function (e) {
+          var where = e.file || e.path || e.category || 'composite';
+          return '<p><strong>' + _esc(where) + '</strong> ' + _esc(e.message || '') +
+            (e.hint ? ' ' + _esc(e.hint) : '') + '</p>';
+        }).join('') + '</div>'
+      : '';
+    return controls + status + errHtml;
+  }
+
+  function _dismissCompositeErrors() {
+    window._compositeErrors = [];
+    _renderRegistryComposites();
+  }
+  window._dismissCompositeErrors = _dismissCompositeErrors;
+
+  function _pickCompositeImport() {
+    var input = document.getElementById('composite-import-file');
+    if (input) input.click();
+  }
+  window._pickCompositeImport = _pickCompositeImport;
+
+  function _importCompositeFile(input) {
+    var file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    if (file.size > 1048576) {
+      window._compositeImportStatus = '<p class="form-error">' + _esc(file.name) + ' exceeds 1 MiB.</p>';
+      _renderRegistryComposites();
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var doc;
+      try { doc = JSON.parse(String(reader.result || '')); }
+      catch (err) {
+        window._compositeImportStatus = '<p class="form-error">' + _esc(file.name) + ': ' + _esc(err.message) + '</p>';
+        _renderRegistryComposites();
+        return;
+      }
+      var stem = String(file.name || '').replace(/\.composite\.json$/i, '').replace(/\.json$/i, '');
+      _postCompositeImport(stem, doc, false);
+    };
+    reader.readAsText(file);
+  }
+  window._importCompositeFile = _importCompositeFile;
+
+  function _postCompositeImport(stem, doc, replace) {
+    apiFetch('POST', '/api/composites/import', { stem: stem, document: doc, replace: !!replace })
+      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b || {} }; }); })
+      .then(function (res) {
+        if (res.status === 200) {
+          window._compositeImportStatus = '';
+          window._pendingCompositeDoc = null;
+          _loadComposites(0, { refresh: true, selectId: res.body.id });
+          return;
+        }
+        var first = res.body.errors && res.body.errors[0];
+        var msg = res.body.error || (first && first.message) || 'Import failed.';
+        var hint = first && first.hint;
+        var html = '<div class="form-error"><p>' + _esc(msg) + (hint ? ' ' + _esc(hint) : '') + '</p>';
+        if (res.status === 409) {
+          window._pendingCompositeDoc = { stem: stem, document: doc };
+          html += '<button type="button" class="btn-mini" onclick="_replacePendingComposite()">Replace existing</button>';
+        }
+        window._compositeImportStatus = html + '</div>';
+        _renderRegistryComposites();
+      })
+      .catch(function (err) {
+        window._compositeImportStatus = '<p class="form-error">' + _esc(String(err)) + '</p>';
+        _renderRegistryComposites();
+      });
+  }
+
+  function _replacePendingComposite() {
+    var pending = window._pendingCompositeDoc;
+    if (!pending) return;
+    _postCompositeImport(pending.stem, pending.document, true);
+  }
+  window._replacePendingComposite = _replacePendingComposite;
+
+  function _removeWorkspaceComposite(stem) {
+    if (!window.confirm('Remove ' + stem + ' from the local catalog? This deletes the workspace composite file.')) return;
+    apiFetch('DELETE', '/api/composites/' + encodeURIComponent(stem))
+      .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b || {} }; }); })
+      .then(function (res) {
+        window._compositeImportStatus = res.status === 200
+          ? ''
+          : '<p class="form-error">' + _esc(res.body.error || 'Remove failed.') + '</p>';
+        _loadComposites(0, { refresh: true });
+      });
+  }
+  window._removeWorkspaceComposite = _removeWorkspaceComposite;
 
   // Render composites as unified accordion ProcessCards into the Processes-page
   // "Composites" tab (respecting the shared registry filter). One wide card/row.
@@ -4431,9 +4547,12 @@
       });
     }
     if (!list.length) {
-      el.innerHTML = q
+      var snap = window.__DASH_CONFIG__ && window.__DASH_CONFIG__.mode === 'snapshot';
+      el.innerHTML = _compositeCatalogTools() + (q
         ? '<p class="empty-state muted" style="font-size:0.9em">No composites match “' + _esc(q) + '”.</p>'
-        : '<p class="empty-state">No composites registered.</p>';
+        : '<p class="empty-state">' + (snap
+          ? 'No composites registered.'
+          : 'No composites registered. Place a .composite.json file in the workspace package composites/ directory, or use Import composite.') + '</p>');
       return;
     }
     // Honour the Sort control (default keeps workspace-local first, then name).
@@ -4449,7 +4568,7 @@
       .map(function (x) { return x.c; });
     // Semantic zoom: Table (dense) → Cards (grid + usage) → Full (accordion).
     var zoom = window._registryZoom || 'grid';
-    if (zoom === 'table') { el.innerHTML = _renderCompositeTableHtml(list); return; }
+    if (zoom === 'table') { el.innerHTML = _compositeCatalogTools() + _renderCompositeTableHtml(list); return; }
     var cardsCls = 'reg-cards reg-cards-' + (zoom === 'full' ? 'full' : 'grid');
     var render = (zoom === 'full') ? _renderCompositeCardFull : _renderCompositeCardGrid;
     var _prevF = null;
@@ -4461,7 +4580,7 @@
       _prevF = c;
       return head + render(c);
     }).join('');
-    el.innerHTML = '<div class="' + cardsCls + '">' + _cardsHtml + '</div>';
+    el.innerHTML = _compositeCatalogTools() + '<div class="' + cardsCls + '">' + _cardsHtml + '</div>';
     if (zoom === 'grid') el.querySelectorAll('.reg-cards-grid').forEach(function (cc) { _applyCardCols(cc, 'registry'); });
   }
   window._renderRegistryComposites = _renderRegistryComposites;

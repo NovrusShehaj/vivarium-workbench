@@ -39,6 +39,7 @@
     conversations: [], convId: null, conv: null, activeLeaf: null,
     tray: [], autoOff: false, cloudConfirmed: {},
     stream: null, streamMsg: null, lastError: null, previewTimer: null, lastPreview: null,
+    usage: null, branch: null, slash: [], slashIndex: 0,
   };
   var E = {};          // DOM references
 
@@ -101,6 +102,18 @@
     E.alert.textContent = text || '';
   }
   function fmtTokens(n) { return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n); }
+  function fmtDuration(ms) {
+    if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return '';
+    if (ms < 1000) return ms + ' ms';
+    return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + ' s';
+  }
+  function fmtClock(ts) {
+    if (typeof ts !== 'number' || !isFinite(ts) || ts <= 0) return '';
+    var ms = ts < 1e12 ? ts * 1000 : ts;
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
   function provider() { return S.providers.filter(function (p) { return p.id === S.instance; })[0] || null; }
 
   // ── Page context adapter ──────────────────────────────────────────────────
@@ -163,9 +176,25 @@
     var wrap = el('div', 'asst');
     // Header
     var head = el('div', 'asst-head');
-    var title = el('h2', 'asst-title', 'Assistant');
+    var protocol = el('div', 'asst-protocol');
+    E.beacon = el('span', 'asst-status-beacon');
+    E.beacon.setAttribute('aria-hidden', 'true');
+    protocol.appendChild(E.beacon);
+    var title = el('h2', 'asst-title asst-status-text', 'Assistant');
     title.id = 'asst-title';
-    head.appendChild(title);
+    E.protocol = title;
+    E.statusText = title;
+    protocol.appendChild(title);
+    head.appendChild(protocol);
+    E.meter = el('div', 'asst-meter');
+    E.meterLabel = el('span', 'asst-meter-label', 'Context n/a');
+    E.meterTrack = el('span', 'asst-meter-track');
+    E.meterTrack.hidden = true;
+    E.meterFill = el('span', 'asst-meter-fill');
+    E.meterTrack.appendChild(E.meterFill);
+    E.meter.appendChild(E.meterLabel);
+    E.meter.appendChild(E.meterTrack);
+    head.appendChild(E.meter);
     var hActions = el('div', 'asst-head-actions');
     E.historyBtn = iconBtn('M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 3', 'Conversation history', toggleHistory);
     E.historyBtn.setAttribute('aria-expanded', 'false');
@@ -186,8 +215,6 @@
     E.chip.setAttribute('aria-haspopup', 'dialog');
     E.chip.setAttribute('aria-expanded', 'false');
     bar.appendChild(E.chip);
-    E.statusText = el('span', 'asst-status-text');
-    bar.appendChild(E.statusText);
     var agentLabel = el('label', 'asst-agent-toggle');
     E.agent = el('input');
     E.agent.type = 'checkbox';
@@ -231,10 +258,19 @@
 
     // Composer
     var form = el('form', 'asst-composer');
+    E.dropHint = el('p', 'asst-drop-hint', 'Drop a text file to attach it as context');
+    E.dropHint.hidden = true;
+    form.appendChild(E.dropHint);
+    E.slashMenu = el('div', 'asst-slash');
+    E.slashMenu.hidden = true;
+    E.slashMenu.setAttribute('role', 'listbox');
+    E.slashMenu.setAttribute('aria-label', 'Slash commands');
+    form.appendChild(E.slashMenu);
     E.input = el('textarea', 'asst-input');
-    E.input.rows = 3;
-    E.input.placeholder = 'Ask about this workspace…';
+    E.input.rows = 1;
+    E.input.placeholder = 'Ask about this workspace…  / for commands';
     E.input.setAttribute('aria-label', 'Message the assistant');
+    E.input.setAttribute('aria-autocomplete', 'list');
     E.input.addEventListener('keydown', onComposerKey);
     E.input.addEventListener('input', onComposerInput);
     form.appendChild(E.input);
@@ -242,25 +278,45 @@
     E.secretWarn.hidden = true;
     form.appendChild(E.secretWarn);
     var foot = el('div', 'asst-composer-foot');
+    E.tokenPill = el('span', 'asst-token-pill', 'tokens n/a');
+    E.tokenPill.title = 'Estimated size of the next message. Not a provider-reported count.';
+    foot.appendChild(E.tokenPill);
+    foot.appendChild(btn('/ Commands', function () { E.input.value = '/'; onComposerInput(); E.input.focus(); },
+                         'asst-btn asst-btn-quiet', 'Show slash commands'));
     E.egress = el('span', 'asst-egress');
     foot.appendChild(E.egress);
     foot.appendChild(btn('Preview', function () { showPreview(false); }, 'asst-btn asst-btn-quiet',
                          'Preview what will be sent'));
-    E.send = el('button', 'asst-btn asst-btn-primary', 'Send');
+    E.send = el('button', 'asst-btn asst-btn-primary asst-send', 'Send');
     E.send.type = 'submit';
     foot.appendChild(E.send);
-    E.stop = btn('Stop', stopStreaming, 'asst-btn asst-btn-danger');
+    E.stop = btn('Stop', stopStreaming, 'asst-btn asst-btn-danger asst-stop');
     E.stop.hidden = true;
     foot.appendChild(E.stop);
     form.appendChild(foot);
     form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
+    form.addEventListener('dragenter', onDrag);
+    form.addEventListener('dragover', onDrag);
+    form.addEventListener('dragleave', onDragLeave);
+    form.addEventListener('drop', onDrop);
     wrap.appendChild(form);
 
     host.appendChild(wrap);
   }
 
   // ── Header / status ───────────────────────────────────────────────────────
-  function setStatus(text) { if (E.statusText) E.statusText.textContent = text; }
+  function setStatus(text) {
+    var agent = S.stream ? 'LIVE' : (S.agent ? 'ACTIVE' : 'STANDBY');
+    var line = 'SYSTEM · ' + text + ' · AGENT ' + agent;
+    if (E.protocol) E.protocol.textContent = line;
+    if (E.beacon) {
+      var kind = 'asst-beacon-warn';
+      if (text === 'Ready') kind = 'asst-beacon-ok';
+      else if (text === 'Responding…' || text === 'Waiting for approval') kind = 'asst-beacon-live';
+      else if (/error|unreachable|not configured|rate-limited/i.test(text)) kind = 'asst-beacon-bad';
+      E.beacon.className = 'asst-status-beacon ' + kind;
+    }
+  }
 
   function renderChip() {
     var p = provider();
@@ -359,6 +415,49 @@
     E.send.hidden = !!S.stream;
     E.stop.hidden = !S.stream;
     renderTray();
+    renderMeter();
+  }
+
+  function renderMeter() {
+    if (!E.meterLabel) return;
+    var info = modelInfo();
+    var windowTokens = info && typeof info.context_window === 'number' ? info.context_window : null;
+    var draft = (E.input && E.input.value) || '';
+    var est = S.lastPreview ? (S.lastPreview.total_tokens || 0) + Math.ceil(draft.length / 4) : null;
+    var exactIn = S.usage && typeof S.usage.input_tokens === 'number' ? S.usage.input_tokens : null;
+    var exactOut = S.usage && typeof S.usage.output_tokens === 'number' ? S.usage.output_tokens : null;
+    E.meterFill.style.width = '0%';
+    E.meterFill.className = 'asst-meter-fill';
+    E.meterTrack.hidden = true;
+    var label;
+    if (windowTokens && est !== null) {
+      var pct = Math.max(0, Math.min(100, Math.round((est / windowTokens) * 100)));
+      label = '~' + fmtTokens(est) + ' est. / ' + fmtTokens(windowTokens);
+      E.meterTrack.hidden = false;
+      E.meterFill.style.width = pct + '%';
+      if (pct >= 95) E.meterFill.className = 'asst-meter-fill asst-meter-crit';
+      else if (pct >= 80) E.meterFill.className = 'asst-meter-fill asst-meter-warn';
+      E.meter.setAttribute('title', 'Estimated prompt versus the configured context window (' + pct +
+        '%). The tilde marks an estimate, not provider-reported usage.');
+    } else if (est !== null) {
+      label = '~' + fmtTokens(est) + ' est.';
+      E.meter.setAttribute('title', 'Estimated prompt size. No context window is configured for this model, so no percentage is shown.');
+    } else if (windowTokens) {
+      label = 'window ' + fmtTokens(windowTokens);
+      E.meter.setAttribute('title', 'Configured context window. Prompt size is not estimated yet.');
+    } else {
+      label = 'context n/a';
+      E.meter.setAttribute('title', 'No context window or prompt estimate is available.');
+    }
+    if (exactIn !== null || exactOut !== null) {
+      label += ' · last ' + (exactIn !== null ? fmtTokens(exactIn) + ' in' : '') +
+        (exactIn !== null && exactOut !== null ? ' / ' : '') +
+        (exactOut !== null ? fmtTokens(exactOut) + ' out' : '');
+    }
+    E.meterLabel.textContent = label;
+    if (E.tokenPill) {
+      E.tokenPill.textContent = est !== null ? '~' + fmtTokens(est) + ' est.' : 'tokens n/a';
+    }
   }
 
   function modelInfo() {
@@ -367,6 +466,21 @@
   }
 
   // ── Context tray ──────────────────────────────────────────────────────────
+  function chipKind(spec) {
+    switch (spec.kind) {
+      case 'study': return 'STUDY';
+      case 'investigation': return 'INV';
+      case 'composite': return 'COMP';
+      case 'run_log': return 'LOG';
+      case 'git_diff': return 'DIFF';
+      case 'manifest': return 'MAN';
+      case 'file': return 'FILE';
+      case 'search': return 'FIND';
+      case 'paste': return 'TEXT';
+      default: return 'CTX';
+    }
+  }
+
   function chipLabel(spec) {
     switch (spec.kind) {
       case 'study': return 'study: ' + spec.slug;
@@ -389,7 +503,8 @@
     var mode = (S.prefs && S.prefs.auto_context) || 'page_summary';
     if (mode !== 'off' && !S.autoOff) {
       var auto = el('span', 'asst-ctx-chip asst-ctx-auto');
-      auto.appendChild(doc.createTextNode(mode === 'page_and_selection' ? 'page + open study' : 'page summary'));
+      auto.appendChild(el('span', 'asst-ctx-ico', 'PAGE'));
+      auto.appendChild(el('span', 'asst-ctx-label', mode === 'page_and_selection' ? 'page + open study' : 'page summary'));
       auto.appendChild(btn('×', function () { S.autoOff = true; renderTray(); updateEgress(); },
                            'asst-chip-x', 'Remove automatic page context'));
       t.appendChild(auto);
@@ -398,7 +513,8 @@
     }
     S.tray.forEach(function (spec, idx) {
       var c = el('span', 'asst-ctx-chip');
-      c.appendChild(doc.createTextNode(chipLabel(spec)));
+      c.appendChild(el('span', 'asst-ctx-ico', chipKind(spec)));
+      c.appendChild(el('span', 'asst-ctx-label', chipLabel(spec)));
       c.appendChild(btn('×', function () { S.tray.splice(idx, 1); renderTray(); updateEgress(); },
                         'asst-chip-x', 'Remove ' + chipLabel(spec)));
       t.appendChild(c);
@@ -506,11 +622,15 @@
         .then(function (r) {
           S.lastPreview = r;
           var tokens = r.total_tokens + Math.ceil((E.input.value || '').length / 4);
-          E.egress.textContent = 'Sends ~' + fmtTokens(tokens) + ' tokens to ' + p.display_name + ' (' +
+          E.egress.textContent = 'Sends ~' + fmtTokens(tokens) + ' est. tokens to ' + p.display_name + ' (' +
             (p.locality === 'local' ? 'local' : 'cloud') + ').';
           var errs = r.items.filter(function (i) { return i.error || i.needs_confirmation; });
           if (errs.length) E.egress.textContent += ' ' + errs.length + ' context item(s) need attention — Preview.';
-        }, function () { E.egress.textContent = 'Sends to ' + p.display_name + ' (' + (p.locality === 'local' ? 'local' : 'cloud') + ').'; });
+          renderMeter();
+        }, function () {
+          E.egress.textContent = 'Sends to ' + p.display_name + ' (' + (p.locality === 'local' ? 'local' : 'cloud') + ').';
+          renderMeter();
+        });
     }, 300);
   }
 
@@ -669,16 +789,63 @@
     return (m.parts || []).filter(function (p) { return p.type === 'text'; }).map(function (p) { return p.text; }).join('');
   }
 
+  var PROMPTS = [
+    { title: 'Audit study YAML', text: 'Inspect the current study.yaml for schema errors and missing parameters.' },
+    { title: 'Diagnose simulation error', text: 'Examine the most recent simulation run logs and identify bottlenecks.' },
+    { title: 'Propose composite wiring', text: 'Generate process-bigraph store wiring for the open composite.' },
+    { title: 'Run smoke test', text: 'Verify simulation initialization using the detached runner.' },
+  ];
+
+  function fillPrompt(text) {
+    E.input.value = text;
+    resizeComposer();
+    onComposerInput();
+    E.input.focus();
+  }
+
   function renderEmpty() {
-    var box = el('div', 'asst-empty');
+    var box = el('div', 'asst-empty asst-welcome');
     if (!S.providers.length) {
       box.appendChild(el('p', null, 'Connect a model provider to start. Keys stay on the server — never in the browser.'));
       box.appendChild(btn('Connect a provider', openSettings, 'asst-btn asst-btn-primary'));
-    } else {
-      box.appendChild(el('p', null, 'Ask about this workspace — for example “Why is this study blocked?” or ' +
-                                    '“Explain this composite’s wiring.”'));
-      box.appendChild(el('p', 'asst-muted', 'Only a page summary is attached automatically. Add files or objects with “+ Add context”.'));
+      return box;
     }
+    var card = el('section', 'asst-welcome-card');
+    card.appendChild(el('p', 'asst-welcome-k', 'Workspace'));
+    var rows = el('dl', 'asst-welcome-rows');
+    function row(k, v) {
+      if (!v) return;
+      var d = el('div');
+      d.appendChild(el('dt', null, k));
+      d.appendChild(el('dd', null, v));
+      rows.appendChild(d);
+    }
+    row('Workspace', S.workspaceName || '');
+    row('Page', (root.location.hash || '#home').replace(/^#/, '').split(/[?&/]/)[0] || 'home');
+    row('Study', currentStudy());
+    row('Composite', currentComposite());
+    row('Branch', S.branch);
+    if (!rows.firstChild) row('Context', 'Page summary is attached automatically.');
+    card.appendChild(rows);
+    box.appendChild(card);
+    var grid = el('div', 'asst-prompt-grid');
+    PROMPTS.forEach(function (p) {
+      var b = btn('', function () { fillPrompt(p.text); }, 'asst-prompt');
+      b.appendChild(el('span', 'asst-prompt-k', p.title));
+      b.appendChild(el('span', 'asst-prompt-d', p.text));
+      grid.appendChild(b);
+    });
+    box.appendChild(grid);
+    var cheat = el('p', 'asst-cheat');
+    function key(label, name) {
+      cheat.appendChild(el('kbd', 'asst-kbd', label));
+      cheat.appendChild(doc.createTextNode(' ' + name));
+    }
+    key('⌘⇧.', 'Toggle');
+    key('Enter', 'Send');
+    key('Shift+Enter', 'Newline');
+    key('Esc', 'Stop');
+    box.appendChild(cheat);
     return box;
   }
 
@@ -741,19 +908,39 @@
       .sort(function (a, b) { return (a.created_at || 0) - (b.created_at || 0); });
   }
 
+  function messageWho(msg) {
+    var who = el('div', 'asst-msg-who');
+    who.appendChild(el('span', null, msg.role === 'user' ? 'You' : 'Assistant'));
+    if (msg.role === 'assistant' && (msg.model || msg.provider_instance)) {
+      var name = msg.model || msg.provider_instance;
+      if (msg.provider_instance && msg.model) name = msg.provider_instance + ' / ' + msg.model;
+      who.appendChild(el('span', 'asst-model-pill', name));
+    }
+    var clock = fmtClock(msg.created_at);
+    if (clock) who.appendChild(el('time', 'asst-muted', clock));
+    return who;
+  }
+
   function renderMessage(msg, all) {
     var box = el('article', 'asst-msg asst-msg-' + msg.role);
     box.setAttribute('data-message-id', msg.id);
-    var who = el('div', 'asst-msg-who', msg.role === 'user' ? 'You' : 'Assistant');
-    if (msg.role === 'assistant' && msg.provider_instance) {
-      who.appendChild(el('span', 'asst-muted', ' · ' + msg.provider_instance + '/' + (msg.model || '')));
-    }
-    box.appendChild(who);
+    box.appendChild(messageWho(msg));
     if (msg.role === 'user') {
       var ut = el('div', 'asst-msg-text asst-user-text');
       ut.textContent = textOf(msg);
       box.appendChild(ut);
       box.appendChild(contextRefs(msg.context_manifest));
+      var uActions = el('div', 'asst-msg-actions');
+      uActions.appendChild(btn('Copy', function (e) { copy(textOf(msg), e.currentTarget); }, 'asst-btn asst-btn-quiet',
+                               'Copy this prompt'));
+      uActions.appendChild(btn('Edit', function () {
+        E.input.value = textOf(msg);
+        if (msg.parent_id) S.activeLeaf = msg.parent_id;
+        resizeComposer();
+        E.input.focus();
+        announce('Prompt placed in the composer. Send to branch from the previous message.');
+      }, 'asst-btn asst-btn-quiet', 'Edit this prompt'));
+      box.appendChild(uActions);
       return box;
     }
     var body = el('div', 'asst-msg-text asst-md');
@@ -766,12 +953,17 @@
       box.appendChild(el('p', 'asst-msg-state asst-' + msg.status, label + (msg.error ? ': ' + msg.error.message : '')));
     }
     var actions = el('div', 'asst-msg-actions');
-    actions.appendChild(btn('Copy', function (e) { copy(textOf(msg), e.currentTarget); }, 'asst-btn asst-btn-quiet',
-                            'Copy this reply'));
+    actions.appendChild(btn('Copy Markdown', function (e) { copy(textOf(msg), e.currentTarget); }, 'asst-btn asst-btn-quiet',
+                            'Copy this reply as Markdown'));
     if (msg.status === 'error' || msg.status === 'interrupted' || msg.status === 'cancelled') {
       actions.appendChild(btn('Retry', function () { rerun('retry', msg.parent_id); }, 'asst-btn asst-btn-quiet'));
     }
     actions.appendChild(btn('Regenerate', function () { rerun('regenerate', msg.parent_id); }, 'asst-btn asst-btn-quiet'));
+    actions.appendChild(btn('Branch from here', function () {
+      S.activeLeaf = msg.id;
+      E.input.focus();
+      announce('Next message will branch from this reply.');
+    }, 'asst-btn asst-btn-quiet', 'Branch the conversation from this reply'));
     var sibs = siblingsOf(msg, all);
     if (sibs.length > 1) {
       var idx = sibs.map(function (s) { return s.id; }).indexOf(msg.id);
@@ -789,17 +981,67 @@
     return box;
   }
 
+  function toolStatus(ev, pending) {
+    if (pending === 'approval') return { cls: 'asst-tool-wait', glyph: '!', label: 'Awaiting approval' };
+    if (pending === 'running') return { cls: 'asst-tool-running', glyph: '…', label: 'Running' };
+    var decision = ev && ev.decision;
+    if (decision === 'denied' || decision === 'denied_by_user' || (ev && /denied|declined/.test(ev.summary || ''))) {
+      return { cls: 'asst-tool-bad', glyph: '✗', label: 'Denied' };
+    }
+    if (ev && ev.ok) return { cls: 'asst-ok', glyph: '✓', label: 'Completed' };
+    if (ev && /cancel/i.test(ev.summary || '')) return { cls: 'asst-tool-bad', glyph: '✗', label: 'Cancelled' };
+    return { cls: 'asst-tool-bad', glyph: '✗', label: 'Failed' };
+  }
+
+  function toolCard(ev, pending) {
+    var st = toolStatus(ev, pending);
+    var li = el('li', 'asst-tool-card ' + st.cls);
+    var head = el('div', 'asst-tool-head');
+    if (pending === 'running') {
+      var spin = el('span', 'asst-spinner');
+      spin.setAttribute('aria-hidden', 'true');
+      head.appendChild(spin);
+    } else {
+      head.appendChild(el('span', 'asst-glyph', st.glyph));
+    }
+    head.appendChild(el('span', 'viv-sr-only', st.label + ' '));
+    head.appendChild(el('code', 'asst-tool-name', (ev && ev.name) || 'tool'));
+    head.appendChild(el('span', 'asst-badge', st.label));
+    if (ev && typeof ev.duration_ms === 'number') head.appendChild(el('span', 'asst-tool-meta', fmtDuration(ev.duration_ms)));
+    li.appendChild(head);
+    if (ev && ev.summary && pending !== 'running' && pending !== 'approval') {
+      li.appendChild(el('p', 'asst-muted', ev.summary));
+    } else if (pending === 'approval') {
+      li.appendChild(el('p', 'asst-muted', 'Waiting for your approval'));
+    } else if (pending === 'running') {
+      li.appendChild(el('p', 'asst-muted', 'Running'));
+    }
+    if (ev && ev.args && typeof ev.args === 'object') {
+      var det = el('details');
+      var sum = el('summary', null, 'Arguments');
+      det.appendChild(sum);
+      var pre = el('pre', 'asst-args asst-tool-params');
+      var raw = JSON.stringify(ev.args, null, 2);
+      var collapsed = raw.length > 600;
+      pre.textContent = collapsed ? raw.slice(0, 600) + '\n…' : raw;
+      det.appendChild(pre);
+      if (collapsed) {
+        det.appendChild(btn('Show full arguments', function (e) {
+          pre.textContent = raw;
+          e.currentTarget.hidden = true;
+        }, 'asst-btn asst-btn-quiet'));
+      }
+      li.appendChild(det);
+    }
+    return li;
+  }
+
   function toolSummary(events) {
     var d = el('details', 'asst-tools');
+    d.open = true;
     d.appendChild(el('summary', null, events.length + ' tool call' + (events.length === 1 ? '' : 's')));
-    var ol = el('ol', 'asst-timeline');
-    events.forEach(function (ev) {
-      var li = el('li', ev.ok ? 'asst-ok' : 'asst-bad');
-      li.appendChild(el('span', 'asst-glyph', ev.ok ? '✓ ' : '✗ '));
-      li.appendChild(el('code', null, ev.name));
-      li.appendChild(doc.createTextNode(' — ' + (ev.summary || '') + (ev.decision && ev.decision !== 'allow' ? ' (' + ev.decision + ')' : '')));
-      ol.appendChild(li);
-    });
+    var ol = el('ol', 'asst-tool-list asst-timeline');
+    events.forEach(function (ev) { ol.appendChild(toolCard(ev)); });
     d.appendChild(ol);
     return d;
   }
@@ -807,7 +1049,11 @@
   function canApply() { return !!(S.status && S.status.capabilities && S.status.capabilities.apply_edits); }
 
   function copy(text, button) {
-    function done(ok) { var prev = button.textContent; button.textContent = ok ? 'Copied' : 'Copy failed'; setTimeout(function () { button.textContent = 'Copy'; }, 1500); }
+    var original = button.textContent;
+    function done(ok) {
+      button.textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(function () { button.textContent = original; }, 1500);
+    }
     if (root.navigator && root.navigator.clipboard && root.isSecureContext !== false) {
       root.navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
     } else {
@@ -831,17 +1077,47 @@
       E.messages.appendChild(u);
     }
     var a = el('article', 'asst-msg asst-msg-assistant asst-streaming');
-    a.appendChild(el('div', 'asst-msg-who', 'Assistant'));
+    var who = el('div', 'asst-msg-who');
+    who.appendChild(el('span', null, 'Assistant'));
+    var pNow = provider();
+    if (pNow || S.model) who.appendChild(el('span', 'asst-model-pill', (pNow ? pNow.display_name + ' / ' : '') + (S.model || 'model')));
+    var latency = el('span', 'asst-muted asst-latency');
+    latency.hidden = true;
+    who.appendChild(latency);
+    a.appendChild(who);
     var body = el('div', 'asst-msg-text asst-md');
     a.appendChild(body);
-    var timeline = el('ol', 'asst-timeline');
+    var timeline = el('ol', 'asst-tool-list asst-timeline');
     a.appendChild(timeline);
     var hint = el('p', 'asst-muted asst-loading', 'Waiting for the model…');
     a.appendChild(hint);
     E.messages.appendChild(a);
     E.messages.scrollTop = E.messages.scrollHeight;
-    return { box: a, body: body, timeline: timeline, hint: hint, text: '', pending: '', frame: 0,
-             renderer: MD.createStreamRenderer(body), tools: {}, gotToken: false };
+    return { box: a, body: body, timeline: timeline, hint: hint, latency: latency, text: '', pending: '', frame: 0,
+             renderer: MD.createStreamRenderer(body), tools: {}, gotToken: false, started: Date.now(), thinkTimes: [] };
+  }
+
+  function decorateThinking(sm) {
+    var nodes = sm.body.querySelectorAll('details.asst-thinking');
+    var now = Date.now();
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var live = n.classList.contains('asst-thinking-live');
+      var sum = n.querySelector('summary');
+      if (!sum) continue;
+      if (!sm.thinkTimes[i]) sm.thinkTimes[i] = { start: now };
+      var slot = sm.thinkTimes[i];
+      if (live) {
+        var sec = ((now - slot.start) / 1000).toFixed(1);
+        sum.textContent = 'Thinking for ' + sec + 's';
+        n.open = true;
+      } else {
+        if (!slot.end) slot.end = now;
+        var done = ((slot.end - slot.start) / 1000).toFixed(1);
+        sum.textContent = 'Thought for ' + done + 's';
+        if (!slot.collapsed) { n.open = false; slot.collapsed = true; }
+      }
+    }
   }
 
   function flush(sm) {
@@ -851,6 +1127,7 @@
     sm.text += sm.pending;
     sm.pending = '';
     sm.renderer.update(sm.text);
+    decorateThinking(sm);
     if (nearBottom) E.messages.scrollTop = E.messages.scrollHeight;
   }
 
@@ -862,7 +1139,14 @@
       return;
     }
     if (name === 'text.delta') {
-      if (!sm.gotToken) { sm.gotToken = true; sm.hint.hidden = true; }
+      if (!sm.gotToken) {
+        sm.gotToken = true;
+        sm.hint.hidden = true;
+        if (sm.latency) {
+          sm.latency.hidden = false;
+          sm.latency.textContent = ((Date.now() - sm.started) / 1000).toFixed(1) + 's to first token';
+        }
+      }
       sm.pending += data.text || '';
       if (!sm.frame) sm.frame = (root.requestAnimationFrame || setTimeout)(function () { flush(sm); });
       return;
@@ -870,12 +1154,11 @@
     if (name === 'notice') { sm.box.appendChild(el('p', 'asst-muted', data.message)); return; }
     if (name === 'tool.call') {
       sm.hint.hidden = true;
-      var li = el('li', 'asst-tool-pending');
-      li.appendChild(el('code', null, data.name));
-      var summary = el('span', null, ' — ' + (data.requires_approval ? 'waiting for your approval' : 'running…'));
-      li.appendChild(summary);
+      var pending = data.requires_approval ? 'approval' : 'running';
+      var li = toolCard({ name: data.name, args: data.arguments }, pending);
+      li.dataset.started = String(Date.now());
       sm.timeline.appendChild(li);
-      sm.tools[data.id] = { li: li, summary: summary };
+      sm.tools[data.id] = { li: li, started: Date.now(), name: data.name, args: data.arguments };
       if (data.requires_approval && data.approval_id) {
         setStatus('Waiting for approval');
         announce('The assistant is asking for approval to run ' + data.name);
@@ -889,8 +1172,16 @@
     if (name === 'tool.result') {
       var t = sm.tools[data.id];
       if (t) {
-        t.li.className = data.ok ? 'asst-ok' : 'asst-bad';
-        t.summary.textContent = ' — ' + (data.ok ? '✓ ' : '✗ ') + (data.summary || '') + (data.truncated ? ' (truncated)' : '');
+        var elapsed = typeof data.duration_ms === 'number' ? data.duration_ms : (Date.now() - t.started);
+        var next = toolCard({
+          name: t.name || 'tool',
+          ok: !!data.ok,
+          summary: (data.summary || '') + (data.truncated ? ' (truncated)' : ''),
+          duration_ms: elapsed,
+          args: t.args,
+        });
+        t.li.parentNode.replaceChild(next, t.li);
+        t.li = next;
       }
       return;
     }
@@ -898,7 +1189,13 @@
       DF.renderProposal(sm.box, data.proposal_id, { canApply: canApply() });
       return;
     }
-    if (name === 'usage') return;
+    if (name === 'usage') {
+      S.usage = S.usage || {};
+      if (typeof data.input_tokens === 'number') S.usage.input_tokens = data.input_tokens;
+      if (typeof data.output_tokens === 'number') S.usage.output_tokens = data.output_tokens;
+      renderMeter();
+      return;
+    }
     if (name === 'error') {
       S.lastError = data;
       var msg = data.message || 'The request failed.';
@@ -980,6 +1277,8 @@
         if (S.activeLeaf) body.parent_id = S.activeLeaf;
         E.input.value = '';
         E.secretWarn.hidden = true;
+        closeSlash();
+        resizeComposer();
         startStream(body, text);
       });
     }).catch(function (e) { showAlert(e.message); });
@@ -999,8 +1298,133 @@
   function stopStreaming() { if (S.stream) S.stream.stop(); }
 
   // ── Composer ──────────────────────────────────────────────────────────────
+  var SLASH = [
+    { id: 'study', label: '/study', hint: 'Attach the current study', run: function () {
+      var st = currentStudy();
+      if (!st) { showAlert('No study is open to attach.'); return; }
+      addSpec({ kind: 'study', slug: st });
+    } },
+    { id: 'composite', label: '/composite', hint: 'Attach the open composite', run: function () {
+      var comp = currentComposite();
+      if (!comp) { showAlert('No composite is open to attach.'); return; }
+      addSpec({ kind: 'composite', id: comp });
+    } },
+    { id: 'diff', label: '/diff', hint: 'Attach unstaged git changes', run: function () { addSpec({ kind: 'git_diff' }); } },
+    { id: 'clear', label: '/clear', hint: 'Start a new conversation', run: function () { newConversation(); } },
+    { id: 'agent', label: '/agent', hint: 'Toggle agent tool mode', run: function () {
+      if (E.agent.disabled) { showAlert('This model is not marked as supporting tools.'); return; }
+      E.agent.checked = !E.agent.checked;
+      S.agent = E.agent.checked;
+      refreshUi();
+      updateEgress();
+    } },
+  ];
+
+  function slashQuery() {
+    var v = E.input ? (E.input.value || '') : '';
+    var m = /^\/([a-z]*)$/i.exec(v);
+    return m ? m[1].toLowerCase() : null;
+  }
+
+  function closeSlash() {
+    if (!E.slashMenu) return;
+    E.slashMenu.hidden = true;
+    while (E.slashMenu.firstChild) E.slashMenu.removeChild(E.slashMenu.firstChild);
+    S.slash = [];
+    if (E.input) E.input.removeAttribute('aria-activedescendant');
+  }
+
+  function renderSlash() {
+    var q = slashQuery();
+    if (q === null) { closeSlash(); return; }
+    S.slash = SLASH.filter(function (c) { return c.id.indexOf(q) === 0; });
+    S.slashIndex = Math.max(0, Math.min(S.slashIndex, S.slash.length - 1));
+    while (E.slashMenu.firstChild) E.slashMenu.removeChild(E.slashMenu.firstChild);
+    if (!S.slash.length) { E.slashMenu.hidden = true; return; }
+    E.slashMenu.hidden = false;
+    S.slash.forEach(function (c, i) {
+      var b = btn(c.label + ' — ' + c.hint, function () { runSlash(c); }, 'asst-slash-item');
+      b.id = 'asst-slash-' + c.id;
+      b.setAttribute('role', 'option');
+      b.setAttribute('aria-selected', i === S.slashIndex ? 'true' : 'false');
+      E.slashMenu.appendChild(b);
+    });
+    var active = E.slashMenu.children[S.slashIndex];
+    if (active) E.input.setAttribute('aria-activedescendant', active.id);
+  }
+
+  function runSlash(c) {
+    E.input.value = '';
+    closeSlash();
+    resizeComposer();
+    c.run();
+    E.input.focus();
+  }
+
+  function resizeComposer() {
+    if (!E.input) return;
+    E.input.style.height = 'auto';
+    var next = E.input.scrollHeight;
+    if (next < 36) next = 36;
+    if (next > 220) next = 220;
+    E.input.style.height = next + 'px';
+  }
+
+  var TEXT_FILE = /\.(txt|md|markdown|yaml|yml|json|py|log|diff|patch|csv|toml|cfg|ini|xml|html|css|js|ts|rst)$/i;
+  function textFile(file) {
+    if (!file || file.size > 1500000) return false;
+    if (file.type && (file.type.indexOf('text/') === 0 || file.type === 'application/json')) return true;
+    return TEXT_FILE.test(file.name || '');
+  }
+
+  function onDrag(e) {
+    if (!e.dataTransfer || !e.dataTransfer.types || Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') === -1) return;
+    e.preventDefault();
+    E.composerDrop = true;
+    if (E.input && E.input.form) E.input.form.classList.add('asst-drop');
+    if (E.dropHint) E.dropHint.hidden = false;
+  }
+  function onDragLeave(e) {
+    if (e.target !== (E.input && E.input.form)) return;
+    if (E.input && E.input.form) E.input.form.classList.remove('asst-drop');
+    if (E.dropHint) E.dropHint.hidden = true;
+  }
+  function onDrop(e) {
+    if (!e.dataTransfer) return;
+    e.preventDefault();
+    if (E.input && E.input.form) E.input.form.classList.remove('asst-drop');
+    if (E.dropHint) E.dropHint.hidden = true;
+    var files = e.dataTransfer.files;
+    if (!files || !files.length) return;
+    var file = files[0];
+    if (!textFile(file)) { showAlert('Only text files can be attached as context.'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var text = String(reader.result || '');
+      if (text.length > 200000) text = text.slice(0, 200000);
+      addSpec({ kind: 'paste', label: file.name || 'dropped file', text: text });
+      announce('Attached ' + (file.name || 'file') + ' as context.');
+    };
+    reader.onerror = function () { showAlert('Could not read that file.'); };
+    reader.readAsText(file);
+  }
+
   function onComposerKey(e) {
     if (e.isComposing) return;
+    if (!E.slashMenu.hidden && S.slash.length) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        S.slashIndex = (S.slashIndex + (e.key === 'ArrowDown' ? 1 : S.slash.length - 1)) % S.slash.length;
+        renderSlash();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        runSlash(S.slash[S.slashIndex]);
+        return;
+      }
+      if (e.key === 'Escape') { e.preventDefault(); closeSlash(); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
     if (e.key === 'Escape') {
       if (S.stream) { e.preventDefault(); stopStreaming(); return; }
@@ -1013,12 +1437,15 @@
 
   function onComposerInput() {
     var v = E.input.value || '';
+    resizeComposer();
+    renderSlash();
     var hit = SECRET_SHAPES.some(function (re) { return re.test(v); });
     var p = provider();
     E.secretWarn.hidden = !hit;
     E.secretWarn.textContent = hit ? 'This looks like an API key or other secret — it will be sent to ' +
       (p ? p.display_name : 'the provider') + ' as typed. Remove it unless you mean to share it.' : '';
     updateEgress();
+    renderMeter();
   }
 
   // ── Settings / shortcut / suggest ─────────────────────────────────────────
@@ -1086,9 +1513,19 @@
       refreshUi();
       updateEgress();
       if (!S.conv) renderConversation();
+      loadBranch();
     }, function (e) {
       showAlert('The assistant could not load its settings: ' + e.message);
     });
+  }
+
+  function loadBranch() {
+    return root.fetch('/api/git-status', { credentials: 'same-origin' }).then(function (r) {
+      return r.json();
+    }).then(function (j) {
+      S.branch = j && typeof j.branch === 'string' && j.branch ? j.branch : null;
+      if (!S.stream && (!S.conv || !S.conv.messages || !S.conv.messages.length)) renderConversation();
+    }, function () { S.branch = null; });
   }
 
   function init() {

@@ -207,7 +207,100 @@
 
   // ── Blocks ───────────────────────────────────────────────────────────────
   // Each block: { type, raw, ... } — raw is the source slice (for streaming).
+  //
+  // <think>…</think> is recognised only outside fenced and inline code, and
+  // only when the provider actually emitted the tags. A trailing incomplete
+  // "<think" stays literal text until the tag closes. The body is plain text.
+  var THINK_OPEN = '<think>';
+  var THINK_CLOSE = '</think>';
+
+  function lineStart(text, i) { return i === 0 || text.charAt(i - 1) === '\n'; }
+
+  function skipFence(text, i) {
+    var fm = FENCE_RE.exec(text.slice(i));
+    if (!fm) return i;
+    var fence = fm[1];
+    var nl = text.indexOf('\n', i);
+    i = nl === -1 ? text.length : nl + 1;
+    var close = new RegExp('^ {0,3}' + fence.charAt(0) + '{' + fence.length + ',}\\s*$');
+    while (i < text.length) {
+      var end = text.indexOf('\n', i);
+      var line = text.slice(i, end === -1 ? text.length : end);
+      i = end === -1 ? text.length : end + 1;
+      if (close.test(line)) break;
+      if (end === -1) break;
+    }
+    return i;
+  }
+
+  function splitThink(src) {
+    var text = String(src || '');
+    if (text.toLowerCase().indexOf('<think') === -1) return [{ kind: 'md', text: text }];
+    var out = [];
+    var mdStart = 0;
+    var i = 0;
+    function pushMd(end) {
+      if (end > mdStart) out.push({ kind: 'md', text: text.slice(mdStart, end) });
+    }
+    while (i < text.length) {
+      if (lineStart(text, i) && FENCE_RE.test(text.slice(i))) { i = skipFence(text, i); continue; }
+      if (text.charAt(i) === '`') {
+        var ticks = /^`+/.exec(text.slice(i))[0];
+        var endTick = text.indexOf(ticks, i + ticks.length);
+        if (endTick === -1) break;
+        i = endTick + ticks.length;
+        continue;
+      }
+      if (text.charAt(i) === '\\' && i + 1 < text.length) { i += 2; continue; }
+      if (text.charAt(i) === '<') {
+        var rest = text.slice(i);
+        var low = rest.toLowerCase();
+        if (low.slice(0, THINK_OPEN.length) === THINK_OPEN) {
+          pushMd(i);
+          var bodyStart = i + THINK_OPEN.length;
+          var closeAt = indexOfThinkClose(text, bodyStart);
+          if (closeAt === -1) {
+            out.push({ kind: 'think', text: text.slice(bodyStart), closed: false });
+            return out;
+          }
+          out.push({ kind: 'think', text: text.slice(bodyStart, closeAt), closed: true });
+          i = closeAt + THINK_CLOSE.length;
+          mdStart = i;
+          continue;
+        }
+        if (rest.indexOf('\n') === -1 && THINK_OPEN.indexOf(low) === 0) break;
+      }
+      i++;
+    }
+    pushMd(text.length);
+    return out.length ? out : [{ kind: 'md', text: text }];
+  }
+
+  function indexOfThinkClose(text, from) {
+    var i = from;
+    while (i < text.length) {
+      if (text.charAt(i) === '\\' && i + 1 < text.length) { i += 2; continue; }
+      if (text.slice(i, i + THINK_CLOSE.length).toLowerCase() === THINK_CLOSE) return i;
+      i++;
+    }
+    return -1;
+  }
+
   function parseBlocks(src) {
+    var parts = splitThink(src);
+    if (parts.length === 1 && parts[0].kind === 'md') return parseBlocksCore(parts[0].text);
+    var blocks = [];
+    parts.forEach(function (part) {
+      if (part.kind === 'think') {
+        blocks.push({ type: 'think', text: part.text, closed: part.closed, raw: (part.closed ? '<think>' : '<think>') + part.text + (part.closed ? '</think>' : '') });
+      } else {
+        parseBlocksCore(part.text).forEach(function (b) { blocks.push(b); });
+      }
+    });
+    return blocks;
+  }
+
+  function parseBlocksCore(src) {
     var lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
     var blocks = [];
     var i = 0;
@@ -412,8 +505,21 @@
     return wrap;
   }
 
+  function renderThink(block) {
+    var d = el('details', 'asst-thinking' + (block.closed ? '' : ' asst-thinking-live'));
+    if (!block.closed) d.open = true;
+    var sum = el('summary', 'asst-thinking-header');
+    sum.textContent = block.closed ? 'Thought' : 'Thinking';
+    var body = el('div', 'asst-thinking-body');
+    body.textContent = String(block.text || '').replace(/^\n/, '').replace(/\n$/, '');
+    d.appendChild(sum);
+    d.appendChild(body);
+    return d;
+  }
+
   function renderBlock(block) {
     switch (block.type) {
+      case 'think': return renderThink(block);
       case 'code': return renderCode(block);
       case 'heading': {
         var h = el('h' + Math.min(6, block.level + 2), 'asst-h');   // model h1 → h3: stays below the panel title

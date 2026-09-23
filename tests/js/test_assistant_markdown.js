@@ -148,4 +148,50 @@ function all(node, tag) { return node.querySelectorAll(tag); }
   assert.strictEqual(code.getAttribute('data-asst-highlighted'), '1');
 }
 
+// ── <think> is a collapsible block, never HTML, and ignores code/escapes ──
+{
+  const box = render('Before\n\n<think>\nlooked at study.yaml\n</think>\n\nAfter');
+  const think = all(box, 'details.asst-thinking');
+  assert.strictEqual(think.length, 1);
+  assert.strictEqual(all(think[0], 'script').length, 0);
+  assert.ok(think[0].textContent.indexOf('looked at study.yaml') !== -1);
+  assert.ok(think[0].textContent.indexOf('Thought') !== -1);
+  assert.ok(box.textContent.indexOf('Before') !== -1 && box.textContent.indexOf('After') !== -1);
+  assert.strictEqual(think[0].classList.contains('asst-thinking-live'), false);
+}
+
+{
+  const live = render('<think>\nstill going');
+  const node = all(live, 'details.asst-thinking')[0];
+  assert.ok(node.classList.contains('asst-thinking-live'));
+  assert.strictEqual(node.open, true);
+  assert.ok(node.textContent.indexOf('still going') !== -1);
+  assert.ok(node.textContent.indexOf('Thinking') !== -1);
+}
+
+{
+  const fenced = render('```\n<think>not reasoning</think>\n```');
+  assert.strictEqual(all(fenced, 'details').length, 0);
+  assert.ok(fenced.textContent.indexOf('<think>not reasoning</think>') !== -1);
+  const inline = render('See `<think>nope</think>` please');
+  assert.strictEqual(all(inline, 'details').length, 0);
+  assert.ok(inline.textContent.indexOf('<think>nope</think>') !== -1);
+  const escaped = render('\\<think>literal</think>');
+  assert.strictEqual(all(escaped, 'details').length, 0);
+  assert.ok(escaped.textContent.indexOf('<think>literal</think>') !== -1);
+}
+
+{
+  const nasty = render('<think><script>alert(1)</script></think>');
+  assert.strictEqual(all(nasty, 'script').length, 0);
+  assert.strictEqual(all(nasty, 'details').length, 1);
+  assert.ok(nasty.textContent.indexOf('<script>alert(1)</script>') !== -1);
+}
+
+{
+  const partial = render('Answer <thi');
+  assert.strictEqual(all(partial, 'details').length, 0);
+  assert.ok(partial.textContent.indexOf('<thi') !== -1);
+}
+
 console.log('test_assistant_markdown.js: all assertions passed');

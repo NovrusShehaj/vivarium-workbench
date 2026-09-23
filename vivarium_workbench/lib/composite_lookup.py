@@ -24,6 +24,12 @@ from typing import Any, Callable, Optional
 
 import yaml
 
+from vivarium_workbench.lib.composite_schema import (
+    MAX_BYTES,
+    issue,
+    validate_composite_document,
+)
+
 
 _FULL_PLACEHOLDER = re.compile(r"^\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}$")
 _INLINE_PLACEHOLDER = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -37,7 +43,7 @@ def load_spec(path: Path) -> dict:
 
 
 def _spec_record(spec: dict, package: str, stem: str, path: Path,
-                 ws_root: Path | None) -> dict | None:
+                 ws_root: Path | None, *, origin: str) -> dict | None:
     """Validate + shape one discovered spec into the dict the API returns."""
     if not isinstance(spec, dict) or "state" not in spec or "name" not in spec:
         return None
@@ -45,6 +51,10 @@ def _spec_record(spec: dict, package: str, stem: str, path: Path,
         rel = str(path.relative_to(ws_root)) if ws_root else str(path)
     except ValueError:
         rel = str(path)
+    suffix = path.suffix.lower()
+    schema_version = spec.get("schemaVersion")
+    if not isinstance(schema_version, int) or isinstance(schema_version, bool):
+        schema_version = 1
     return {
         "id": f"{package}.composites.{stem}",
         "name": spec.get("name"),
@@ -53,6 +63,10 @@ def _spec_record(spec: dict, package: str, stem: str, path: Path,
         "parameters": spec.get("parameters") or {},
         "requires": spec.get("requires") or {},
         "source": rel,
+        "origin": origin,
+        "format": "json" if suffix == ".json" else "yaml",
+        "schemaVersion": schema_version,
+        "read_only": origin != "workspace",
         "_state": spec.get("state"),
         "_path": str(path),
     }
@@ -66,27 +80,157 @@ def _stem(path: Path) -> str:
     return name
 
 
-def _scan_composites_dir(composites_dir: Path, package: str,
-                         ws_root: Path | None) -> dict[str, dict]:
+def _scan_composites_dir(
+    composites_dir: Path,
+    package: str,
+    ws_root: Path | None,
+    *,
+    origin: str,
+    report_errors: bool,
+) -> tuple[dict[str, dict], list[dict]]:
+    """Scan one composites directory.
+
+    When both a JSON and a YAML file share a stem, the JSON file wins and the
+    YAML twin is reported as a warning (only when ``report_errors`` is set).
+    A file that fails to parse or validate is omitted. Workspace scans report
+    that failure; installed-package scans stay silent.
+    """
     out: dict[str, dict] = {}
+    errors: list[dict] = []
     if not composites_dir.is_dir():
-        return out
+        return out, errors
+    grouped: dict[str, list[tuple]] = {}
     for pattern in ("*.composite.yaml", "*.composite.yml", "*.composite.json"):
-        for path in composites_dir.glob(pattern):
+        for path in sorted(composites_dir.glob(pattern)):
             stem = _stem(path)
-            try:
-                rec = _spec_record(load_spec(path), package, stem, path, ws_root)
-            except Exception:
-                continue
-            if rec is not None:
-                out[rec["id"]] = rec
-    return out
+            grouped.setdefault(stem, []).append(_read_composite_file(
+                path, package, stem, ws_root, composites_dir, origin,
+            ))
+    for _stem_key, items in grouped.items():
+        ok = [item for item in items if item[0] == "ok"]
+        failed = [item for item in items if item[0] == "err"]
+        json_ok = [item for item in ok if Path(item[1]["_path"]).suffix.lower() == ".json"]
+        yaml_ok = [item for item in ok if Path(item[1]["_path"]).suffix.lower() != ".json"]
+        chosen = json_ok[0] if json_ok else (yaml_ok[0] if yaml_ok else None)
+        if chosen is not None:
+            rec, warnings = chosen[1], chosen[2]
+            out[rec["id"]] = rec
+            if report_errors:
+                errors.extend(warnings)
+                if json_ok and yaml_ok:
+                    shadowed = Path(yaml_ok[0][1]["_path"])
+                    errors.append({
+                        "category": "conflict",
+                        "severity": "warning",
+                        "path": "",
+                        "file": _display_path(shadowed, ws_root),
+                        "message": (
+                            f"{shadowed.name} is shadowed by "
+                            f"{Path(json_ok[0][1]['_path']).name}."
+                        ),
+                        "hint": "Remove the YAML twin or import with a different stem.",
+                    })
+        if report_errors:
+            for item in failed:
+                errors.append(item[1])
+    return out, errors
+
+
+def _read_composite_file(
+    path: Path,
+    package: str,
+    stem: str,
+    ws_root: Path | None,
+    composites_dir: Path,
+    origin: str,
+) -> tuple:
+    """Return ``("ok", record, warnings)`` or ``("err", issue, [])``."""
+    display = _display_path(path, ws_root)
+    if _leaves_directory(path, composites_dir) or (
+        ws_root is not None and _leaves_directory(path, ws_root)
+    ):
+        return ("err", issue(
+            "io",
+            "refusing to read a composite path that escapes its catalog directory.",
+            file=display,
+            hint="Replace the symlink with a regular file inside composites/.",
+        ), [])
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        return ("err", issue("io", f"could not stat {path.name}: {exc}", file=display), [])
+    if size > MAX_BYTES:
+        return ("err", issue(
+            "schema",
+            f"{path.name} exceeds {MAX_BYTES} bytes.",
+            file=display,
+            hint="Split the composite.",
+        ), [])
+    try:
+        spec = load_spec(path)
+    except json.JSONDecodeError as exc:
+        return ("err", issue(
+            "syntax",
+            f"{display}: line {exc.lineno}: {exc.msg}. The file is not valid JSON.",
+            file=display,
+            hint="Fix the JSON syntax and reload.",
+        ), [])
+    except yaml.YAMLError as exc:
+        mark = getattr(exc, "problem_mark", None)
+        where = f"line {mark.line + 1}" if mark is not None else path.name
+        return ("err", issue(
+            "syntax",
+            f"{display}: {where}: the file is not valid YAML.",
+            file=display,
+        ), [])
+    except UnicodeError as exc:
+        return ("err", issue(
+            "syntax", f"{display}: {exc}", file=display, hint="Save the file as UTF-8.",
+        ), [])
+    except Exception as exc:  # noqa: BLE001
+        return ("err", issue("syntax", f"{display}: {exc}", file=display), [])
+    doc_errors, warnings = validate_composite_document(spec)
+    if doc_errors:
+        first = dict(doc_errors[0])
+        first.setdefault("file", display)
+        return ("err", first, [])
+    rec = _spec_record(spec, package, stem, path, ws_root, origin=origin)
+    if rec is None:
+        return ("err", issue(
+            "schema", "name and state are required.", path="/name", file=display,
+        ), [])
+    for warning in warnings:
+        warning.setdefault("file", display)
+    return ("ok", rec, warnings)
+
+
+def _display_path(path: Path, ws_root: Path | None) -> str:
+    if ws_root is not None:
+        try:
+            return str(path.resolve().relative_to(ws_root.resolve()))
+        except ValueError:
+            return path.name
+    return str(path)
+
+
+def _leaves_directory(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except (ValueError, OSError):
+        return True
+    return False
 
 
 def discover_workspace_composites(ws_root: Path, package_path: str) -> dict[str, dict]:
     """Scan the workspace's own pbg_<slug>/composites/; return {id: spec}."""
-    return _scan_composites_dir(ws_root / package_path / "composites",
-                                package_path, ws_root)
+    recs, _errors = _scan_composites_dir(
+        ws_root / package_path / "composites",
+        package_path,
+        ws_root,
+        origin="workspace",
+        report_errors=False,
+    )
+    return recs
 
 
 def _discover_installed_composites(
@@ -123,7 +267,11 @@ def _discover_installed_composites(
             if not spec or not spec.submodule_search_locations:
                 continue
             for loc in spec.submodule_search_locations:
-                out.update(_scan_composites_dir(Path(loc) / "composites", pkg_name, None))
+                recs, _scan_errors = _scan_composites_dir(
+                    Path(loc) / "composites", pkg_name, None,
+                    origin="installed", report_errors=False,
+                )
+                out.update(recs)
         except Exception:
             continue
     return out
@@ -180,7 +328,11 @@ def _discover_generators_via_worker(ws_root: Path) -> dict:
         return {}
 
 
-def discover_all_composites(ws_root: Path, package_path: str) -> dict[str, dict]:
+def discover_all_composites(
+    ws_root: Path,
+    package_path: str,
+    errors: list | None = None,
+) -> dict[str, dict]:
     """Discover composites from the workspace + every installed pbg-* package.
 
     If the workspace's package is also pip-installed (e.g., `pip install -e .`),
@@ -193,9 +345,21 @@ def discover_all_composites(ws_root: Path, package_path: str) -> dict[str, dict]
     carry ``kind: "generator"`` and a ``module`` field; spec entries are tagged
     ``kind: "spec"`` and gain a derived ``module``. If pbg-superpowers is not
     importable the function falls back to spec-only behavior.
+
+    When ``errors`` is a list, workspace-file failures and warnings are appended
+    to it. Installed-package scan failures stay silent.
     """
     out: dict[str, dict] = {}
-    out.update(discover_workspace_composites(ws_root, package_path))
+    recs, scan_errors = _scan_composites_dir(
+        ws_root / package_path / "composites",
+        package_path,
+        ws_root,
+        origin="workspace",
+        report_errors=errors is not None,
+    )
+    if errors is not None:
+        errors.extend(scan_errors)
+    out.update(recs)
     for spec_id, rec in discover_installed_pbg_composites().items():
         if spec_id not in out:
             out[spec_id] = rec
@@ -210,6 +374,7 @@ def discover_all_composites(ws_root: Path, package_path: str) -> dict[str, dict]
         rec.setdefault("kind", "spec")
         if not rec.get("module"):
             rec["module"] = _derive_module_from_spec_id(spec_id)
+        rec.setdefault("origin", "workspace" if rec.get("read_only") is not True else "installed")
 
     # Merge @composite_generator entries — discovered in the env worker (importing
     # generator modules is workspace Python, kept out of the HTTP process). The
@@ -226,6 +391,10 @@ def discover_all_composites(ws_root: Path, package_path: str) -> dict[str, dict]
             "parameters": entry.get("parameters") or {},
             "requires": {},
             "module": entry.get("module") or _derive_module_from_spec_id(gid),
+            "origin": "generator",
+            "format": "generator",
+            "schemaVersion": None,
+            "read_only": True,
         }
         # Generator entries always carry default_n_steps (int | None); emit it
         # unconditionally so callers can rely on the key being present.
@@ -596,7 +765,8 @@ def composites_data(ws_root: Path) -> dict:
             _importlib.import_module(pkg)
         except Exception:
             pass
-        specs = discover_all_composites(ws_root, pkg)
+        specs_errors: list = []
+        specs = discover_all_composites(ws_root, pkg, errors=specs_errors)
         ws_prefix_dot = pkg + "."
         out: list = []
         for s in specs.values():
@@ -607,10 +777,16 @@ def composites_data(ws_root: Path) -> dict:
                 rec["default_n_steps"] = None
             mod = rec.get("module") or ""
             rec["workspace_local"] = bool(mod == pkg or mod.startswith(ws_prefix_dot))
+            if rec.get("origin") == "workspace":
+                rec["workspace_local"] = True
             out.append(rec)
         out = filter_composites(out, ws_data)
         out = _dedupe_alias_composites(out)
-        return {"composites": out, "workspace_package": pkg}
+        return {
+            "composites": out,
+            "workspace_package": pkg,
+            "composite_errors": specs_errors,
+        }
     except Exception as e:
         return {"composites": [], "error": str(e)}
 
