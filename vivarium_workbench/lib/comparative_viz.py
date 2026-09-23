@@ -41,6 +41,25 @@ from pathlib import Path
 from vivarium_workbench.lib.agents0 import agents0_json_extract_pair
 
 
+# Tokens the generated document inlines (values come from static/tokens.css).
+_VIZ_THEME_TOKENS = ("--surface", "--text", "--heading", "--text-subtle",
+                     "--chart-text", "--chart-grid", "--chart-axis")
+
+# Theme-derived Plotly layout: flat dot-keys for relayout(), nested for newPlot().
+_PLOTLY_THEME_JS = (
+    "function _vivChartTheme(flat) {"
+    " var s = getComputedStyle(document.documentElement);"
+    " function v(n) { return s.getPropertyValue(n).trim(); }"
+    " var t = v('--chart-text'), g = v('--chart-grid'), a = v('--chart-axis');"
+    " if (flat) { return {'font.color': t, 'title.font.color': t, 'legend.font.color': t,"
+    " 'xaxis.gridcolor': g, 'yaxis.gridcolor': g, 'xaxis.linecolor': a, 'yaxis.linecolor': a,"
+    " 'xaxis.zerolinecolor': g, 'yaxis.zerolinecolor': g}; }"
+    " var L = _vivLayout;"
+    " return {font: {color: t}, legend: Object.assign({}, L.legend, {font: {color: t}}),"
+    " xaxis: Object.assign({}, L.xaxis, {gridcolor: g, linecolor: a, zerolinecolor: g}),"
+    " yaxis: Object.assign({}, L.yaxis, {gridcolor: g, linecolor: a, zerolinecolor: g})}; }"
+)
+
 _PLOTLY_CDN = (
     '<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>'
 )
@@ -360,8 +379,10 @@ def render_comparative_time_series(
         "annotations": annotations,
         "legend": {"orientation": "h", "yanchor": "top", "y": -0.18},
         "margin": {"t": 60, "r": 30, "b": 80, "l": 70},
-        "plot_bgcolor": "#fafafa",
-        "paper_bgcolor": "#fff",
+        # Transparent so the themed page surface shows through; text, grid and
+        # axis colours are applied from the theme tokens in the page script.
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "paper_bgcolor": "rgba(0,0,0,0)",
         "height": 440,
         "autosize": False,
     }
@@ -369,17 +390,23 @@ def render_comparative_time_series(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    from vivarium_workbench.lib.theme_embed import standalone_theme_head
+
     html = (
         "<!DOCTYPE html><html><head>"
         '<meta charset="utf-8"><title>' + escape(title) + "</title>"
+        # Follows the workbench theme when shown in its iframe (same origin),
+        # and the default theme when opened on its own.
+        + standalone_theme_head(_VIZ_THEME_TOKENS)
         + _PLOTLY_CDN
         # Clamp body height so the iframe auto-fit (reads scrollHeight) doesn't
         # grow past the chart + chrome. Plotly's hover/modal layers can inflate
         # scrollHeight transiently; overflow:hidden + a fixed height stops that.
         + '<style>html,body{height:540px;overflow:hidden}'
-        + 'body{font-family:-apple-system,"Segoe UI",sans-serif;margin:0;padding:18px 22px;background:#fff;color:#1f2937}'
-        + 'h1{font-size:1.15em;margin:0 0 4px 0;color:#0f172a}'
-        + '.subtitle{color:#6b7280;font-size:0.9em;margin-bottom:14px}'
+        + 'body{font-family:-apple-system,"Segoe UI",sans-serif;margin:0;padding:18px 22px;'
+        + 'background:var(--surface);color:var(--text)}'
+        + 'h1{font-size:1.15em;margin:0 0 4px 0;color:var(--heading)}'
+        + '.subtitle{color:var(--text-subtle);font-size:0.9em;margin-bottom:14px}'
         + '.chart-target{width:100%;height:440px}'
         + '</style></head><body>'
         + '<h1>' + escape(title) + '</h1>'
@@ -387,11 +414,13 @@ def render_comparative_time_series(
         + str(len(runs)) + ' run(s) overlaid · path <code>' + escape(observable_path) + '</code></div>'
         + '<div id="chart" class="chart-target"></div>'
         + '<script>'
-        + 'Plotly.newPlot("chart", '
-        + json.dumps(plotly_data, default=str)
-        + ', '
-        + json.dumps(layout, default=str)
-        + ', {responsive: true, displayModeBar: false});'
+        + 'var _vivData = ' + json.dumps(plotly_data, default=str) + ';'
+        + 'var _vivLayout = ' + json.dumps(layout, default=str) + ';'
+        + _PLOTLY_THEME_JS
+        + 'Plotly.newPlot("chart", _vivData, Object.assign(_vivLayout, _vivChartTheme()),'
+        + ' {responsive: true, displayModeBar: false});'
+        + 'window.addEventListener("viv:themechange", function () {'
+        + ' Plotly.relayout("chart", _vivChartTheme(true)); });'
         + '</script></body></html>'
     )
     output_path.write_text(html, encoding="utf-8")

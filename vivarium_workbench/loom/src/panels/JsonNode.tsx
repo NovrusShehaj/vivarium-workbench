@@ -56,13 +56,13 @@ export function JsonNode({ k, value, depth, path }: JsonNodeProps) {
   if (!isCollection) {
     return (
       <div style={rowStyle}>
-        <span style={{ color: '#7c3aed' }}>{k}</span>
-        <span style={{ color: '#6b7280' }}>: </span>
+        <span style={{ color: 'var(--accent2, #7c3aed)' }}>{k}</span>
+        <span style={{ color: 'var(--text-subtle, #6b7280)' }}>: </span>
         <span style={
-          typeof value === 'string' ? { color: '#059669' }
-          : typeof value === 'number' ? { color: '#2563eb' }
-          : typeof value === 'boolean' ? { color: '#d97706' }
-          : { color: '#6b7280' }
+          typeof value === 'string' ? { color: 'var(--success-fg, #059669)' }
+          : typeof value === 'number' ? { color: 'var(--link, #2563eb)' }
+          : typeof value === 'boolean' ? { color: 'var(--warning-fg, #d97706)' }
+          : { color: 'var(--text-subtle, #6b7280)' }
         }>{_previewLeaf(value)}</span>
       </div>
     );
@@ -83,12 +83,12 @@ export function JsonNode({ k, value, depth, path }: JsonNodeProps) {
         style={{ ...rowStyle, cursor: 'pointer', userSelect: 'none' }}
         onClick={() => setOpen((o) => !o)}
       >
-        <span style={{ color: '#6b7280', display: 'inline-block', width: 12 }}>
+        <span style={{ color: 'var(--text-subtle, #6b7280)', display: 'inline-block', width: 12 }}>
           {open ? '▾' : '▸'}
         </span>
-        <span style={{ color: '#7c3aed' }}>{k}</span>
-        <span style={{ color: '#6b7280' }}>: </span>
-        <span style={{ color: '#9ca3af' }}>{summary}</span>
+        <span style={{ color: 'var(--accent2, #7c3aed)' }}>{k}</span>
+        <span style={{ color: 'var(--text-subtle, #6b7280)' }}>: </span>
+        <span style={{ color: 'var(--text-subtle, #9ca3af)' }}>{summary}</span>
       </div>
       {open && (
         <div>

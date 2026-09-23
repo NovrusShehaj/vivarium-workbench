@@ -257,7 +257,7 @@ def test_study_step_refuses_to_run_a_deployment_target_in_a_worker(tmp_path, mon
     from vivarium_workbench.lib import investigation_steps
 
     monkeypatch.setattr(
-        "vivarium_workbench.lib.remote_pinned.resolve_run_target", lambda p: "deployment")
+        "vivarium_workbench.lib.run_core.run_target_for", lambda p: "deployment")
 
     def _boom(*a, **k):
         raise AssertionError("must not reach the env worker on a deployment target")
@@ -272,7 +272,7 @@ def test_study_step_still_uses_the_worker_on_a_local_target(tmp_path, monkeypatc
     from vivarium_workbench.lib import investigation_steps
 
     monkeypatch.setattr(
-        "vivarium_workbench.lib.remote_pinned.resolve_run_target", lambda p: "local")
+        "vivarium_workbench.lib.run_core.run_target_for", lambda p: "local")
 
     class _Pool:
         def call(self, ws, method, params=None):

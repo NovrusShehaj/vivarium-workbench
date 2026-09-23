@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from vivarium_workbench.lib.pbg_export import export_composite_pbg  # noqa: E402 (module-level for patch)
 
 if TYPE_CHECKING:
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient
+    from vivarium_workbench.lib.remote_api_client import RemoteApiClient
 
 # Default poll interval in seconds
 _DEFAULT_POLL_INTERVAL = 10.0
@@ -150,7 +150,7 @@ def remote_dispatch_preflight(ws_root: "Path | str") -> dict:
 def run_remote(
     ws_root: "Path | str",
     composite_id: str,
-    client: "SmsApiClient | None" = None,
+    client: "RemoteApiClient | None" = None,
     poll_interval: float = _DEFAULT_POLL_INTERVAL,
     dest: "Path | None" = None,
     n_steps: int = 1,
@@ -170,7 +170,7 @@ def run_remote(
     composite_id:
         Composite spec id (e.g. ``"pbg_my_ws.composites.my_composite"``).
     client:
-        ``SmsApiClient`` pointed at the sms-api tunnel.  If *None*, a default
+        ``RemoteApiClient`` pointed at the sms-api tunnel.  If *None*, a default
         client is constructed (``http://localhost:8080``).
     poll_interval:
         Seconds between status polls.
@@ -202,13 +202,13 @@ def run_remote(
     Path
         Path to the downloaded ``results.tar.gz``.
     """
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient as _SmsApiClient
-    from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
+    from vivarium_workbench.lib.remote_api_client import RemoteApiClient as _RemoteApiClient
+    from vivarium_workbench.lib.workspace_deps_views import _remote_api_base
 
     ws_root = Path(ws_root).resolve()
 
     if client is None:
-        client = _SmsApiClient(_sms_api_base())
+        client = _RemoteApiClient(_remote_api_base())
 
     if dest is None:
         dest = ws_root / ".pbg" / "remote-results"
@@ -218,32 +218,16 @@ def run_remote(
     # Resolve the pip URL for the workspace code, plus any workspace-pinned framework
     # versions (§3.12) so the shared runner image doesn't float to latest PyPI.
     #
-    # N3 / option C: on a pinned deployment (VIVARIUM_WORKBENCH_REMOTE_PINNED) the prod
-    # pod's /workspace is dirty-by-design — the workbench re-renders reports/ and touches
-    # workspace.yaml at runtime — so git_pip_url's clean-tree check can never hold there.
-    # Instead derive the commit from sms-api's already-resolved *built* simulator (the same
-    # resolver the pinned "Run on remote" study card uses) and ship git+<repo>@<commit>: no
-    # local git, pinned by construction to the commit sms-api built + keyed its ParCa cache
-    # by. Local dev (unpinned) keeps the clean+pushed git_pip_url path.
-    from vivarium_workbench.lib import remote_pinned
-    cfg = remote_pinned.pinned_config()
+    # An explicit ``build_ref`` runs a specific already-pushed commit rather than
+    # the local working tree, so ``git_pip_url``'s clean-and-pushed check is
+    # skipped. The pinned-deployment variant of this, which derived the commit
+    # from the retired SMS simulator-build registry, is gone: without a
+    # build_ref the workspace's own clean, pushed HEAD is the source.
     if build_ref and build_ref.get("commit") and build_ref.get("repo_url"):
-        # Explicit build target: a Cloud Run against a SELECTED registered build
-        # (the Environment picker's chosen build). Run against THAT build's
-        # already-pushed commit — NOT the local working tree — so no clean/pushed
-        # check on ws_root (git_pip_url is skipped entirely). This is what lets a
-        # Cloud run fire without first pushing session-latest: build N's code is
-        # already on GitHub at build_ref['commit'] and already built by sms-api.
         repo = str(build_ref["repo_url"]).strip().rstrip("/")
         if repo.endswith(".git"):
             repo = repo[: -len(".git")]
         pip_url = f"git+{repo}.git@{build_ref['commit']}"
-    elif cfg is not None:
-        resolved = remote_pinned.resolve_pinned_build(client, cfg.repo_url, cfg.branch)
-        repo = cfg.repo_url.strip().rstrip("/")
-        if repo.endswith(".git"):
-            repo = repo[: -len(".git")]
-        pip_url = f"git+{repo}.git@{resolved['commit']}"
     else:
         pip_url = git_pip_url(ws_root)
     extra_pip_deps = [pip_url, *workspace_pinned_deps(ws_root)]
@@ -361,7 +345,7 @@ _TERMINAL_STATUSES = ("completed", "failed", "error", "cancelled")
 
 
 def _poll_until_terminal(
-    client: "SmsApiClient",
+    client: "RemoteApiClient",
     sim_id: int,
     poll_interval: float,
     poll_timeout: float,
@@ -377,7 +361,7 @@ def _poll_until_terminal(
     :exc:`TimeoutError` on deadline and :exc:`RuntimeError` on persistent polling
     failure.
     """
-    from vivarium_workbench.lib.sms_api_client import SmsApiError
+    from vivarium_workbench.lib.remote_api_client import SmsApiError
 
     deadline = time.monotonic() + poll_timeout if poll_timeout and poll_timeout > 0 else None
     consecutive_errors = 0

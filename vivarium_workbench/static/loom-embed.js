@@ -48,10 +48,10 @@
     state = state || {};
     var phase = state.phase, simId = state.simId;
     var pal = {
-      dispatching: ['#e6f0fb', '#1e5fa4'], queued: ['#e5e7eb', '#374151'],
-      running: ['#dbeafe', '#1e40af'], completed: ['#dcfce7', '#166534'],
-      failed: ['#fee2e2', '#991b1b'], 'dispatch-failed': ['#fee2e2', '#991b1b'],
-    }[phase] || ['#e5e7eb', '#374151'];
+      dispatching: ['var(--info-bg)', 'var(--link)'], queued: ['var(--surface-3)', 'var(--text)'],
+      running: ['var(--info-bg)', 'var(--info-fg)'], completed: ['var(--success-bg)', 'var(--success-fg)'],
+      failed: ['var(--danger-bg)', 'var(--danger-fg)'], 'dispatch-failed': ['var(--danger-bg)', 'var(--danger-fg)'],
+    }[phase] || ['var(--surface-3)', 'var(--text)'];
     var label;
     if (phase === 'dispatching') {
       label = '☁ Dispatching to Cloud build #' +
@@ -137,7 +137,7 @@
       if (row) {
         try { row.scrollIntoView({ block: 'center' }); } catch (e) { /* ignore */ }
         var prev = row.style.boxShadow;
-        row.style.boxShadow = 'inset 0 0 0 2px #2563eb';
+        row.style.boxShadow = 'inset 0 0 0 2px var(--link)';
         setTimeout(function () { row.style.boxShadow = prev; }, 2200);
         return;
       }

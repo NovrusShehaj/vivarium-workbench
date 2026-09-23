@@ -15,6 +15,18 @@ differ by *configuration* (env vars), not code. See
 
 > **Status:** in active beta. APIs and UI may change before 1.0.
 
+**Theme:** System / Light / Dark (Settings → Appearance, or the rail menu). The
+default follows your OS. See [docs/theme.md](docs/theme.md).
+
+**AI:** the workbench core is AI-free (enforced by `tests/test_no_ai_deps.py`).
+An **optional, opt-in** AI coding assistant ships as a separate package. Install
+it with `pip install 'vivarium-workbench[assistant]'` and enable it with
+`vivarium-workbench serve --enable-extension assistant`. It is bring-your-own-key
+for Anthropic, OpenAI, Vertex AI, AI Studio, OpenRouter or a local model. See
+[docs/assistant.md](docs/assistant.md) and
+[ADR-0001](docs/adr/0001-ai-free-core-optional-assistant-extension.md), which is
+accepted for this fork.
+
 For a deeper look at what the dashboard does, where data lives, the run/render
 data lifecycles, and how it relates to its companion repos, see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For how the dashboard is deployed
@@ -110,6 +122,13 @@ on the local engine, commit every action to a git branch.
 ```bash
 vivarium-workbench serve --workspace .
 ```
+
+On the default loopback bind the server only answers requests addressed to
+loopback names (DNS-rebinding protection). When you bind a non-loopback
+address, or run behind a proxy that preserves `Host`, name the hosts clients
+use with `--allowed-host wb.example.org` (or `VIVARIUM_WORKBENCH_ALLOWED_HOSTS`).
+Without an allowlist, a non-loopback bind accepts any `Host` and prints a
+startup warning.
 
 ### Remote compute — viva-api backend
 

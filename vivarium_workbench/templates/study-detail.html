@@ -2,19 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+{# Inherit the workbench theme before first paint. This page loads in a
+   same-origin iframe, so it shares the parent's 'viv.theme' preference, and
+   theme.js re-applies it live when the parent (or the OS) changes it. #}
+{% include "_theme_boot.html" %}
 <title>Study: {{ name }}</title>
+<link rel="stylesheet" href="/tokens.css">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/progress-track.css">
-<!-- Inherit the workbench light/dark theme (this page loads in an iframe;
-     same-origin, so it shares the parent's localStorage 'viv.theme'). -->
-<script>(function(){try{var t=localStorage.getItem('viv.theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<script src="/theme.js"></script>
 </head>
 <body>
 <main class="study-page">
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    {% if name_chip %}<span class="study-num-chip" style="font-size:0.5em; font-weight:700; color:#64748b; background:#f1f5f9; padding:3px 9px; border-radius:9999px; vertical-align:middle; margin-right:8px">{{ name_chip }}</span>{% endif %}<span class="study-name" id="study-name" data-slug="{{ name }}" title="{{ name }}">{{ display_name }}</span>
+    {% if name_chip %}<span class="study-num-chip" style="font-size:0.5em; font-weight:700; color:var(--text-muted); background:var(--surface-3); padding:3px 9px; border-radius:9999px; vertical-align:middle; margin-right:8px">{{ name_chip }}</span>{% endif %}<span class="study-name" id="study-name" data-slug="{{ name }}" title="{{ name }}">{{ display_name }}</span>
     {# Task 4: deterministic study kind (biological/computational/theoretical),
        inferred by lib/study_kind.py and wired into the template context by
        Task 1. Small pill beside the title, before the phase pill. #}
@@ -82,7 +85,7 @@
       <summary>
         <span class="status-stepper-more">status</span>
         {% if _cgv and _cgv.diverges_from_authored %}
-        <span class="gate-divergence-chip" title="Code-computed verdict (spine study_verdict, not human-authored) disagrees with the authored gate_status." style="display:inline-block;font-size:0.78em;font-weight:700;padding:3px 9px;border-radius:9999px;vertical-align:middle;background:#fffbeb;border:1px solid #f59e0b;color:#92400e">⚠ code: {{ _cgv.result }} · authored: {{ study.gate_status }}</span>
+        <span class="gate-divergence-chip" title="Code-computed verdict (spine study_verdict, not human-authored) disagrees with the authored gate_status." style="display:inline-block;font-size:0.78em;font-weight:700;padding:3px 9px;border-radius:9999px;vertical-align:middle;background:var(--warning-bg);border:1px solid #f59e0b;color:var(--warning-fg)">⚠ code: {{ _cgv.result }} · authored: {{ study.gate_status }}</span>
         {% endif %}
         <span class="status-stepper">
           {% for _g in gate_ladder %}
@@ -109,7 +112,7 @@
           {% endif %}
           {% endif %}
           {% if _g.viz_gap_reason %}
-          <span class="gate-viz-gap-note" style="font-size:0.86em;color:#92400e">visualization gap: {{ _g.viz_gap_reason }}</span>
+          <span class="gate-viz-gap-note" style="font-size:0.86em;color:var(--warning-fg)">visualization gap: {{ _g.viz_gap_reason }}</span>
           {% endif %}
         </div>
         {% endfor %}
@@ -132,7 +135,7 @@
    2–4 (numpy-only, no registered composite). Hidden when everything resolves. #}
 {% if unresolved_composites %}
 <div class="composite-lint-banner" role="alert"
-     style="margin:8px 0 14px 0;padding:10px 14px;background:#fffbeb;border:1px solid #f59e0b;border-left-width:5px;border-radius:6px;color:#92400e;font-size:0.9em">
+     style="margin:8px 0 14px 0;padding:10px 14px;background:var(--warning-bg);border:1px solid #f59e0b;border-left-width:5px;border-radius:6px;color:var(--warning-fg);font-size:0.9em">
   {% for _ref in unresolved_composites %}
   <div>⚠ composite not found in registry: <code>{{ _ref }}</code></div>
   {% endfor %}
@@ -177,18 +180,20 @@
      empty shell after E1–E3 relocated everything it held) — the rail is now
      five acts, all with gate dots. #}
   <div class="act-cluster" data-act="study">
-    <div class="act-header">
+    <div class="act-header" title="The Study gate: {{ gate_states.study|replace('-', ' ') }}">
       <span class="act-gate-dot" data-gate="study" data-gate-state="{{ gate_states.study }}"></span>
       <span class="act-label">The Study</span>
+      <span class="viv-sr-only">gate: {{ gate_states.study|replace('-', ' ') }}</span>
     </div>
     <div class="act-tabs">
       <button class="study-pillar active" data-kind="overview" onclick="_setStudyTab('overview')">Overview</button>
     </div>
   </div>
   <div class="act-cluster" data-act="design">
-    <div class="act-header">
+    <div class="act-header" title="Design gate: {{ gate_states.design|replace('-', ' ') }}">
       <span class="act-gate-dot" data-gate="design" data-gate-state="{{ gate_states.design }}"></span>
       <span class="act-label">Design</span>
+      <span class="viv-sr-only">gate: {{ gate_states.design|replace('-', ' ') }}</span>
     </div>
     <div class="act-tabs">
       <button class="study-pillar" data-kind="compose"  onclick="_setStudyTab('compose')">Model</button>
@@ -200,9 +205,10 @@
     </div>
   </div>
   <div class="act-cluster" data-act="evidence">
-    <div class="act-header">
+    <div class="act-header" title="Evidence gate: {{ gate_states.evidence|replace('-', ' ') }}">
       <span class="act-gate-dot" data-gate="evidence" data-gate-state="{{ gate_states.evidence }}"></span>
       <span class="act-label">Evidence</span>
+      <span class="viv-sr-only">gate: {{ gate_states.evidence|replace('-', ' ') }}</span>
     </div>
     <div class="act-tabs">
       {# Study-spine reorg (spec §1, §3.3/3.4): Evidence holds everything
@@ -215,9 +221,10 @@
     </div>
   </div>
   <div class="act-cluster" data-act="assurance">
-    <div class="act-header">
+    <div class="act-header" title="Assurance gate: {{ gate_states.assurance|replace('-', ' ') }}">
       <span class="act-gate-dot" data-gate="assurance" data-gate-state="{{ gate_states.assurance }}"></span>
       <span class="act-label">Assurance</span>
+      <span class="viv-sr-only">gate: {{ gate_states.assurance|replace('-', ' ') }}</span>
     </div>
     <div class="act-tabs">
       <button class="study-pillar" data-kind="tests" onclick="_setStudyTab('tests')">Tests</button>
@@ -231,9 +238,10 @@
     </div>
   </div>
   <div class="act-cluster" data-act="decision">
-    <div class="act-header">
+    <div class="act-header" title="Decision gate: {{ gate_states.decision|replace('-', ' ') }}">
       <span class="act-gate-dot" data-gate="decision" data-gate-state="{{ gate_states.decision }}"></span>
       <span class="act-label">Decision</span>
+      <span class="viv-sr-only">gate: {{ gate_states.decision|replace('-', ' ') }}</span>
     </div>
     <div class="act-tabs">
       {# "Decide" pillar's panel kind is "conclusions" (was a sub-tab under Hypotheses). #}
@@ -246,99 +254,104 @@
    The 6-axis stepper + gate-status colors below are carried over verbatim from
    the pre-restructure Pass A styling (the <details> markup was repositioned,
    not rebuilt). */
-.study-kind-tag{display:inline-block;font-size:0.5em;font-weight:600;padding:3px 9px;border-radius:9999px;vertical-align:middle;margin-left:8px;background:#f1f5f9;color:#475569;text-transform:capitalize}
-.study-kind-tag.study-kind-biological{background:#ecfdf5;color:#065f46}
-.study-kind-tag.study-kind-computational{background:#eff6ff;color:#1e40af}
+.study-kind-tag{display:inline-block;font-size:0.5em;font-weight:600;padding:3px 9px;border-radius:9999px;vertical-align:middle;margin-left:8px;background:var(--surface-3);color:var(--text-secondary);text-transform:capitalize}
+.study-kind-tag.study-kind-biological{background:#ecfdf5;color:var(--success-fg)}
+.study-kind-tag.study-kind-computational{background:var(--info-bg);color:var(--info-fg)}
 .study-kind-tag.study-kind-theoretical{background:#faf5ff;color:#6b21a8}
-.study-question-headline{margin:6px 0 0 0;font-size:1.05em;line-height:1.5;color:#1e293b;font-family:Georgia,"Times New Roman",serif}
-.study-question-headline .q-glyph{display:inline-block;font-size:0.78em;font-weight:700;font-family:ui-monospace,monospace;color:#64748b;background:#f1f5f9;padding:1px 7px;border-radius:4px;margin-right:6px;vertical-align:middle}
+.study-question-headline{margin:6px 0 0 0;font-size:1.05em;line-height:1.5;color:var(--heading);font-family:Georgia,"Times New Roman",serif}
+.study-question-headline .q-glyph{display:inline-block;font-size:0.78em;font-weight:700;font-family:ui-monospace,monospace;color:var(--text-muted);background:var(--surface-3);padding:1px 7px;border-radius:4px;margin-right:6px;vertical-align:middle}
 .study-status-row{font-size:0.95em}
 .status-detail-panel{margin:0;padding:2px 0;background:transparent;border:none;border-radius:0;font-size:0.92em}
 .status-detail-row{display:flex;align-items:center;gap:8px;padding:3px 0}
-.status-detail-axis{min-width:140px;color:#475569;font-size:0.9em}
-.status-chip{display:inline-block;font-size:0.78em;padding:2px 10px;border-radius:9999px;background:#e2e8f0;color:#334155;font-family:ui-monospace,monospace}
+.status-detail-axis{min-width:140px;color:var(--text-secondary);font-size:0.9em}
+.status-chip{display:inline-block;font-size:0.78em;padding:2px 10px;border-radius:9999px;background:var(--border);color:var(--text);font-family:ui-monospace,monospace}
 /* gate_status colors per Pass A spec: blocked=gray, needs_calibration=amber, passed=green, failed=red, stale=purple */
-.gate-status-blocked          { background:#e5e7eb; color:#374151 }
-.gate-status-needs_calibration{ background:#fef3c7; color:#92400e }
-.gate-status-passed           { background:#d1fae5; color:#065f46 }
-.gate-status-failed           { background:#fee2e2; color:#991b1b }
-.gate-status-stale            { background:#ede9fe; color:#5b21b6 }
+.gate-status-blocked          { background:var(--border); color:var(--text) }
+.gate-status-needs_calibration{ background:var(--warning-bg); color:var(--warning-fg) }
+.gate-status-passed           { background:var(--success-bg); color:var(--success-fg) }
+.gate-status-failed           { background:var(--danger-bg); color:var(--danger-fg) }
+.gate-status-stale            { background:var(--accent2-bg); color:#5b21b6 }
 .status-pill.gate-status{font-weight:500}
 /* Compact one-line lifecycle stepper; full per-axis rows behind the "status ▾" expander. */
 .status-detail-panel > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .status-detail-panel > summary::-webkit-details-marker{display:none}
 .status-stepper{display:flex;gap:13px;flex-wrap:wrap;align-items:center;flex:1}
-.status-step{display:inline-flex;align-items:center;gap:5px;font-size:0.82em;color:#94a3b8;white-space:nowrap}
-.status-step .dot{width:9px;height:9px;border-radius:50%;background:#cbd5e1;box-shadow:inset 0 0 0 1px #b6c2cf}
-.status-step.set{color:#334155}
-.status-step.set .dot{background:#10b981;box-shadow:none}
-.status-step .step-val{font-family:ui-monospace,monospace;font-size:0.92em;color:#64748b}
-.status-step.gate-status-blocked .dot{background:#9ca3af;box-shadow:none}
-.status-step.gate-status-needs_calibration .dot{background:#f59e0b;box-shadow:none}
-.status-step.gate-status-passed .dot{background:#10b981;box-shadow:none}
-.status-step.gate-status-failed .dot{background:#ef4444;box-shadow:none}
-.status-step.gate-status-stale .dot{background:#8b5cf6;box-shadow:none}
+.status-step{display:inline-flex;align-items:center;gap:5px;font-size:0.82em;color:var(--text-subtle);white-space:nowrap}
+.status-step .dot{width:9px;height:9px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 1.5px var(--text-disabled)}
+.status-step.set{color:var(--text)}
+.status-step.set .dot{background:var(--success-fg);box-shadow:none}
+.status-step .step-val{font-family:ui-monospace,monospace;font-size:0.92em;color:var(--text-muted)}
+.status-step.gate-status-blocked .dot{background:var(--text-subtle);box-shadow:none;border-radius:1px;transform:rotate(45deg) scale(.85)}
+.status-step.gate-status-needs_calibration .dot{background:linear-gradient(90deg,var(--warning-fg) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--warning-fg)}
+.status-step.gate-status-passed .dot{background:var(--success-fg);box-shadow:none}
+.status-step.gate-status-failed .dot{background:var(--danger-fg);box-shadow:none;border-radius:1px;transform:rotate(45deg) scale(.85)}
+.status-step.gate-status-stale .dot{background:radial-gradient(circle,var(--accent2) 32%,transparent 36%);box-shadow:inset 0 0 0 1.5px var(--accent2)}
 /* Fable G2 (§13.2 gate-state vocab; §9.3 palette: grey/green/amber/red/violet).
    One palette for the gate-ladder stepper dots + detail rows AND (via the
    [data-gate-state] selectors below) the act-rail dots, so "how urgent is
    this gate" reads identically in both places. Rules below `.status-step.set
-   .dot` on purpose so a "set" gate's real state wins over the generic green. */
-.status-step.gate-state-not-assessed .dot{background:#cbd5e1;box-shadow:inset 0 0 0 1px #b6c2cf}
-.status-step.gate-state-passed .dot{background:#10b981;box-shadow:none}
-.status-step.gate-state-passed-with-conditions .dot{background:#f59e0b;box-shadow:none}
-.status-step.gate-state-blocked .dot{background:#ef4444;box-shadow:none}
-.status-step.gate-state-waived .dot{background:#8b5cf6;box-shadow:none}
-.status-chip.gate-state-not-assessed{background:#e2e8f0;color:#334155}
-.status-chip.gate-state-passed{background:#d1fae5;color:#065f46}
-.status-chip.gate-state-passed-with-conditions{background:#fef3c7;color:#92400e}
-.status-chip.gate-state-blocked{background:#fee2e2;color:#991b1b}
-.status-chip.gate-state-waived{background:#ede9fe;color:#5b21b6}
-.gate-computed-chip{display:inline-block;font-size:0.78em;padding:2px 10px;border-radius:9999px;margin-left:6px;font-family:ui-monospace,monospace;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
-.gate-divergence-chip-inline{display:inline-block;font-size:0.78em;font-weight:700;padding:2px 9px;border-radius:9999px;margin-left:6px;background:#fffbeb;border:1px solid #f59e0b;color:#92400e}
-.act-gate-dot[data-gate-state="passed"]{background:#10b981;box-shadow:none}
-.act-gate-dot[data-gate-state="passed-with-conditions"]{background:#f59e0b;box-shadow:none}
-.act-gate-dot[data-gate-state="blocked"]{background:#ef4444;box-shadow:none}
-.act-gate-dot[data-gate-state="waived"]{background:#8b5cf6;box-shadow:none}
-.status-stepper-more{font-size:0.82em;font-weight:600;color:#475569;white-space:nowrap}
+   .dot` on purpose so a "set" gate's real state wins over the generic green.
+   Each state also has its own SHAPE so it never relies on colour alone
+   (WCAG 1.4.1): not assessed = hollow ring, passed = filled disc, passed with
+   conditions = half-filled disc, blocked = diamond, waived = ring with a
+   centre dot. Colours are theme tokens. */
+.status-step.gate-state-not-assessed .dot,
+.act-gate-dot[data-gate-state="not-assessed"]{background:transparent;box-shadow:inset 0 0 0 1.5px var(--text-disabled);border-radius:50%;transform:none}
+.status-step.gate-state-passed .dot,
+.act-gate-dot[data-gate-state="passed"]{background:var(--success-fg);box-shadow:none;border-radius:50%;transform:none}
+.status-step.gate-state-passed-with-conditions .dot,
+.act-gate-dot[data-gate-state="passed-with-conditions"]{background:linear-gradient(90deg,var(--warning-fg) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--warning-fg);border-radius:50%;transform:none}
+.status-step.gate-state-blocked .dot,
+.act-gate-dot[data-gate-state="blocked"]{background:var(--danger-fg);box-shadow:none;border-radius:1px;transform:rotate(45deg) scale(.85)}
+.status-step.gate-state-waived .dot,
+.act-gate-dot[data-gate-state="waived"]{background:radial-gradient(circle,var(--accent2) 32%,transparent 36%);box-shadow:inset 0 0 0 1.5px var(--accent2);border-radius:50%;transform:none}
+.status-chip.gate-state-not-assessed{background:var(--border);color:var(--text)}
+.status-chip.gate-state-passed{background:var(--success-bg);color:var(--success-fg)}
+.status-chip.gate-state-passed-with-conditions{background:var(--warning-bg);color:var(--warning-fg)}
+.status-chip.gate-state-blocked{background:var(--danger-bg);color:var(--danger-fg)}
+.status-chip.gate-state-waived{background:var(--accent2-bg);color:var(--accent2)}
+.gate-computed-chip{display:inline-block;font-size:0.78em;padding:2px 10px;border-radius:9999px;margin-left:6px;font-family:ui-monospace,monospace;background:var(--info-bg);color:var(--info-fg);border:1px solid var(--info-border)}
+.gate-divergence-chip-inline{display:inline-block;font-size:0.78em;font-weight:700;padding:2px 9px;border-radius:9999px;margin-left:6px;background:var(--warning-bg);border:1px solid var(--warning-fg);color:var(--warning-fg)}
+.status-stepper-more{font-size:0.82em;font-weight:600;color:var(--text-secondary);white-space:nowrap}
 .status-detail-panel[open] .status-stepper-more::after{content:" \25be"}
 .status-detail-panel:not([open]) .status-stepper-more::after{content:" \25b8"}
 .status-stepper-body{margin-top:6px;padding-top:6px;border-top:1px solid #eef2f6}
-.phase-pill{display:inline-block;font-size:0.78em;padding:2px 10px;border-radius:9999px;margin-right:6px;font-weight:500;background:#e0e7ff;color:#3730a3}
-.phase-design   { background:#e0e7ff; color:#3730a3 }
-.phase-build    { background:#fef3c7; color:#92400e }
-.phase-simulate { background:#dbeafe; color:#1e40af }
+.phase-pill{display:inline-block;font-size:0.78em;padding:2px 10px;border-radius:9999px;margin-right:6px;font-weight:500;background:var(--active);color:#3730a3}
+.phase-design   { background:var(--active); color:#3730a3 }
+.phase-build    { background:var(--warning-bg); color:var(--warning-fg) }
+.phase-simulate { background:var(--info-bg); color:var(--info-fg) }
 .phase-evaluate { background:#fce7f3; color:#9d174d }
-.phase-decide   { background:#d1fae5; color:#065f46 }
+.phase-decide   { background:var(--success-bg); color:var(--success-fg) }
 .classification-pill{display:inline-block;font-size:0.7em;padding:1px 8px;border-radius:9999px;margin-right:4px;font-weight:500}
-.classification-primary    { background:#fee2e2; color:#991b1b }
-.classification-supporting { background:#dbeafe; color:#1e40af }
-.classification-diagnostic { background:#fef3c7; color:#92400e }
-.classification-regression { background:#e5e7eb; color:#374151 }
+.classification-primary    { background:var(--danger-bg); color:var(--danger-fg) }
+.classification-supporting { background:var(--info-bg); color:var(--info-fg) }
+.classification-diagnostic { background:var(--warning-bg); color:var(--warning-fg) }
+.classification-regression { background:var(--border); color:var(--text) }
 .sim-status-pill{display:inline-block;font-size:0.72em;padding:1px 8px;border-radius:9999px;margin-left:4px}
-.sim-status-ready  { background:#d1fae5; color:#065f46 }
-.sim-status-gated  { background:#fef3c7; color:#92400e }
-.sim-status-running{ background:#dbeafe; color:#1e40af }
-.sim-status-ran    { background:#d1fae5; color:#065f46 }
+.sim-status-ready  { background:var(--success-bg); color:var(--success-fg) }
+.sim-status-gated  { background:var(--warning-bg); color:var(--warning-fg) }
+.sim-status-running{ background:var(--info-bg); color:var(--info-fg) }
+.sim-status-ran    { background:var(--success-bg); color:var(--success-fg) }
 .purpose-callout{margin-bottom:10px;padding:10px 14px;border-radius:4px;line-height:1.55}
 .purpose-callout strong{margin-right:6px}
 .followup-list{display:flex;flex-direction:column;gap:10px}
-.followup-card{padding:10px 14px;border:1px solid #e2e8f0;border-left:4px solid #94a3b8;border-radius:4px;background:#f8fafc;font-size:0.93em}
-.followup-card.followup-kind-existing{border-left-color:#3b82f6;background:#eff6ff}
-.followup-card.followup-kind-infrastructure_fix{border-left-color:#dc2626;background:#fef2f2}
+.followup-card{padding:10px 14px;border:1px solid var(--border);border-left:4px solid var(--border-control);border-radius:4px;background:var(--surface-2);font-size:0.93em}
+.followup-card.followup-kind-existing{border-left-color:#3b82f6;background:var(--info-bg)}
+.followup-card.followup-kind-infrastructure_fix{border-left-color:#dc2626;background:var(--danger-bg)}
 .followup-card.followup-kind-calibration_task{border-left-color:#f59e0b;background:#fefce8}
 .followup-card.followup-kind-expert_question{border-left-color:#a855f7;background:#faf5ff}
-.followup-card.followup-kind-new{border-left-color:#10b981;background:#f0fdf4}
+.followup-card.followup-kind-new{border-left-color:#10b981;background:var(--success-bg)}
 .followup-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
-.followup-kind{font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:#e2e8f0;color:#475569}
-.followup-effort{font-size:0.7em;padding:1px 8px;border-radius:9999px;background:#e0e7ff;color:#3730a3;font-family:ui-monospace,monospace}
-.followup-status{font-size:0.7em;padding:1px 8px;border-radius:9999px;background:#e2e8f0;color:#475569}
-.followup-status.status-blocked{background:#fef3c7;color:#92400e}
-.followup-status.status-done{background:#d1fae5;color:#065f46}
+.followup-kind{font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:var(--border);color:var(--text-secondary)}
+.followup-effort{font-size:0.7em;padding:1px 8px;border-radius:9999px;background:var(--active);color:#3730a3;font-family:ui-monospace,monospace}
+.followup-status{font-size:0.7em;padding:1px 8px;border-radius:9999px;background:var(--border);color:var(--text-secondary)}
+.followup-status.status-blocked{background:var(--warning-bg);color:var(--warning-fg)}
+.followup-status.status-done{background:var(--success-bg);color:var(--success-fg)}
 .followup-title{flex:1;font-size:1em}
 .followup-why,.followup-unblocks,.followup-acceptance,.followup-hypothesis{margin:4px 0 0 0;font-size:0.92em;line-height:1.45}
-.followup-hypothesis{padding:6px 10px;background:#fff;border-radius:3px;border:1px dashed #cbd5e1}
-.btn-seed-followup{font-size:0.85em;padding:4px 12px;border:1px solid #3b82f6;background:#fff;color:#3b82f6;border-radius:4px;cursor:pointer}
-.btn-seed-followup:hover{background:#3b82f6;color:#fff}
+.followup-hypothesis{padding:6px 10px;background:var(--surface);border-radius:3px;border:1px dashed var(--border-2)}
+.btn-seed-followup{font-size:0.85em;padding:4px 12px;border:1px solid #3b82f6;background:var(--surface);color:#3b82f6;border-radius:4px;cursor:pointer}
+.btn-seed-followup:hover{background:#3b82f6;color:var(--on-fill)}
 /* ── One flowing figure gallery (Fable §4.5, Task V2) ──────────────────
    The native gallery, embedded-HTML previews, and latest-run charts all
    render as the same `.figure-card`: a bordered figure container + a muted
@@ -350,8 +363,8 @@
 .figure-gallery{display:flex;flex-direction:column;gap:16px}
 .figure-mount{display:flex;flex-direction:column;gap:16px}
 .charts-panel{display:flex;flex-direction:column;gap:16px}
-.figure-card{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff}
-.figure-media-frame{display:block;width:100%;border:0;background:#fff}
+.figure-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--figure-surface)}
+.figure-media-frame{display:block;width:100%;border:0;background:var(--figure-surface)}
 .figure-media-frame--native{height:480px}
 .figure-media-frame--embed{min-height:200px}
 /* SVGs/PNGs scale to fit their card; preserves aspect ratio so a 1400×484
@@ -362,16 +375,16 @@
    rasterizes + scales the whole figure. max-width shrinks a too-wide figure;
    no width:100%, so small figures keep their native size instead of upscaling. */
 .figure-card img.figure-svg-img{display:block;max-width:100%;height:auto}
-.figure-desc{margin:8px 12px 0;font-size:0.85em;color:#475569}
-.figure-caption-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 12px;font-size:0.85em;color:#475569;border-top:1px solid #f1f5f9;background:#f8fafc}
-.figure-source-chip{font-size:0.68em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:#e2e8f0;color:#64748b;flex-shrink:0}
-.figure-title{font-weight:600;color:#334155;flex:1;min-width:100px}
-.figure-run-link,.figure-open-link{font-size:0.85em;color:#2563eb;text-decoration:none;white-space:nowrap;cursor:pointer}
+.figure-desc{margin:8px 12px 0;font-size:0.85em;color:var(--text-secondary)}
+.figure-caption-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 12px;font-size:0.85em;color:var(--text-secondary);border-top:1px solid var(--border-faint);background:var(--surface-2)}
+.figure-source-chip{font-size:0.68em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:var(--border);color:var(--text-muted);flex-shrink:0}
+.figure-title{font-weight:600;color:var(--text);flex:1;min-width:100px}
+.figure-run-link,.figure-open-link{font-size:0.85em;color:var(--link);text-decoration:none;white-space:nowrap;cursor:pointer}
 .figure-run-link:hover,.figure-open-link:hover{text-decoration:underline}
-.chart-caption{font-size:0.83em;color:#475569;margin:8px 12px 0;line-height:1.4}
+.chart-caption{font-size:0.83em;color:var(--text-secondary);margin:8px 12px 0;line-height:1.4}
 /* findings */
 .findings-section{padding:14px 16px;background:#fafbff;border:1px solid #c7d2fe;border-radius:8px}
-.finding-card{padding:12px 14px;margin:10px 0;border:1px solid #e2e8f0;border-left:5px solid #6366f1;border-radius:6px;background:#fff}
+.finding-card{padding:12px 14px;margin:10px 0;border:1px solid var(--border);border-left:5px solid #6366f1;border-radius:6px;background:var(--surface)}
 .finding-card.finding-status-confirms{border-left-color:#10b981}
 .finding-card.finding-status-partial{border-left-color:#f59e0b}
 .finding-card.finding-status-contradicts{border-left-color:#dc2626}
@@ -381,53 +394,53 @@
 .finding-details>summary{list-style:none;cursor:pointer}
 .finding-details>summary::-webkit-details-marker{display:none}
 .finding-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.finding-chip{font-size:0.78em;color:#475569;background:#f1f5f9;padding:2px 8px;border-radius:9999px;white-space:nowrap}
-.finding-drawer{margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0}
+.finding-chip{font-size:0.78em;color:var(--text-secondary);background:var(--surface-3);padding:2px 8px;border-radius:9999px;white-space:nowrap}
+.finding-drawer{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)}
 .finding-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
 .finding-status-glyph{font-size:1.2em;width:24px;text-align:center}
 .finding-status-confirms .finding-status-glyph{color:#10b981}
 .finding-status-partial .finding-status-glyph{color:#f59e0b}
-.finding-status-contradicts .finding-status-glyph{color:#dc2626}
+.finding-status-contradicts .finding-status-glyph{color:var(--danger-fg)}
 .finding-status-novel .finding-status-glyph{color:#8b5cf6}
-.finding-id{font-family:ui-monospace,monospace;font-size:0.78em;color:#475569;background:#f1f5f9;padding:1px 6px;border-radius:3px}
-.finding-kind{font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:#e0e7ff;color:#3730a3;font-weight:500}
-.finding-status-text{font-size:0.78em;color:#64748b;margin-left:auto;font-style:italic}
-.finding-statement{font-size:1em;line-height:1.5;font-weight:500;color:#0f172a;margin:4px 0 8px 0}
+.finding-id{font-family:ui-monospace,monospace;font-size:0.78em;color:var(--text-secondary);background:var(--surface-3);padding:1px 6px;border-radius:3px}
+.finding-kind{font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:var(--active);color:#3730a3;font-weight:500}
+.finding-status-text{font-size:0.78em;color:var(--text-muted);margin-left:auto;font-style:italic}
+.finding-statement{font-size:1em;line-height:1.5;font-weight:500;color:var(--heading);margin:4px 0 8px 0}
 .finding-claim{flex:1;min-width:200px;margin:0}
-.finding-evidence,.finding-expected{font-size:0.86em;color:#475569;padding:6px 10px;background:#f8fafc;border-left:3px solid #94a3b8;border-radius:3px;margin:6px 0;line-height:1.5}
-.finding-exp-summary{font-size:0.9em;color:#475569;padding:6px 10px;background:#fafbff;border-left:3px solid #6366f1;border-radius:3px;margin:6px 0;line-height:1.5}
-.finding-explanation{font-size:0.92em;color:#1e293b;margin:6px 0;line-height:1.5}
-.finding-explanation em{color:#475569;font-style:normal;font-weight:600}
-.finding-expert{margin:6px 0;padding:6px 10px;background:#fafafa;border:1px solid #e2e8f0;border-radius:4px}
-.finding-expert summary{cursor:pointer;font-size:0.85em;color:#475569;font-weight:500}
+.finding-evidence,.finding-expected{font-size:0.86em;color:var(--text-secondary);padding:6px 10px;background:var(--surface-2);border-left:3px solid var(--border-control);border-radius:3px;margin:6px 0;line-height:1.5}
+.finding-exp-summary{font-size:0.9em;color:var(--text-secondary);padding:6px 10px;background:#fafbff;border-left:3px solid #6366f1;border-radius:3px;margin:6px 0;line-height:1.5}
+.finding-explanation{font-size:0.92em;color:var(--heading);margin:6px 0;line-height:1.5}
+.finding-explanation em{color:var(--text-secondary);font-style:normal;font-weight:600}
+.finding-expert{margin:6px 0;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:4px}
+.finding-expert summary{cursor:pointer;font-size:0.85em;color:var(--text-secondary);font-weight:500}
 .finding-expert-quote{border-left:3px solid #6366f1;margin:6px 0 4px 0;padding:6px 10px;background:#fafbff;font-style:italic;color:#1e1b4b;font-size:0.92em;line-height:1.5}
-.finding-expert-note{font-size:0.88em;color:#475569;margin-top:4px;font-style:italic}
-.finding-next{padding:6px 10px;background:#f0fdf4;border-left:3px solid #10b981;border-radius:3px;font-size:0.9em;margin-top:8px;line-height:1.5}
-.finding-next strong{color:#065f46}
+.finding-expert-note{font-size:0.88em;color:var(--text-secondary);margin-top:4px;font-style:italic}
+.finding-next{padding:6px 10px;background:var(--success-bg);border-left:3px solid #10b981;border-radius:3px;font-size:0.9em;margin-top:8px;line-height:1.5}
+.finding-next strong{color:var(--success-fg)}
 /* discovery implications */
 .di-group{margin:14px 0}
 .di-group h3{margin:0 0 6px 0;font-size:0.95em}
 .di-uncertainties{display:flex;flex-wrap:wrap;gap:16px;margin:8px 0}
 .di-unc{flex:1;min-width:220px}
 .di-unc h4{margin:0 0 4px 0;font-size:0.88em}
-.di-unc-resolved h4{color:#065f46}
-.di-unc-remaining h4{color:#92400e}
+.di-unc-resolved h4{color:var(--success-fg)}
+.di-unc-remaining h4{color:var(--warning-fg)}
 .di-unc ul{margin:0 0 0 18px;padding:0;font-size:0.9em;line-height:1.45}
-.di-card{padding:10px 14px;margin:8px 0;border:1px solid #e2e8f0;border-left:4px solid #94a3b8;border-radius:4px;background:#f8fafc;font-size:0.92em}
+.di-card{padding:10px 14px;margin:8px 0;border:1px solid var(--border);border-left:4px solid var(--border-control);border-radius:4px;background:var(--surface-2);font-size:0.92em}
 .di-card-stmt{font-size:0.98em;line-height:1.5}
-.di-card-why{margin:4px 0 0 0;color:#475569;line-height:1.45}
-.di-card-line{margin:4px 0 0 0;font-size:0.88em;color:#475569;line-height:1.4}
-.di-lbl{color:#475569;font-weight:600;font-size:0.85em}
+.di-card-why{margin:4px 0 0 0;color:var(--text-secondary);line-height:1.45}
+.di-card-line{margin:4px 0 0 0;font-size:0.88em;color:var(--text-secondary);line-height:1.4}
+.di-lbl{color:var(--text-secondary);font-weight:600;font-size:0.85em}
 .di-mech-card{border-left-color:#a855f7;background:#faf5ff}
 .di-mech-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
-.di-update-chip{font-size:0.7em;text-transform:uppercase;letter-spacing:0.04em;padding:1px 8px;border-radius:9999px;background:#e0e7ff;color:#3730a3}
-.di-conf-change{font-size:0.78em;color:#475569;font-family:ui-monospace,monospace}
-.di-approval-badge{font-size:0.68em;text-transform:uppercase;letter-spacing:0.04em;padding:1px 8px;border-radius:9999px;background:#fef3c7;color:#92400e}
-.di-fup-card{border-left-color:#10b981;background:#f0fdf4}
-.di-gain-high{background:#d1fae5;color:#065f46}
-.di-gain-medium{background:#fef3c7;color:#92400e}
-.di-gain-low{background:#e5e7eb;color:#374151}
-.di-chip{font-size:0.7em;padding:1px 8px;border-radius:9999px;background:#e2e8f0;color:#475569}
+.di-update-chip{font-size:0.7em;text-transform:uppercase;letter-spacing:0.04em;padding:1px 8px;border-radius:9999px;background:var(--active);color:#3730a3}
+.di-conf-change{font-size:0.78em;color:var(--text-secondary);font-family:ui-monospace,monospace}
+.di-approval-badge{font-size:0.68em;text-transform:uppercase;letter-spacing:0.04em;padding:1px 8px;border-radius:9999px;background:var(--warning-bg);color:var(--warning-fg)}
+.di-fup-card{border-left-color:#10b981;background:var(--success-bg)}
+.di-gain-high{background:var(--success-bg);color:var(--success-fg)}
+.di-gain-medium{background:var(--warning-bg);color:var(--warning-fg)}
+.di-gain-low{background:var(--border);color:var(--text)}
+.di-chip{font-size:0.7em;padding:1px 8px;border-radius:9999px;background:var(--border);color:var(--text-secondary)}
 
 /* ── Dark theme ──────────────────────────────────────────────────────
    Same idiom as vivarium_workbench/static/style.css's own dark block:
@@ -443,7 +456,6 @@
 :root[data-theme="dark"] .study-kind-tag.study-kind-computational{background:rgba(59,130,246,0.16);color:#93c5fd}
 :root[data-theme="dark"] .study-kind-tag.study-kind-theoretical{background:rgba(124,58,237,0.16);color:#c4b5fd}
 :root[data-theme="dark"] .study-question-headline{color:var(--text)}
-:root[data-theme="dark"] .study-question-headline .q-glyph{color:var(--text-muted);background:var(--surface-3)}
 :root[data-theme="dark"] .status-detail-axis{color:var(--text-muted)}
 :root[data-theme="dark"] .status-chip{background:var(--surface-3);color:var(--text)}
 :root[data-theme="dark"] .gate-status-blocked{background:var(--surface-3);color:var(--text-muted)}
@@ -452,11 +464,7 @@
 :root[data-theme="dark"] .gate-status-failed{background:rgba(220,38,38,0.16);color:#fca5a5}
 :root[data-theme="dark"] .gate-status-stale{background:rgba(124,58,237,0.16);color:#c4b5fd}
 :root[data-theme="dark"] .status-step{color:var(--text-muted)}
-:root[data-theme="dark"] .status-step .dot{background:var(--border-2);box-shadow:inset 0 0 0 1px var(--border)}
 :root[data-theme="dark"] .status-step.set{color:var(--text)}
-:root[data-theme="dark"] .status-step .step-val{color:var(--text-muted)}
-:root[data-theme="dark"] .status-step.gate-status-blocked .dot{background:var(--text-muted);box-shadow:none}
-:root[data-theme="dark"] .status-step.gate-state-not-assessed .dot{background:var(--border-2);box-shadow:inset 0 0 0 1px var(--border)}
 :root[data-theme="dark"] .status-chip.gate-state-not-assessed{background:var(--surface-3);color:var(--text)}
 :root[data-theme="dark"] .status-chip.gate-state-passed{background:rgba(22,163,74,0.16);color:#86efac}
 :root[data-theme="dark"] .status-chip.gate-state-passed-with-conditions{background:rgba(245,158,11,0.15);color:#fcd34d}
@@ -496,11 +504,9 @@
 :root[data-theme="dark"] .figure-card{border-color:var(--border);background:var(--surface)}
 :root[data-theme="dark"] .figure-media-frame{background:var(--surface)}
 :root[data-theme="dark"] .figure-desc{color:var(--text-muted)}
-:root[data-theme="dark"] .figure-caption-row{color:var(--text-muted);border-top-color:var(--border-faint);background:var(--surface-2)}
-:root[data-theme="dark"] .figure-source-chip{background:var(--surface-3);color:var(--text-muted)}
+:root[data-theme="dark"] .figure-caption-row{ color:var(--text-muted); border-top-color:var(--border-faint); }
+:root[data-theme="dark"] .figure-source-chip{ background:var(--surface-3); }
 :root[data-theme="dark"] .figure-title{color:var(--text)}
-:root[data-theme="dark"] .figure-run-link,
-:root[data-theme="dark"] .figure-open-link{color:var(--link)}
 :root[data-theme="dark"] .chart-caption{color:var(--text-muted)}
 :root[data-theme="dark"] .findings-section{background:var(--surface-2);border-color:rgba(99,102,241,0.3)}
 :root[data-theme="dark"] .finding-card{border-color:var(--border);background:var(--surface)}
@@ -542,27 +548,27 @@
 /* ── Study Overview redesign: narrative order + progressive disclosure ── */
 .is-hidden{display:none !important}
 .narrative-field{margin:6px 0}
-.add-field-btn{background:none;border:1px dashed #cbd5e1;color:#64748b;font-size:0.82em;
+.add-field-btn{background:none;border:1px dashed var(--border-2);color:var(--text-muted);font-size:0.82em;
   padding:4px 12px;border-radius:6px;cursor:pointer;transition:border-color .12s,color .12s,background .12s}
-.add-field-btn:hover{border-color:#3b82f6;color:#3b82f6;background:#eff6ff}
-.conclusion-block{border-top:2px solid #e2e8f0;padding-top:14px;margin-top:22px}
+.add-field-btn:hover{border-color:#3b82f6;color:#3b82f6;background:var(--info-bg)}
+.conclusion-block{border-top:2px solid var(--border);padding-top:14px;margin-top:22px}
 /* Markdown-rendered conclusion blob: flows full-width (reflows authored hard-wraps), keeps paragraphs + ordered list. */
-.conclusion-md{color:#1e293b}
+.conclusion-md{color:var(--heading)}
 .conclusion-md > :first-child{margin-top:0}
 .conclusion-md > :last-child{margin-bottom:0}
 .conclusion-md p{margin:0 0 10px}
 .conclusion-md ol,.conclusion-md ul{margin:0 0 10px;padding-left:22px}
 .conclusion-md li{margin:2px 0}
-.conclusion-md code{background:#eef2f7;padding:1px 4px;border-radius:3px;font-size:0.92em}
-.conclusion-md pre{background:#eef2f7;padding:8px 10px;border-radius:4px;overflow-x:auto;white-space:pre-wrap}
-.conclusion-insight{font-size:1.02em;line-height:1.55;color:#1e293b;margin:2px 0 12px;font-weight:500}
+.conclusion-md code{background:var(--surface-3);padding:1px 4px;border-radius:3px;font-size:0.92em}
+.conclusion-md pre{background:var(--surface-3);padding:8px 10px;border-radius:4px;overflow-x:auto;white-space:pre-wrap}
+.conclusion-insight{font-size:1.02em;line-height:1.55;color:var(--heading);margin:2px 0 12px;font-weight:500}
 .computed-tag{display:inline-block;font-size:0.68em;font-weight:600;text-transform:uppercase;
-  letter-spacing:0.04em;color:#64748b;background:#f1f5f9;border:1px solid #e2e8f0;
+  letter-spacing:0.04em;color:var(--text-muted);background:var(--surface-3);border:1px solid var(--border);
   padding:1px 7px;border-radius:9999px;margin-left:8px;vertical-align:middle}
 .conclusion-tags{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;align-items:center}
 .tag-control{display:inline-flex;align-items:center;gap:6px}
-.tag-k{font-size:0.72em;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;font-weight:600}
-.tag-select,.tag-input{font-size:0.85em;padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff}
+.tag-k{font-size:0.72em;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-subtle);font-weight:600}
+.tag-select,.tag-input{font-size:0.85em;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)}
 .tag-input{min-width:220px}
 :root[data-theme="dark"] .add-field-btn{border-color:var(--border-2);color:var(--text-muted)}
 :root[data-theme="dark"] .add-field-btn:hover{border-color:rgba(59,130,246,.5);color:#93c5fd;background:rgba(59,130,246,0.16)}
@@ -571,7 +577,7 @@
 :root[data-theme="dark"] .conclusion-md code{background:var(--surface-3)}
 :root[data-theme="dark"] .conclusion-md pre{background:var(--surface-3)}
 :root[data-theme="dark"] .conclusion-insight{color:var(--text)}
-:root[data-theme="dark"] .computed-tag{color:var(--text-muted);background:var(--surface-3);border-color:var(--border)}
+:root[data-theme="dark"] .computed-tag{ border-color:var(--border); }
 :root[data-theme="dark"] .tag-k{color:var(--text-muted)}
 :root[data-theme="dark"] .tag-select,
 :root[data-theme="dark"] .tag-input{border-color:var(--border-2);background:var(--field);color:var(--text)}
@@ -673,11 +679,11 @@
               {% if f.evidence.from_test %}via test <a href="#bt-{{ _ftok }}" onclick="_gotoStudyTab('tests','bt-{{ _ftok }}');return false;"><code>{{ f.evidence.from_test }}</code></a> · {% endif %}
               {% if f.evidence.from_run %}in run <a href="#run-{{ _rtok }}"><code>{{ f.evidence.from_run }}</code></a>{% endif %}
               {% if f.evidence.window %} ({{ f.evidence.window }}){% endif %}
-              {% if f.evidence.smoking_gun %}<details style="display:inline-block;margin-left:4px"><summary>smoking gun</summary><pre style="white-space:pre-wrap;margin:4px 0 0 0;padding:6px 8px;background:#fff;border-radius:3px;font-size:0.85em;font-family:inherit">{{ f.evidence.smoking_gun }}</pre></details>{% endif %}
+              {% if f.evidence.smoking_gun %}<details style="display:inline-block;margin-left:4px"><summary>smoking gun</summary><pre style="white-space:pre-wrap;margin:4px 0 0 0;padding:6px 8px;background:var(--surface);border-radius:3px;font-size:0.85em;font-family:inherit">{{ f.evidence.smoking_gun }}</pre></details>{% endif %}
             </div>
             {% set _runids = (f.provenance or {}).run_ids %}
             {% if f.evidence.divergence_factor is defined or _runids %}
-            <div class="finding-traceability" style="font-size:0.84em;color:#475569;padding:4px 10px;margin:4px 0">
+            <div class="finding-traceability" style="font-size:0.84em;color:var(--text-secondary);padding:4px 10px;margin:4px 0">
               {% if f.evidence.divergence_factor is defined %}<span class="finding-divergence" style="font-weight:600">×{{ f.evidence.divergence_factor }} vs expected</span>{% endif %}
               {% if f.evidence.divergence_factor is defined and _runids %} · {% endif %}
               {% if _runids %}runs: {% for rid in _runids %}<a href="#run-{{ rid }}"><code>{{ rid }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
@@ -797,7 +803,7 @@
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <strong>{{ b.name or 'baseline' }}</strong>
         {% if b.composite %}
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">{{ b.composite }}</code>
+        <code style="font-size:0.82em;color:var(--text);background:var(--surface-3);padding:1px 6px;border-radius:3px">{{ b.composite }}</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
                 onclick="_openCompositeLoom('{{ b.composite }}')">🧬 explore &amp; run ↗</button>
         {% else %}<span class="muted">no composite declared</span>{% endif %}
@@ -871,7 +877,7 @@
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <strong>baseline</strong>
         {% if _cond_baseline.composite %}
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">{{ _cond_baseline.composite }}</code>
+        <code style="font-size:0.82em;color:var(--text);background:var(--surface-3);padding:1px 6px;border-radius:3px">{{ _cond_baseline.composite }}</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
                 onclick="_openCompositeLoom('{{ _cond_baseline.composite }}')">🧬 explore &amp; run ↗</button>
         {% else %}<span class="muted">no composite declared</span>{% endif %}
@@ -979,11 +985,11 @@
                      placeholder="(awaiting expert)"
                      {% if e.range and e.range[0] is defined %}min="{{ e.range[0] }}" max="{{ e.range[1] }}"{% endif %}
                      step="{{ _step }}"
-                     style="width:100%;padding:3px 6px;border:1px solid #cbd5e1;border-radius:3px;font:inherit">
+                     style="width:100%;padding:3px 6px;border:1px solid var(--border-2);border-radius:3px;font:inherit">
               {# Fable #14 — reuse the SAME required-before-run gate signal
                  the header badge above is computed from, inline per-row. #}
               {% if e.gate == 'required-before-run' and (e.current is none or e.current == '') %}
-              <span class="cond-ei-needs-value" style="display:inline-block;margin-top:3px;font-size:0.8em;color:#92400e">⚠ needs a value</span>
+              <span class="cond-ei-needs-value" style="display:inline-block;margin-top:3px;font-size:0.8em;color:var(--warning-fg)">⚠ needs a value</span>
               {% endif %}
             </td>
             <td>
@@ -1041,7 +1047,7 @@
     <p><strong>Modified processes:</strong></p>
     <ul style="margin:0 0 8px 18px;list-style:none;padding-left:0">
       {% for m in study.model_change.modified_processes %}
-      <li style="margin:0 0 8px 0;padding:8px 10px;background:#fff;border:1px solid #e5e7eb;border-radius:6px">
+      <li style="margin:0 0 8px 0;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px">
         {% if m is mapping %}
         <div>
           <code>{{ m.name }}</code>
@@ -1067,12 +1073,12 @@
     {% for r in study.implementation_requirements %}
     {% if r._prose or r is string %}
     {# Prose-form requirement (authored as `implementation_requirements: |`). #}
-    <div style="margin:8px 0;padding:10px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid #94a3b8;white-space:pre-wrap;line-height:1.5">{{ r.description if r is mapping else r }}</div>
+    <div style="margin:8px 0;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;border-left:3px solid var(--border-control);white-space:pre-wrap;line-height:1.5">{{ r.description if r is mapping else r }}</div>
     {% else %}
-    <details style="margin:8px 0;padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid {% if r.effort == 'XS' %}#10b981{% elif r.effort == 'S' %}#3b82f6{% elif r.effort == 'M' %}#f59e0b{% elif r.effort == 'L' %}#dc2626{% else %}#94a3b8{% endif %}">
+    <details style="margin:8px 0;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;border-left:3px solid {% if r.effort == 'XS' %}#10b981{% elif r.effort == 'S' %}#3b82f6{% elif r.effort == 'M' %}#f59e0b{% elif r.effort == 'L' %}#dc2626{% else %}#94a3b8{% endif %}">
       <summary style="cursor:pointer">
         <strong>{{ r.id }}</strong> — {{ r.title }}
-        {% if r.effort %}<span style="font-size:0.75em;background:#f1f5f9;color:#475569;padding:1px 7px;border-radius:9999px;margin-left:6px">{{ r.effort }}</span>{% endif %}
+        {% if r.effort %}<span style="font-size:0.75em;background:var(--surface-3);color:var(--text-secondary);padding:1px 7px;border-radius:9999px;margin-left:6px">{{ r.effort }}</span>{% endif %}
         {% if r.kind %}<span class="muted" style="font-size:0.78em;margin-left:4px">[{{ r.kind }}]</span>{% endif %}
       </summary>
       {% if r.description %}<p style="margin:8px 0">{{ r.description }}</p>{% endif %}
@@ -1396,7 +1402,7 @@
       {% set _ocls = c.result|outcome_class %}
       {% set _oc = _outcome_colors[_ocls] %}
       <li class="acceptance-criterion-item outcome-{{ _ocls }}" data-result="{{ c.result }}"
-          style="display:flex; align-items:center; gap:10px; padding:8px 12px; margin:0 0 6px 0; border-left:4px solid {{ _oc.border }}; background:#f8fafc; border-radius:4px">
+          style="display:flex; align-items:center; gap:10px; padding:8px 12px; margin:0 0 6px 0; border-left:4px solid {{ _oc.border }}; background:var(--surface-2); border-radius:4px">
         <span class="outcome-chip outcome-{{ _ocls }}" title="raw result: {{ c.result }}"
               style="font-size:0.78em; font-weight:600; padding:2px 9px; border-radius:9999px; background:{{ _oc.bg }}; color:{{ _oc.fg }}">{{ c.result|outcome_glyph }}&nbsp;{{ c.result|outcome_label }}</span>
         <span class="acceptance-criterion-behavior"><code>{{ c.behavior }}</code></span>
@@ -1473,11 +1479,11 @@
   <ul class="expected-behavior-list" id="tests-list" style="list-style:none; padding-left:0; margin-top: 12px;">
     {% for b in _bt %}
     {% set _cls = b.classification or 'unclassified' %}
-    {% set _border = '#10b981' if _cls == 'primary' else ('#3b82f6' if _cls == 'supporting' else ('#f59e0b' if _cls == 'diagnostic' else ('#94a3b8' if _cls == 'regression' else '#cbd5e1'))) %}
+    {% set _border = 'var(--success-fg)' if _cls == 'primary' else ('var(--link)' if _cls == 'supporting' else ('var(--warning-fg)' if _cls == 'diagnostic' else ('var(--border-control)' if _cls == 'regression' else 'var(--border-2)'))) %}
     {% set _out = _outcomes.get(b.name) %}
     {% set _res = _out.result if _out else None %}
-    {% set _pill_bg = '#d1fae5' if _res == 'PASS' else ('#fee2e2' if _res == 'FAIL' else ('#fef3c7' if _res == 'SKIP' else ('#fde68a' if _res == 'PARTIAL' else '#f1f5f9'))) %}
-    {% set _pill_fg = '#065f46' if _res == 'PASS' else ('#991b1b' if _res == 'FAIL' else ('#92400e' if _res == 'SKIP' else ('#92400e' if _res == 'PARTIAL' else '#475569'))) %}
+    {% set _pill_bg = 'var(--success-bg)' if _res == 'PASS' else ('var(--danger-bg)' if _res == 'FAIL' else ('var(--warning-bg)' if _res in ('SKIP', 'PARTIAL') else 'var(--surface-3)')) %}
+    {% set _pill_fg = 'var(--success-fg)' if _res == 'PASS' else ('var(--danger-fg)' if _res == 'FAIL' else ('var(--warning-fg)' if _res in ('SKIP', 'PARTIAL') else 'var(--text-secondary)')) %}
     {% set _pill_text = ('✓ PASS' if _res == 'PASS' else ('✗ FAIL' if _res == 'FAIL' else ('⏭ SKIP' if _res == 'SKIP' else ('◐ partial' if _res == 'PARTIAL' else '⏳ pending')))) %}
     <li class="expected-behavior-item" id="bt-{{ b.name or loop.index0 }}"
         data-test-kind="{{ b.kind or 'behavioral' }}"
@@ -1485,7 +1491,7 @@
         data-pytest-node="{{ b.name or '' }}"
         data-classification="{{ _cls }}"
         data-result="{{ _res or 'pending' }}"
-        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid {{ _border }}; background: #f8fafc; border-radius: 4px;">
+        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid {{ _border }}; background: var(--surface-2); border-radius: 4px;">
       {% if (b.kind or 'behavioral') == 'report_card' %}
         {# C6: the card expands INLINE at this row via a native <details> —
            reveals the same rich content _renderRichReportCard(card) renders
@@ -1499,7 +1505,7 @@
         <details class="report-card-row-expander" data-card="{{ b.card }}">
           <summary class="bt-head" style="display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none">
             <code>{{ b.name }}</code>
-            <span class="report-card-verdict" data-card="{{ b.card }}" style="font-size:0.75em;font-family:monospace;padding:2px 8px;border-radius:9999px;background:#e2e8f0;color:#334155">report card</span>
+            <span class="report-card-verdict" data-card="{{ b.card }}" style="font-size:0.75em;font-family:monospace;padding:2px 8px;border-radius:9999px;background:var(--border);color:var(--text)">report card</span>
             <span class="muted report-card-row-toggle-hint" style="margin-left:auto;font-size:0.78em">expand ▾</span>
           </summary>
           <div class="report-card-row-mount" data-card="{{ b.card }}" style="margin-top:10px"></div>
@@ -1516,10 +1522,10 @@
       </div>
       <div style="margin-top: 6px; font-size: 0.95em;">{{ b.description or b.en or '' }}</div>
       {% if _out %}
-      <div style="margin-top:6px;font-size:0.85em;padding:6px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:3px">
+      <div style="margin-top:6px;font-size:0.85em;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:3px">
         <strong>Latest result:</strong>
         {% for k, v in _out.items() if k != 'result' %}
-          <code style="font-family:ui-monospace,monospace;color:#475569;margin-right:8px">{{ k }}: {{ v }}</code>
+          <code style="font-family:ui-monospace,monospace;color:var(--text-secondary);margin-right:8px">{{ k }}: {{ v }}</code>
         {% endfor %}
       </div>
       {% endif %}
@@ -1535,7 +1541,7 @@
            test that declares `pass_if` but no `measure`). `default(none)`
            converts the sentinel to a real `None` -> `null` first, matching
            the JSON-dump style of the rest of this block. #}
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">{% if b.given %}given:   {{ b.given|tojson }}
+        <pre style="background:var(--surface); padding:8px; margin:4px 0 0 0; border:1px solid var(--border); border-radius:3px; overflow-x:auto;">{% if b.given %}given:   {{ b.given|tojson }}
 {% endif %}measure: {{ b.measure|default(none)|tojson }}
 {% if b.pass_if %}pass_if: {{ b.pass_if|tojson }}{% else %}expect:  {{ b.expect|default(none)|tojson }}{% endif %}{% if b.requires %}
 requires: {{ b.requires|tojson }}{% endif %}{% if b.cites %}
@@ -1544,7 +1550,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
       {% endif %}
       {% if b.calibration_anchor %}
       <details style="margin-top: 6px; font-size: 0.82em">
-        <summary class="muted" style="cursor:pointer; color:#92400e">⚠ Calibration anchor</summary>
+        <summary class="muted" style="cursor:pointer; color:var(--warning-fg)">⚠ Calibration anchor</summary>
         <pre style="background:#fff7ed; padding:8px; margin:4px 0 0 0; border:1px solid #fdba74; border-radius:3px; overflow-x:auto">{{ b.calibration_anchor | tojson(indent=2) }}</pre>
       </details>
       {% endif %}
@@ -1674,7 +1680,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
           <span class="narrative-label">Regression compatibility</span>
           <span class="narrative-input verdict-badge-computed" data-verdict-track="regression_compatibility"
                 title="Computed from run status (read-only)"
-                style="display:inline-block;padding:2px 12px;border-radius:9999px;font-weight:700;font-size:0.85em;background:#f1f5f9;color:#475569">{{ _reg.result or 'PENDING' }}</span>
+                style="display:inline-block;padding:2px 12px;border-radius:9999px;font-weight:700;font-size:0.85em;background:var(--surface-3);color:var(--text-secondary)">{{ _reg.result or 'PENDING' }}</span>
           <span class="muted small" style="margin-left:6px">computed from run status</span>
         </label>
         <label class="narrative-row narrative-row-wide">
@@ -1687,7 +1693,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
           <span class="narrative-label">Empirical validation</span>
           <span class="narrative-input verdict-badge-computed" data-verdict-track="biological_validation"
                 title="Computed from the gate evaluator (read-only)"
-                style="display:inline-block;padding:2px 12px;border-radius:9999px;font-weight:700;font-size:0.85em;background:#f1f5f9;color:#475569">{{ _bio.result or 'PENDING' }}</span>
+                style="display:inline-block;padding:2px 12px;border-radius:9999px;font-weight:700;font-size:0.85em;background:var(--surface-3);color:var(--text-secondary)">{{ _bio.result or 'PENDING' }}</span>
           <span class="muted small" style="margin-left:6px">computed from gate evaluator</span>
         </label>
         <label class="narrative-row narrative-row-wide">
@@ -1700,7 +1706,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
           <span class="narrative-label">Explanatory gain</span>
           <span class="narrative-input verdict-badge-computed" data-verdict-track="explanatory_gain"
                 title="Computed from interpretation-tier findings (read-only)"
-                style="display:inline-block;padding:2px 12px;border-radius:9999px;font-weight:700;font-size:0.85em;background:#f1f5f9;color:#475569">{{ _exp.result or 'PENDING' }}</span>
+                style="display:inline-block;padding:2px 12px;border-radius:9999px;font-weight:700;font-size:0.85em;background:var(--surface-3);color:var(--text-secondary)">{{ _exp.result or 'PENDING' }}</span>
           <span class="muted small" style="margin-left:6px">computed from interpretation-tier findings</span>
         </label>
         <label class="narrative-row narrative-row-wide">
@@ -1719,7 +1725,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
     <div class="decide-section" style="margin-top:18px">
       <h3 class="overview-label">Conclusion logic — gate decision</h3>
       {% if _cl.if_primary_tests_pass %}
-      <div style="padding:10px 14px;background:#f0fdf4;border-left:4px solid #10b981;border-radius:4px;margin-bottom:8px">
+      <div style="padding:10px 14px;background:var(--success-bg);border-left:4px solid #10b981;border-radius:4px;margin-bottom:8px">
         <strong>✓ If primary tests pass:</strong>
         {% if _cl.if_primary_tests_pass.implementation_status %}
         <div style="margin-top:4px"><em>Implementation:</em> {{ _cl.if_primary_tests_pass.implementation_status }}</div>
@@ -1735,7 +1741,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
       </div>
       {% endif %}
       {% if _cl.if_primary_tests_fail %}
-      <div style="padding:10px 14px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px">
+      <div style="padding:10px 14px;background:var(--danger-bg);border-left:4px solid #dc2626;border-radius:4px">
         <strong>✗ If primary tests fail:</strong>
         {% if _cl.if_primary_tests_fail.diagnose %}
         <div style="margin-top:4px"><em>Diagnose:</em>
@@ -1754,7 +1760,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
     {% if study.conclusion %}
     <div class="decide-section" style="margin-top:18px">
       <h3 class="overview-label">Conclusion</h3>
-      <div class="conclusion-md" style="background:#f8fafc;padding:12px;border-left:3px solid #94a3b8;border-radius:3px;font-size:0.9em;line-height:1.5">{{ study.conclusion | markdown }}</div>
+      <div class="conclusion-md" style="background:var(--surface-2);padding:12px;border-left:3px solid var(--border-control);border-radius:3px;font-size:0.9em;line-height:1.5">{{ study.conclusion | markdown }}</div>
     </div>
     {% endif %}
     {% endif %}
@@ -1825,7 +1831,7 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
     {% if _latest %}
     <div class="decide-section">
       <h3 class="overview-label">Latest run outcomes</h3>
-      <div style="font-size:0.88em;color:#64748b;margin-bottom:8px">
+      <div style="font-size:0.88em;color:var(--text-muted);margin-bottom:8px">
         {{ _latest.simulation or 'baseline' }} · seed {{ _latest.seed or '?' }} ·
         {{ _latest.duration_s or '?' }}s simulated ·
         {{ _latest.rows or '?' }} history rows ·
@@ -1838,8 +1844,8 @@ cites:   {{ b.cites|tojson }}{% endif %}</pre>
       {% if _roll.total %}
       <p class="muted" style="margin:0;font-size:0.9em">
         <strong>{{ _roll.total }}</strong> test outcome{{ '' if _roll.total == 1 else 's' }}
-        — <span style="color:#065f46;font-weight:600">{{ _roll.PASS }} PASS</span> ·
-        <span style="color:#991b1b;font-weight:600">{{ _roll.FAIL }} FAIL</span>{% if _roll.PARTIAL %} · <span style="color:#92400e;font-weight:600">{{ _roll.PARTIAL }} partial</span>{% endif %}.
+        — <span style="color:var(--success-fg);font-weight:600">{{ _roll.PASS }} PASS</span> ·
+        <span style="color:var(--danger-fg);font-weight:600">{{ _roll.FAIL }} FAIL</span>{% if _roll.PARTIAL %} · <span style="color:var(--warning-fg);font-weight:600">{{ _roll.PARTIAL }} partial</span>{% endif %}.
         Per-test outcomes (measured value · evaluator · band) are canonical on the
         <a onclick="_setStudyTab('tests')" style="cursor:pointer;color:#3b82f6;text-decoration:underline">Tests tab →</a>.
       </p>

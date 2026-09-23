@@ -137,32 +137,12 @@ def build_composite_run_status(ws_root: Path, run_id: str) -> tuple[dict, int]:
       ``JSONDecodeError``.
     """
     ws_root = Path(ws_root)
-    # Plan B (image-backed Cloud run): a composite-card Cloud run dispatched via
-    # run_simulation has no local run row — its state lives on sms-api. The loom
-    # polls this endpoint with the synthetic "remote-sim-<id>" run_id; map it to
-    # the sms-api simulation status so the run bar shows running -> completed. The
-    # run itself surfaces in the Simulations/Runs tab via remote_simulations.
+    # A composite-card Cloud run dispatched through the retired SMS surface had
+    # no local run row — its state lived on sms-api and the loom polled it here
+    # with a synthetic "remote-sim-<id>" run_id. Nothing mints those ids any
+    # more, so such a run_id can only be a stale client reference.
     if run_id.startswith("remote-sim-"):
-        try:
-            sim_id = int(run_id[len("remote-sim-"):])
-        except ValueError:
-            return {"error": "run not found"}, 404
-        from vivarium_workbench.lib import remote_run_views as _rrv
-        st, code = _rrv.remote_run_status({"simulation_id": sim_id})
-        if code != 200:
-            return st, code
-        phase = str(st.get("phase") or "")
-        mapped = {"done": "completed", "failed": "failed"}.get(phase, "running")
-        return {
-            "run_id": run_id,
-            "status": mapped,
-            "progress_step": None,
-            "n_steps": None,
-            "heartbeat_at": None,
-            "remote": True,
-            "simulation_id": sim_id,
-            "raw_status": st.get("raw_status"),
-        }, 200
+        return {"error": "run not found"}, 404
     db = _db_file(ws_root)
     if not db.is_file():
         return {"error": "no run database"}, 404

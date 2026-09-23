@@ -50,7 +50,7 @@ export function ConfigFileInput(props: {
         onChange={onPick}
       />
       {busy && (
-        <span className="cfg-file-status" style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
+        <span className="cfg-file-status" style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-secondary, #666)' }}>
           uploading…
         </span>
       )}

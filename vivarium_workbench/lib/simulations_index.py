@@ -1505,34 +1505,15 @@ def _emitter_tag(emitter) -> str:
 
 
 def _append_remote_simulations(sims: list, ws_root: Path, *, fresh: bool = False) -> list:
-    """Append the active remote build's server-side runs (scoped to the build's
-    commit/repo) to the local Simulations-DB rows. No-op for local workspaces
-    or when sms-api is unreachable — single source for the local+remote merge,
-    shared by ``build_simulations_data`` and the ``/api/simulations`` handler.
+    """Return ``sims`` unchanged — the remote run listing is retired.
 
-    By default this routes through the NON-blocking stale-while-revalidate helper
-    (``list_remote_simulations_swr``): it returns whatever the SWR cache holds
-    immediately and refreshes in the background, so a cold/slow/wedged tunnel can
-    never pin the request thread. ``fresh=True`` (threaded from ``?refresh=true``)
-    takes the blocking path but bounds it with a short timeout and one retry so
-    even the explicit refresh can't hang the request for minutes."""
-    try:
-        from vivarium_workbench.lib import remote_simulations as _rs
-        if fresh:
-            remote = _rs.list_remote_simulations(
-                ws_root, use_cache=False,
-                timeout=_rs._FRESH_TIMEOUT, max_retries=_rs._FRESH_MAX_RETRIES)
-        else:
-            remote = _rs.list_remote_simulations_swr(ws_root)
-    except Exception:
-        remote = []
-    if not remote:
-        return sims
-    # Dedup: a landed remote run is already a local row (same run_id/experiment_id)
-    # — don't list it twice. Keep the local (richer, has store/analyses) copy.
-    have = {s.get("run_id") for s in sims if isinstance(s, dict)}
-    extra = [r for r in remote if r.get("run_id") not in have]
-    return list(sims) + extra if extra else sims
+    This merged a remote SMS build's server-side runs (scoped to the build's
+    commit/repo) into the local Simulations-DB rows. That listing endpoint is
+    retired, so the Simulations DB shows local runs and published snapshots
+    only. Kept as a pass-through seam so ``build_simulations_data`` and the
+    ``/api/simulations`` handler keep their single merge point.
+    """
+    return sims
 
 
 # Shared emitter-kind -> display-label map (one place to add a kind's label).
@@ -2014,14 +1995,6 @@ def build_simulations_data(ws_root: Path, include_remote: bool = True,
         # timestamps come from an unreliable bulk `last_updated`, so the id is the
         # more trustworthy recency signal for same-timestamped remote rows).
         sims.sort(key=_sim_recency_key, reverse=True)
-        # Provenance of the remote source, so the Runs tab can show
-        # "as of HH:MM (refreshing…)" instead of a spinner. Best-effort: a
-        # failure here must never break the local listing.
-        try:
-            from vivarium_workbench.lib import remote_simulations as _rs
-            remote_state = _rs.remote_state(ws_root)
-        except Exception:  # noqa: BLE001
-            remote_state = None
 
     # Capability-matched analysis tools + their launch URLs, per row (Simulations
     # DB "launch into tool" affordance). Best-effort at every layer already
@@ -2063,7 +2036,6 @@ def resolve_or_fetch_store(workspace: Path, row: dict) -> "tuple[Path | None, te
     ``None`` when the store resolved locally (nothing to clean up) or
     couldn't be resolved at all (``store_path`` is also ``None`` in that case).
     """
-    import tarfile
 
     workspace = Path(workspace)
 
@@ -2082,24 +2054,9 @@ def resolve_or_fetch_store(workspace: Path, row: dict) -> "tuple[Path | None, te
     if target is not None:
         return target, None
 
-    remote_origin = row.get("remote_origin") or {}
-    sim_id = remote_origin.get("simulation_id")
-    if sim_id is None:
-        return None, None
-
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError
-    from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
-    tmp = tempfile.TemporaryDirectory()
-    try:
-        tar_path = SmsApiClient(_sms_api_base()).download_data(int(sim_id), Path(tmp.name))
-    except SmsApiError:
-        tmp.cleanup()
-        return None, None
-    extract_dir = Path(tmp.name) / "extracted"
-    extract_dir.mkdir()
-    with tarfile.open(tar_path) as tf:
-        tf.extractall(extract_dir, filter="data")  # noqa: S202 — sms-api's own tar, not user input
-    return extract_dir, tmp
+    # A remote row's store used to be fetched on demand from the retired SMS
+    # data endpoint. Without it an unresolved store is simply unavailable.
+    return None, None
 
 
 def build_simulation_run_zip(workspace: Path, run_id: str) -> "tuple[bytes, str, int]":

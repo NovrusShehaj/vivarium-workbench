@@ -71,61 +71,6 @@ def test_unknown_run_with_no_local_file_still_404s(tmp_path):
     assert content == b""
 
 
-def test_falls_back_through_sms_api_for_s3_only_run(tmp_path, monkeypatch):
-    """The full chain for a GovCloud-dispatched run: store_path is s3://
-    (nothing local), remote_origin carries a simulation_id, so the fallback
-    fetches a tar.gz from sms-api (mocked), extracts it, and renders real
-    data from the extracted zarr store — not just a local-store shortcut.
-
-    Row shaped exactly like remote_simulations.py's _normalize() output (a
-    run known to sms-api but never landed into a local runs.db): db_path is
-    None, store_path is the s3:// URI. Seeding via a real local sqlite db
-    instead would give db_path a real (local) path to that db file itself,
-    masking the remote-fallback path entirely — see test_simulations_index.py
-    for the same lesson learned on build_simulation_run_zip's tests."""
-    import tarfile
-
-    from vivarium_workbench.lib import composite_run_views as crv
-    from vivarium_workbench.lib import simulations_index as si
-
-    ws = tmp_path
-    (ws / ".pbg").mkdir(parents=True)
-    row = {
-        "run_id": "r4", "spec_id": "", "sim_name": "r4", "label": "r4",
-        "status": "completed", "n_steps": None, "progress_step": None,
-        "started_at": 10.0, "completed_at": 10.0,
-        "db_path": None, "store_path": "s3://bucket/vecoli-output/exp-113",
-        "emitter": "xarray", "studies": [], "study_slug": None,
-        "investigation_slug": None,
-        "remote_origin": {"deployment": "build #50", "simulation_id": 113,
-                           "experiment_id": "r4", "backend": "aws",
-                           "s3_uri": "s3://bucket/vecoli-output/exp-113"},
-    }
-    monkeypatch.setattr(si, "list_simulations", lambda workspace: [row])
-
-    zarr_src = tmp_path / "src.zarr"
-    make_fake_zarr(zarr_src)
-    tar_path = tmp_path / "fake.tar.gz"
-    with tarfile.open(tar_path, "w:gz") as tf:
-        tf.add(zarr_src, arcname="exp-113/store.zarr")
-
-    def _fake_download_data(self, simulation_id, dest_dir, timeout=None):
-        out = Path(dest_dir) / f"sim_{simulation_id}.tar.gz"
-        out.write_bytes(tar_path.read_bytes())
-        return out
-
-    monkeypatch.setattr(
-        "vivarium_workbench.lib.sms_api_client.SmsApiClient.download_data",
-        _fake_download_data,
-    )
-
-    content, _mt, _dl, status = crv.build_run_artifact(ws, "r4", "viz")
-    assert status == 200
-    html = content.decode("utf-8")
-    assert "cell_mass" in html
-    assert "Plotly.newPlot" in html
-
-
 def test_local_viz_json_present_is_unaffected_by_the_fallback(tmp_path):
     """A run WITH a real local viz.json (the ordinary local-execution case)
     must render from that file, not fall through to the zarr path at all —

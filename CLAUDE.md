@@ -18,6 +18,30 @@ studies, investigations, and reports. The dashboard reads and **writes** the
 workspace's files — every action commits to a git branch in the workspace, giving
 a full audit trail.
 
+**AI-free core + optional assistant extension (this fork).**
+
+- **The core never imports the assistant.** `vivarium_workbench/` imports no LLM
+  SDK (`tests/test_no_ai_deps.py`; never weaken it) and never imports
+  `vivarium_workbench_assistant/`. An import-linter `forbidden` contract
+  enforces the second rule.
+- **The assistant is an opt-in extension.** It installs with the
+  `[assistant]` / `[assistant-google]` extras and is enabled with
+  `serve --enable-extension assistant`.
+- **It loads through the generic seam in `lib/extensions.py`.** Routes go under
+  `/api/ext/<id>`, registered before the catch-all.
+- **Providers are reached over `httpx` only**, with no vendor SDKs. The browser
+  never calls a provider.
+- **Docs:** `docs/assistant.md`, `docs/adr/0001-*`.
+
+**Theme.**
+
+- **Colours come from `static/tokens.css` only.** Use `var(--token)`: no hex or
+  inline colours, and no new `:root[data-theme="dark"]` overrides.
+  `tests/test_theme_ratchet.py` holds the shrink-only baseline.
+- **The preference** is System/Light/Dark, default `system`.
+- **`templates/_theme_boot.html` must stay first in every `<head>`.**
+- **Docs:** `docs/theme.md`.
+
 Crucial distinction: this repo is the *server/tooling*; the *data* it operates on
 lives in a separate workspace directory passed via `--workspace`. The workspace is
 where `studies/`, `composites/`, `.pbg/`, `runs.db` files, etc. live — never in
@@ -138,10 +162,20 @@ behavior, consider both the live and snapshot data sources.
 
 ## Conventions & gotchas
 
-- **CSRF/origin guard**: every mutating (`POST`/`DELETE`) endpoint calls
-  `_csrf_ok()`. Requests with no `Origin` (curl, local CLI) are allowed; a present
-  `Origin` must match `Host`. Bypass for tests/tools with
-  `VIVARIUM_WORKBENCH_DISABLE_CSRF=1`.
+- **CSRF/origin guard**: every unsafe method (`POST`/`PUT`/`PATCH`/`DELETE`,
+  `lib/csrf.py`) goes through the middleware. Requests with no `Origin` (curl,
+  local CLI) are allowed; a present `Origin` must match `Host`. Bypass for
+  tests/tools with `VIVARIUM_WORKBENCH_DISABLE_CSRF=1`.
+- **Host allowlist** (`lib/host_guard.py`): on a loopback bind only loopback
+  `Host` names are accepted (DNS-rebinding defense). Add names with
+  `--allowed-host` / `VIVARIUM_WORKBENCH_ALLOWED_HOSTS`. A non-loopback bind
+  without an allowlist accepts any Host and warns at startup. The catch-all static
+  route refuses sensitive files and symlink escapes (`lib/sensitive_paths.py`).
+- **Tests never touch the real keychain or home config**: set
+  `PYTHON_KEYRING_BACKEND=keyring.backends.fail.Keyring` and point
+  `VIVARIUM_WORKBENCH_CONFIG_DIR` / `VIVARIUM_WORKBENCH_DATA_DIR` at temp dirs
+  (the assistant tests' conftest does this). Browser E2E (`tests/e2e/`) is
+  opt-in: `VIVARIUM_WORKBENCH_E2E=1`.
 - **Atomic writes**: use `lib/atomic_io.py` for file writes that must not be seen
   half-written.
 - **JSON serialization**: the server's `_json_default` handles numpy/dataclasses;

@@ -80,6 +80,25 @@ def serve_fastapi(workspace: Path, port: int, host: str = "127.0.0.1", base_path
     except Exception:  # noqa: BLE001
         pass
 
+    # Settings that configured the retired SMS surface. They are read by nothing
+    # now, so an operator who still sets them would otherwise get silence where
+    # they expect remote dispatch.
+    _retired_settings = [
+        name for name in (
+            "VIVARIUM_WORKBENCH_REMOTE_PINNED",
+            "VIVARIUM_WORKBENCH_REMOTE_REPO_URL",
+            "VIVARIUM_WORKBENCH_REMOTE_BRANCH",
+        )
+        if os.environ.get(name)
+    ]
+    if _retired_settings:
+        print(
+            "warning: " + ", ".join(_retired_settings) + " is set but no longer has "
+            "any effect — the SMS simulator-build and workflow endpoints it "
+            "configured are retired. Remote Smoldyn runs use SMOLDYN_API_BASE.",
+            file=sys.stderr,
+        )
+
     # Surface the remote viva-api config at startup so a fresh operator (or Chris
     # trying "switch to remote") sees immediately whether the endpoint is reachable.
     # Only probe when VIVA_API_BASE/SMS_API_BASE is explicitly set — a local-only
@@ -90,15 +109,15 @@ def serve_fastapi(workspace: Path, port: int, host: str = "127.0.0.1", base_path
             from vivarium_workbench.lib.workspace_deps_views import remote_health
             _h = remote_health()
             if _h["reachable"]:
-                print(f"remote sms-api: {_h['base_url']} — reachable ✓ (v{_h['version']})")
+                print(f"remote viva-api: {_h['base_url']} — reachable ✓ (v{_h['version']})")
             else:
                 print(
-                    f"remote sms-api: {_h['base_url']} — UNREACHABLE ✗ "
+                    f"remote viva-api: {_h['base_url']} — UNREACHABLE ✗ "
                     f'("switch to remote" unavailable until the endpoint/tunnel is up)',
                     file=sys.stderr,
                 )
         except Exception as e:  # noqa: BLE001
-            print(f"warning: remote sms-api health check failed: {e}", file=sys.stderr)
+            print(f"warning: remote viva-api health check failed: {e}", file=sys.stderr)
 
         # Start the RemoteLink circuit-breaker probe so a wedged tunnel is
         # detected in the background (~3s probe every 30s) and every sms-api call
@@ -189,6 +208,22 @@ def serve_fastapi(workspace: Path, port: int, host: str = "127.0.0.1", base_path
         }), encoding="utf-8")
     except Exception as e:  # noqa: BLE001
         print(f"warning: writing server-info failed: {e}", file=sys.stderr)
+
+    # Record how this server is bound BEFORE the app is imported and built:
+    # request-time policy (the Host allowlist, extension availability) asks
+    # lib.server_runtime whether this is a loopback-only local tool or a
+    # network-reachable/shared deployment.
+    from vivarium_workbench.lib import server_runtime
+    server_runtime.configure(bind_host=host, base_path=base_path)
+    if not server_runtime.is_loopback_host(host):
+        from vivarium_workbench.lib.host_guard import configured_allowed_hosts
+        if not configured_allowed_hosts():
+            print(
+                "warning: bound to a non-loopback address without a Host allowlist; "
+                "requests with any Host header are accepted. Behind a proxy that "
+                "preserves Host, set --allowed-host (VIVARIUM_WORKBENCH_ALLOWED_HOSTS).",
+                file=sys.stderr,
+            )
 
     import uvicorn
     from vivarium_workbench.api.app import app

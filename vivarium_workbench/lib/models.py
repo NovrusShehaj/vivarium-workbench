@@ -1142,6 +1142,22 @@ class GithubRepo(BaseModel):
     repo: Optional[str] = None
 
 
+class ExtensionInfo(BaseModel):
+    """One available opt-in extension, as advertised to the browser shell.
+
+    Built by ``lib.extensions.LoadedExtension.ui_contribution``. Only extensions
+    that are enabled, registered and *available* right now are listed.
+    """
+
+    id: str
+    title: str
+    panel: bool = False
+    panel_label: str = ""
+    settings_section: Optional[str] = None
+    scripts: list[str] = []
+    styles: list[str] = []
+
+
 class UiConfig(BaseModel):
     """``GET /api/ui-config`` payload (lib.system_info.build_ui_config).
 
@@ -1158,6 +1174,9 @@ class UiConfig(BaseModel):
     readonly: bool = False
     composite_view: str
     auto_results: bool = True
+    # Opt-in extensions available on this server (lib.extensions). Empty unless
+    # an operator enabled one and it is available in this deployment mode.
+    extensions: list[ExtensionInfo] = []
 
 
 class UiConfigUpdateBody(BaseModel):

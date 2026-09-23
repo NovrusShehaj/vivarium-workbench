@@ -3,8 +3,9 @@
 **Audience:** an AI agent setting up a **new** Vivarium Workbench workspace repo and driving it.
 **What the Workbench is:** a local web UI + HTTP API over a *process-bigraph workspace* (a folder with a `workspace.yaml` holding composites, studies, investigations, and runs). It **reads and writes** the workspace's files and commits each change to git, so every action has an audit trail.
 **Two layers, keep them separate:**
-- **The Workbench** = server/UI/data. It has **no AI dependencies** — pure Python + static assets.
-- **The LLM layer** = the `viva-superpowers` Claude Code plugin (skills that *drive* the Workbench's HTTP API). All AI lives here, never in the Workbench. (See §4.)
+- **The Workbench** = server/UI/data. Its **core has no AI dependencies** — pure Python + static assets.
+- **The LLM layer** = the `viva-superpowers` Claude Code plugin (skills that *drive* the Workbench's HTTP API). (See §4.)
+- **Optional in-app assistant** = the separate, opt-in `vivarium_workbench_assistant` extension (`[assistant]` extra + `--enable-extension assistant`). The core never imports it (see §4.1 and [docs/assistant.md](assistant.md)).
 
 ---
 
@@ -64,7 +65,12 @@ Useful endpoints:
 ## 4. The LLM layer — how an AI works with the Workbench
 
 ### 4.1 The principle
-The **Workbench is AI-free**. All AI capability is packaged as the **`viva-superpowers`** Claude Code plugin (v0.16.0): a set of `viva-*` **skills** that call the Workbench's HTTP API to author and run models. This keeps the tool auditable and the AI swappable.
+The **Workbench core is AI-free**: nothing under `vivarium_workbench/` imports an LLM SDK (`tests/test_no_ai_deps.py`, unchanged), and an import-linter contract forbids the core from importing the optional assistant.
+
+AI capability comes from two places, both outside the core:
+
+- **The agent layer.** The **`viva-superpowers`** Claude Code plugin (v0.16.0) is a set of `viva-*` **skills** that call the Workbench's HTTP API to author and run models. This keeps the tool auditable and the AI swappable. The rest of this section is about it.
+- **An optional in-app assistant.** `vivarium_workbench_assistant/` is a separate package in the same wheel. It is off unless installed with the `[assistant]` extra *and* enabled with `serve --enable-extension assistant`. It is a bring-your-own-key chat and coding panel. It never writes to the workspace without the user reviewing and applying a proposal, and runs no command without per-call approval. See [docs/assistant.md](assistant.md) and [ADR-0001](adr/0001-ai-free-core-optional-assistant-extension.md), which is accepted for this fork, not upstream.
 
 ### 4.2 One-time agent setup
 ```

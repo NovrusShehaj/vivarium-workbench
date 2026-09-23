@@ -50,13 +50,9 @@ from vivarium_workbench.lib import session_registry
 from vivarium_workbench.lib.workspace_context import WorkspaceContext
 from vivarium_workbench.lib import csrf as _csrf
 from vivarium_workbench.lib import source_switch_views as _source_switch_views
-from vivarium_workbench.lib import source_build_views as _source_build_views
 from vivarium_workbench.lib import job_status_views as _job_status_views
 from vivarium_workbench.lib import run_jobs as _run_jobs
-from vivarium_workbench.lib import remote_run_jobs as _remote_run_jobs
-from vivarium_workbench.lib import remote_run_views as _remote_run_views
 from vivarium_workbench.lib import smoldyn_run_views as _smoldyn_run_views
-from vivarium_workbench.lib import remote_analysis_figures as _remote_analysis_figures
 from vivarium_workbench.lib import auth_views as _auth_views
 from vivarium_workbench.lib import composite_run_views as _cr_views
 from vivarium_workbench.lib import composite_test_run_views as _composite_test_run_views
@@ -193,10 +189,8 @@ from vivarium_workbench.lib.models import (
     SavedVisualizationsPayload,
     SimRow,
     SimulationsPayload,
-    RemoteSourceState,
     ProvenanceManifest,
     RemoteHealth,
-    SourceBuilds,
     StudyChartsPayload,
     SystemDepsCheck,
     UiConfig,
@@ -298,14 +292,7 @@ from vivarium_workbench.lib.models import (
     SourceSwitchRequest,
     SourceSwitchResponse,
     # C-state-3b: source build-remote / switch-build (sms-api network routes)
-    BuildRemoteRequest,
-    BuildRemoteResponse,
     MaterializeRepoRequest,
-    SwitchBuildRequest,
-    # C-state-3c: remote-run submit (manager.submit pipeline job)
-    RemoteRunStartRequest,
-    RemoteRunStartResponse,
-    # C-state-3e: GitHub device-flow auth (pass-through payload)
     AuthPayload,
     # C-state-3f: git-subprocess commit/push routes
     BranchPushRequest,
@@ -583,8 +570,11 @@ def create_app() -> FastAPI:
         AWS ALB), declare the browser-facing origin explicitly via
         ``VIVARIUM_WORKBENCH_ALLOWED_ORIGINS`` (``--allowed-origin``) — an exact
         match short-circuits to allow, header-independently.
+
+        Every unsafe method is covered (``lib.csrf.is_unsafe_method``: anything
+        other than GET/HEAD/OPTIONS/TRACE — POST, PUT, PATCH, DELETE …).
         """
-        if request.method in ("POST", "DELETE", "PATCH"):
+        if _csrf.is_unsafe_method(request.method):
             if not _csrf.is_request_allowed(
                 request.headers.get("origin"),
                 request.headers.get("host"),
@@ -710,6 +700,12 @@ def create_app() -> FastAPI:
         )
         return JSONResponse({"error": "internal server error"}, status_code=500)
 
+    # Host-header allowlist (DNS-rebinding defense; lib.host_guard). A plain ASGI
+    # middleware added after the ``@app.middleware`` layers, so it runs before
+    # them; the access log below still wraps it and records its 400s.
+    from vivarium_workbench.lib.host_guard import HostGuardMiddleware
+    app.add_middleware(HostGuardMiddleware)
+
     # Registered last so it wraps the CSRF middleware and sees the final status.
     install_request_logging(app)
 
@@ -769,9 +765,6 @@ def create_app() -> FastAPI:
             annotate_composite_registered,
         )
         if refresh:
-            from vivarium_workbench.lib import remote_simulations as _rs
-            _rs._REMOTE_CACHE.clear()
-            _rs._REMOTE_META.clear()
             clear_build_cache()
         data = build_simulations_data_cached(ws, include_remote=include_remote,
                                              fresh=refresh)
@@ -794,11 +787,9 @@ def create_app() -> FastAPI:
             _known = set()
         annotate_composite_registered(sims, _known)
         rows = [SimRow.model_validate(r) for r in sims]
-        remote_state = data.get("remote")
         return SimulationsPayload(
             simulations=rows, current=data.get("current"),
-            total=total, offset=offset, limit=limit,
-            remote=RemoteSourceState.model_validate(remote_state) if remote_state else None)
+            total=total, offset=offset, limit=limit, remote=None)
 
     @app.get(
         "/api/workspace-manifest",
@@ -2863,6 +2854,7 @@ def create_app() -> FastAPI:
         summary="UI feature flags from workspace.yaml",
     )
     def ui_config_route(
+        request: Request,
         ws: Path = Depends(get_workspace),
     ) -> Union[UiConfig, JSONResponse]:
         """UI feature-flag config for GET /api/ui-config.
@@ -2880,9 +2872,13 @@ def create_app() -> FastAPI:
         ``ValidationError`` → 500; the fallback returns the raw builder dict at
         HTTP 200 instead, preserving never-500 + byte-identity.
 
+        ``extensions`` lists the opt-in extensions available on this server
+        (``lib.extensions.ui_contributions``); empty unless one is enabled.
+
         Library-backed via ``lib.system_info.build_ui_config``.
         """
-        data = _system_info.build_ui_config(ws)
+        from vivarium_workbench.lib.extensions import ui_contributions
+        data = _system_info.build_ui_config(ws, extensions=ui_contributions(request.app))
         try:
             return UiConfig.model_validate(data)
         except ValidationError:
@@ -3171,23 +3167,6 @@ def create_app() -> FastAPI:
 
     # Workspace & source routes  (Batch 13)
     # -----------------------------------------------------------------------
-
-    @app.get(
-        "/api/source/builds",
-        response_model=SourceBuilds,
-        tags=["Workspaces & sources"],
-        summary="Remote sms-api simulator build list for the source dropdown",
-    )
-    def source_builds_route() -> SourceBuilds:
-        """Remote sms-api build list (mirrors the stdlib GET /api/source/builds).
-
-        Best-effort: returns ``{builds: [], error: <reason>}`` when the sms-api
-        tunnel is not reachable.  Always HTTP 200.  No workspace dependency — the
-        sms-api base URL is read from the ``SMS_API_BASE`` env var.
-
-        Library-backed via ``lib.workspace_deps_views.build_source_builds``.
-        """
-        return SourceBuilds.model_validate(_workspace_deps.build_source_builds())
 
     @app.get(
         "/api/source/remote-health",
@@ -3828,8 +3807,12 @@ def create_app() -> FastAPI:
         Mirrors the legacy ``do_GET`` ``("/", "/index.html")`` branch.
         """
         try:
+            from vivarium_workbench.lib.extensions import ui_contributions
             from vivarium_workbench.lib.report import render_workspace_report
-            render_workspace_report(ws, base_path=(request.scope.get("root_path") or ""))
+            render_workspace_report(
+                ws, base_path=(request.scope.get("root_path") or ""),
+                extensions=ui_contributions(request.app),
+            )
         except Exception as render_exc:  # noqa: BLE001 — never block load
             import sys as _sys
             print(
@@ -3870,6 +3853,12 @@ def create_app() -> FastAPI:
         static HTML never did — so inject it here, before the bundle's scripts run.
         No-op without a base path (local dev serves at root).
 
+        **Theme boot on every HTML entry.** The same pre-paint theme partial the
+        workbench shells include (``templates/_theme_boot.html``) plus
+        ``tokens.css`` and ``theme.js`` are injected into every loom HTML
+        document (embedded iframe and pop-out window), so the loom paints in
+        the resolved theme and follows later changes.
+
         Library-backed via ``lib.static_serving.resolve_loom_asset``.
         """
         try:
@@ -3885,12 +3874,18 @@ def create_app() -> FastAPI:
             or getattr(request.app.state, "base_path", "")
             or ""
         )
-        if base_path and name.endswith(".html") and target.is_file():
-            from vivarium_workbench.lib.report import inject_base_path_shim
+        if name.endswith(".html") and target.is_file():
+            from vivarium_workbench.lib.report import (
+                inject_base_path_shim, inject_head_snippet, theme_head_snippet,
+            )
+            html = inject_head_snippet(
+                target.read_text(encoding="utf-8"),
+                theme_head_snippet(f"{base_path}/assets/"),
+            )
+            # The base-path shim goes in last so it lands FIRST in <head>.
+            html = inject_base_path_shim(html, base_path)
             return Response(
-                content=inject_base_path_shim(
-                    target.read_text(encoding="utf-8"), base_path
-                ),
+                content=html,
                 headers={
                     "Content-Type": _static_serving.guess_mime(name),
                     "Cache-Control": "no-store",
@@ -5867,32 +5862,6 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=200,
                             content=_run_jobs.manager.redrive(job_id))
 
-    @app.get(
-        "/api/remote-run-status",
-        response_model=JobStatusPayload,
-        tags=["Rigor & jobs"],
-        summary="Status of a remote (sms-api) run job",
-    )
-    def remote_run_status(
-        job_id: str = "",
-    ) -> Union[JobStatusPayload, JSONResponse]:
-        """Status of a remote-run job (mirrors the stdlib
-        ``GET /api/remote-run-status?job_id=<id>``).
-
-        Reads the in-process ``lib.remote_run_jobs.manager`` singleton.  No
-        ``job_id`` returns ``{jobs: manager.list_recent(10)}``; a known id
-        returns the job's ``to_dict()`` (a ``steps[]`` shape); an unknown id
-        returns HTTP 404 ``{error: "job not found"}``.
-
-        The manager is read at call time via the module attribute
-        (``_remote_run_jobs.manager``) so tests can monkeypatch it.
-        Library-backed via the pure ``lib.job_status_views.job_status``.
-        """
-        body, status = _job_status_views.job_status(_remote_run_jobs.manager, job_id)
-        if status != 200:
-            return JSONResponse(status_code=status, content=body)
-        return JobStatusPayload.model_validate(body)
-
     # -----------------------------------------------------------------------
     # Source — in-process workspace re-pointing (first stateful POST)
     # -----------------------------------------------------------------------
@@ -5951,106 +5920,6 @@ def create_app() -> FastAPI:
             # Eager-on-switch (materialization-lifecycle §10): prepare the env now.
             # A catalog entry is in-place local (§2a) → ready at once, no uv sync.
             body["materialization"] = session_env.prepare(session_key, source_path)
-        return SourceSwitchResponse.model_validate(body)
-
-    @app.post(
-        "/api/source/build-remote",
-        response_model=BuildRemoteResponse,
-        tags=["Workspaces & sources"],
-        summary="Register a repo+branch HEAD as an sms-api build",
-    )
-    def source_build_remote(
-        req: BuildRemoteRequest,
-    ) -> Union[BuildRemoteResponse, JSONResponse]:
-        """Register a repo+branch's HEAD as an sms-api simulator build.
-
-        Mirrors the stdlib ``POST /api/source/build-remote``.  Body:
-        ``{"repo", "branch"}`` — resolves the branch HEAD via sms-api and
-        registers it, returning ``{ok, simulator_id, repo, branch, commit}``.
-
-        Status codes (byte-identical to the legacy handler):
-          - 400  missing repo/branch (``{"error": "repo and branch are required"}``)
-          - 502  unresolved HEAD (``{"error": "could not resolve branch HEAD via sms-api"}``)
-          - 502  ``{"error": "sms-api: <err>"}``
-          - 200  ``{ok, simulator_id, repo, branch, commit}``
-
-        The CSRF middleware already guards this POST.  Library-backed via
-        ``lib.source_build_views.build_remote`` (a network route — sms-api is
-        reached through the lib client).
-        """
-        body, status = _source_build_views.build_remote(req.model_dump())
-        if status != 200:
-            return JSONResponse(status_code=status, content=body)
-        return BuildRemoteResponse.model_validate(body)
-
-    @app.post(
-        "/api/source/switch-build",
-        response_model=SourceSwitchResponse,
-        tags=["Workspaces & sources"],
-        summary="Materialize a remote build's workspace and re-point in-process",
-    )
-    def source_switch_build(
-        req: SwitchBuildRequest,
-        request: Request,
-        response: Response,
-    ) -> Union[SourceSwitchResponse, JSONResponse]:
-        """Materialize a remote build's workspace (cached) and re-point to it.
-
-        Body: ``{"simulator_id"}`` — looks the build up in the sms-api listing,
-        downloads+extracts its workspace once (cached per commit), then
-        materializes THIS session's own exclusive clone of it (item 20's fix —
-        every session used to bind to the same shared directory, with no write
-        isolation), stamps build provenance into that clone (best-effort), then
-        binds the **calling session** to it (per-session, slice 4/5 — the
-        process-global root and other sessions are untouched) and returns
-        ``{ok, source}``.
-
-        Status codes:
-          - 400  missing ``simulator_id`` (``{"error": "missing 'simulator_id'"}``)
-          - 502  sms-api unreachable (``{"error": "sms-api unavailable: <err>"}``)
-          - 404  build not found (``{"error": "build <id> not found"}``)
-          - 502  materialize failed (``{"error": "materialize failed: <err>"}``)
-          - 200  ``{ok: true, source: {path, name}}``
-
-        The CSRF middleware already guards this POST.  ``switch_active=False`` —
-        materialize + resolve without the global re-point; the per-session bind is
-        ``session_registry.rebind``. ``session_key`` is resolved BEFORE the call so
-        ``switch_build`` can materialize this session's own clone rather than the
-        shared base every session used to bind to directly.
-
-        **Aligns the cookie on this response (item 78)** — same as ``source_switch``
-        and for the same reason: the client's own ``window.location.reload()`` right
-        after this call carries no ``X-VW-Session`` header (a plain navigation, not a
-        ``fetch()``), so it resolves via the cookie. Scoped to *this* response only —
-        the middleware no longer refreshes the cookie on unrelated traffic (see
-        ``_session_workspace_mw``), so without this the reload would keep rendering
-        whatever workspace the cookie happened to already be on.
-        """
-        session_key = _session_key_of(request)
-        body, status = _source_build_views.switch_build(
-            req.model_dump(), switch_active=False, session_key=session_key)
-        if status != 200:
-            return JSONResponse(status_code=status, content=body)
-        source_path = (body.get("source") or {}).get("path")
-        if session_key and source_path:
-            session_registry.rebind(session_key, source_path)
-            response.set_cookie(
-                session_registry.SESSION_COOKIE, session_key,
-                httponly=True, samesite="lax",
-                secure=(request.url.scheme == "https"), path="/",
-            )
-            # managed=True (item 63): the materialized build is a bare tarball
-            # extraction with no `.venv` of its own — the in-place fast path
-            # left `env_resolver.resolve_interpreter` falling through to
-            # `sys.executable` (the WORKBENCH's own interpreter/deps, not this
-            # commit's), so the env-worker silently imported composite modules
-            # under the wrong dependency versions and composite-parameter
-            # discovery degraded to empty. Routing through the managed path
-            # provisions a real `.venv` via `uv sync` against this commit's own
-            # lock file (coordinate-keyed, cached across sessions on the same
-            # commit) before anything trusts this session's environment.
-            body["materialization"] = session_env.prepare(
-                session_key, source_path, managed=True)
         return SourceSwitchResponse.model_validate(body)
 
     @app.post(
@@ -6132,20 +6001,17 @@ def create_app() -> FastAPI:
         Mirrors the stdlib ``POST /api/study-run-baseline``.  Body:
         ``{"study", "composite"?, "steps"?}`` — resolves the study, then
         resolves the execution target the SAME way every dashboard run
-        entrypoint does (``lib.remote_pinned.resolve_run_target`` — item 18):
-        a plain local workspace builds/runs the baseline composite as a local
-        subprocess; a remote-build workspace or a remote-pinned deployment
-        currently REFUSES (409) rather than silently running on this pod —
-        that execution path isn't converged onto deployment dispatch yet
-        (SP-D/G1). Fires post-run side-effects (viz, post-run scripts,
+        entrypoint does (``lib.run_core.run_target_for``): a plain local
+        workspace builds/runs the baseline composite as a local subprocess; a
+        workspace still stamped for the deployment target REFUSES (409) rather
+        than silently running on this pod. Fires post-run side-effects (viz, post-run scripts,
         analyses, outcome sync) and returns the run result dict.
 
         Status codes (byte-identical to the legacy handler, via
         ``lib.study_runs.run_study_baseline``):
           - 400  missing study / baseline entry has no composite
           - 404  study not found / requested baseline composite not found
-          - 409  resolved target is "deployment" (remote-build workspace or a
-            remote-pinned deployment) — not available on this path yet
+          - 409  resolved target is "deployment" — not available on this path
           - 200  run-result dict
         """
         body, status = _study_runs.run_study_baseline(ws, req.model_dump(exclude_none=True))
@@ -6504,20 +6370,14 @@ def create_app() -> FastAPI:
         ``VIVARIUM_WORKBENCH_ALLOW_COMPOSE_DISPATCH=1``.
         Returns ``{target, ok, reason, message, actions?, ...}``; a local
         workspace is always ok (no push needed)."""
-        from vivarium_workbench.lib.remote_pinned import resolve_run_target
+        from vivarium_workbench.lib.run_core import run_target_for
         from vivarium_workbench.lib import remote_run as _remote_run
         from vivarium_workbench.lib import composite_test_run_views as _ctr
-        target = resolve_run_target(ws)
+        target = run_target_for(ws)
         if target != "deployment":
             return JSONResponse(content={"target": target, "ok": True, "reason": "local",
                                          "message": "This workspace runs locally — no push needed."})
-        cloud = _ctr.resolve_cloud_target(ws, {})
-        if isinstance(cloud, _ctr.CloudTarget):
-            return JSONResponse(content={
-                "target": "deployment", "ok": True, "reason": "image",
-                "dispatch": "image", "simulator_id": cloud.simulator_id,
-                "message": f"Cloud image (build #{cloud.simulator_id}) is ready — "
-                           "runs execute its pre-built image, no push needed."})
+        cloud = _ctr.resolve_cloud_target(ws, {"run_target": "deployment"})
         if not _ctr._compose_dispatch_allowed():
             # No cloud image and compose is not opted into → actionable dead-end.
             payload, _status = cloud if isinstance(cloud, tuple) else _ctr._no_image(None, reason="no-build")
@@ -6530,7 +6390,7 @@ def create_app() -> FastAPI:
         pf["actions"] = _ctr.cloud_build_actions(pf.get("sha"))
         pf["message"] = (pf.get("message", "") + " The compose path installs your "
                          "repo from git on the deployment and requires the repo to be "
-                         "on sms-api's compose allow-list.").strip()
+                         "on the core API's compose allow-list.").strip()
         return JSONResponse(content=pf)
 
     # -----------------------------------------------------------------------
@@ -6788,62 +6648,12 @@ def create_app() -> FastAPI:
     # Runs — remote (sms-api) simulation-run SUBMIT
     # -----------------------------------------------------------------------
 
-    @app.post(
-        "/api/remote-run-start",
-        response_model=RemoteRunStartResponse,
-        tags=["Runs"],
-        summary="Submit a remote (sms-api) simulation pipeline job for a study",
-        status_code=202,
-    )
-    def remote_run_start(
-        req: RemoteRunStartRequest,
-        ws: Path = Depends(get_workspace),
-    ) -> JSONResponse:
-        """Submit a remote sms-api simulation pipeline job for a study.
-
-        Mirrors the stdlib ``POST /api/remote-run-start``.  Body:
-        ``{"study", "num_generations"?, "num_seeds"?, "run_parca"?}`` — pushes
-        the workspace branch, builds a simulator from the pushed commit, runs it
-        on smsvpctest, polls, downloads, and lands the native store as a study
-        run, all as one background pipeline job on the in-process
-        ``lib.remote_run_jobs.manager`` singleton (the SAME manager the
-        ``GET /api/remote-run-status`` poller reads, so the submit is visible to
-        the status GET).
-
-        Status codes (byte-identical to the legacy handler):
-          - 401  not authenticated (``{"error": "not authenticated"}``)
-          - 400  missing study (``{"error": "study is required"}``)
-          - 409  no origin remote (``{"error": "no GitHub remote configured"}``)
-          - 409  unresolved url (``{"error": "could not resolve origin remote url"}``)
-          - 404  spec missing (``{"error": "study <slug> not found"}``)
-          - 202  ``{"job_id": <id>}``
-
-        The CSRF middleware already guards this POST.  Library-backed via the
-        pure ``lib.remote_run_views.remote_run_start`` (ws_root-parameterised);
-        every path (incl. the 202 success) is wrapped in ``JSONResponse`` so the
-        lib-returned status code is preserved verbatim.
-        """
-        # exclude_none so an OMITTED optional field is absent (not present-as-None)
-        # — the lib builder's ``body.get("run_parca", True)`` must see the True
-        # default for a client that omits the key, matching the legacy raw-JSON
-        # contract (``bool(None)`` would otherwise flip the default to False).
-        body, status = _remote_run_views.remote_run_start(ws, req.model_dump(exclude_none=True))
-        return JSONResponse(status_code=status, content=body)
-
     # -----------------------------------------------------------------------
     # Remote-run THIN CLIENT (WS1, two-phase) — additive, alongside the legacy
     # pipeline above. sms-api owns async/state; these routes are stateless maps
     # over one sms-api call each. The JS panel drives build → poll → submit →
     # poll → land. R5 removes the legacy pipeline once the panel cuts over.
     # -----------------------------------------------------------------------
-    @app.post("/api/remote-run-build", tags=["Runs"], status_code=202,
-              summary="Thin-client phase 1: push + register the simulator build")
-    def remote_run_build(
-        req: Union[dict, None] = Body(default=None),
-        ws: Path = Depends(get_workspace),
-    ) -> JSONResponse:
-        body, status = _remote_run_views.remote_run_build_start(ws, req or {})
-        return JSONResponse(status_code=status, content=body)
 
     # -- Remote Smoldyn backend (Phase 3 of the 2026-09-21 SMS-retirement
     # plan): bounded synchronous runs on the viva-smoldyn service, called
@@ -6861,152 +6671,6 @@ def create_app() -> FastAPI:
              summary="Remote Smoldyn backend health (configured/reachable)")
     def smoldyn_status() -> JSONResponse:
         body, status = _smoldyn_run_views.smoldyn_status()
-        return JSONResponse(status_code=status, content=body)
-
-    @app.post("/api/remote-run-submit", tags=["Runs"], status_code=202,
-              summary="Thin-client phase 2: issue the run for a completed build")
-    def remote_run_submit(
-        req: Union[dict, None] = Body(default=None),
-        ws: Path = Depends(get_workspace),
-    ) -> JSONResponse:
-        body, status = _remote_run_views.remote_run_submit(ws, req or {})
-        return JSONResponse(status_code=status, content=body)
-
-    @app.post("/api/remote-run-land", tags=["Runs"], status_code=200,
-              summary="Thin-client phase 3: download + land a completed run")
-    def remote_run_land(
-        req: Union[dict, None] = Body(default=None),
-        ws: Path = Depends(get_workspace),
-    ) -> JSONResponse:
-        body, status = _remote_run_views.remote_run_land(ws, req or {})
-        return JSONResponse(status_code=status, content=body)
-
-    @app.post("/api/remote-run-land-artifacts", tags=["Runs"], status_code=200,
-              summary="Land a remote run's analyses + PTools exports (study-less, on demand)")
-    def remote_run_land_artifacts(
-        req: Union[dict, None] = Body(default=None),
-        ws: Path = Depends(get_workspace),
-    ) -> JSONResponse:
-        """Study-less landing for a Runs-table remote row: download the sim's
-        results and fold analyses.json + copy ptools/*.tsv into
-        .pbg/runs/<run_id>/, so the Analyses button and PTools viewer work.
-        Body: {simulation_id, run_id}."""
-        body, status = _remote_run_views.remote_run_land_artifacts(ws, req or {})
-        return JSONResponse(status_code=status, content=body)
-
-    @app.post("/api/remote-run-analysis", tags=["Runs"], status_code=202,
-              summary="Fire the analysis phase on an existing completed simulation")
-    def remote_run_analysis(
-        req: Union[dict, None] = Body(default=None),
-        ws: Path = Depends(get_workspace),
-    ) -> JSONResponse:
-        """On-demand analysis for a remote simulation that has already finished.
-
-        viva-api auto-runs the analysis as the dispatch DAG's last node, so this
-        is for re-running it: a failed analysis, a study whose `analyses` changed
-        since the run, or a simulation dispatched before the auto-trigger
-        existed. Returns the analysis id to poll via `/api/remote-run-poll`."""
-        body, status = _remote_run_views.remote_run_analysis(ws, req or {})
-        return JSONResponse(status_code=status, content=body)
-
-    @app.get("/api/remote-analysis-figures", tags=["Runs"],
-             summary="List a remote sim's completed-analysis figures + ptools on S3")
-    def remote_analysis_figures(simulation_id: int = 0,
-                                ws: Path = Depends(get_workspace)) -> JSONResponse:
-        """The "accessible through the remote setting" read path: for each
-        completed analysis on ``simulation_id`` that carries a ``result_uri``,
-        list its rendered ``viz/*.html`` figures + ``ptools/*`` tables straight
-        from S3 (small-object GETs, no parquet stream). ``available: false`` +
-        a ``reason`` means fall back to landing / show "pending"."""
-        if not simulation_id:
-            return JSONResponse(status_code=400, content={"error": "simulation_id required"})
-        client = _remote_run_views.SmsApiClient(_remote_run_views._sms_api_base())
-        return JSONResponse(content=_remote_analysis_figures.list_remote_analysis_figures(
-            client, simulation_id))
-
-    @app.get("/api/study-remote-figures", tags=["Runs"],
-             summary="Aggregate a study's remote-sim S3 figures + ptools for its Viz/Analyses tabs")
-    def study_remote_figures(study: str = "", limit: int = 10,
-                             ws: Path = Depends(get_workspace)) -> JSONResponse:
-        """Volume-capped gallery manifest of the S3 figures/ptools across a
-        study's completed remote sims — the data source for rendering the study
-        Visualizations/Analyses tabs via the remote setting. Figure bytes are
-        fetched lazily through /api/remote-analysis-figure."""
-        if not study:
-            return JSONResponse(status_code=400, content={"error": "study required"})
-        client = _remote_run_views.SmsApiClient(_remote_run_views._sms_api_base())
-        return JSONResponse(content=_remote_analysis_figures.study_remote_figures(
-            ws, client, study, max_sims=max(1, min(int(limit or 10), 30))))
-
-    @app.get("/api/remote-analysis-figure", tags=["Runs"],
-             summary="Serve one rendered figure/ptools file from a remote analysis's S3 result_uri")
-    def remote_analysis_figure(simulation_id: int = 0, analysis: str = "", path: str = "",
-                               ws: Path = Depends(get_workspace)) -> Response:
-        """Stream a single ``viz/`` or ``ptools/`` object from the named
-        analysis's S3 ``result_uri`` (resolved server-side from ``simulation_id``
-        + ``analysis`` so no raw S3 uri crosses the wire; ``path`` is traversal-
-        guarded in the lib)."""
-        if not simulation_id or not analysis or not path:
-            return Response(content=b'{"error":"simulation_id, analysis, path required"}',
-                            status_code=400, media_type="application/json")
-        client = _remote_run_views.SmsApiClient(_remote_run_views._sms_api_base())
-        got = _remote_analysis_figures.fetch_by_analysis(client, simulation_id, analysis, path)
-        if not got:
-            return Response(content=b'{"error":"not found"}', status_code=404,
-                            media_type="application/json")
-        body, ct = got
-        return Response(content=body, media_type=ct)
-
-    @app.get("/api/remote-run-poll", tags=["Runs"],
-             summary="Thin-client on-demand status (build, run or analysis phase)")
-    def remote_run_poll(
-        simulator_id: int = 0,
-        simulation_id: int = 0,
-        analysis_id: int = 0,
-    ) -> JSONResponse:
-        params: dict = {}
-        if simulation_id:
-            params["simulation_id"] = simulation_id
-        if simulator_id:
-            params["simulator_id"] = simulator_id
-        if analysis_id:
-            params["analysis_id"] = analysis_id
-        body, status = _remote_run_views.remote_run_status(params)
-        return JSONResponse(status_code=status, content=body)
-
-    @app.get("/api/remote-run-chain-progress", tags=["Runs"],
-             summary="Real per-seed aggregate progress for a chain-dispatch campaign")
-    def remote_run_chain_progress(simulation_id: int = 0) -> JSONResponse:
-        """Backlog item 6: proxies viva-api's ``GET /simulations/{id}/chain-
-        progress`` (real seed succeeded/failed/in-progress counts, PR #257) the
-        same way ``/api/remote-run-poll`` proxies plain status. The JS panel
-        polls this on a session-status.js-style interval — see
-        ``lib.remote_run_views.remote_run_chain_progress`` for the full
-        rationale (polling, not SSE)."""
-        if not simulation_id:
-            return JSONResponse(status_code=400, content={"error": "simulation_id required"})
-        body, status = _remote_run_views.remote_run_chain_progress({"simulation_id": simulation_id})
-        return JSONResponse(status_code=status, content=body)
-
-    @app.post("/api/remote-run-pinned-build", tags=["Runs"], status_code=202,
-              summary="Pinned phase 1: resolve the latest built simulator (no push/login)")
-    def remote_run_pinned_build(
-        req: Union[dict, None] = Body(default=None),
-        ws: Path = Depends(get_workspace),
-    ) -> JSONResponse:
-        """Pinned variant of phase 1: resolve the latest built simulator for the
-        configured repo@branch. No git push, no GitHub login — enabled by the
-        ``VIVARIUM_WORKBENCH_REMOTE_PINNED`` deployment config."""
-        body, status = _remote_run_views.remote_run_pinned_build_start(ws, req or {})
-        return JSONResponse(status_code=status, content=body)
-
-    @app.get("/api/remote-run-config", tags=["Runs"],
-             summary="Whether pinned remote runs are enabled + the resolved build")
-    def remote_run_config(ws: Path = Depends(get_workspace)) -> JSONResponse:
-        """Report pinned-run config so the client can relabel the run card. When
-        pinned mode is on, eagerly resolves the build so the UI can show the
-        commit; degrades to ``pinned:true`` w/o a build rather than erroring."""
-        body, status = _remote_run_views.remote_run_config(ws)
         return JSONResponse(status_code=status, content=body)
 
     # -----------------------------------------------------------------------
@@ -7911,6 +7575,21 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=status, content=body)
 
     # -----------------------------------------------------------------------
+    # Opt-in extensions (lib.extensions). Registered here — after every core
+    # route and BEFORE the catch-all — so their /api/ext/<id>/* and
+    # /ext/<id>/assets/* routes win route matching. Nothing loads unless
+    # VIVARIUM_WORKBENCH_EXTENSIONS names it, and nothing loads on a read-only
+    # server. The core never imports an extension package.
+    # -----------------------------------------------------------------------
+    from vivarium_workbench.lib import extensions as _extensions
+    app.state.extensions = _extensions.load_and_register(
+        app,
+        readonly=_readonly_enabled(),
+        get_workspace=get_workspace,
+        session_key_of=_session_key_of,
+    )
+
+    # -----------------------------------------------------------------------
     # CATCH-ALL — MUST stay registered LAST (immediately before ``return app``)
     # so Starlette, which matches routes in registration order, resolves every
     # specific route first (all ``/api/*``, ``/``, the loom/parsimony viewers,
@@ -7931,14 +7610,28 @@ def create_app() -> FastAPI:
         package-bundled ``STATIC_DIR`` → ``assets/``-prefix-strip retry against
         ``STATIC_DIR`` → the workspace tree → the rendered ``reports/`` dir
         (served unconditionally → 404 when absent).  HTTP 403 on a ``..`` path
-        segment; served with the guessed bare mime + ``Cache-Control: no-store``.
+        segment, a NUL byte or a backslash; served with the guessed bare mime +
+        ``Cache-Control: no-store``.
+
+        Sensitive paths (``lib.sensitive_paths``: ``.git/``, ``.env*``, private
+        keys, credential JSON, ``.pbg/server/``, ``.pbg/state.json``,
+        ``.pbg/assistant/`` …) and symlinks whose real target leaves the
+        workspace are answered with a plain 404, indistinguishable from a
+        missing file.
 
         Library-backed via ``lib.static_serving.resolve_asset``.
         """
         rel = rel.lstrip("/")
         if ".." in rel.split("/"):
             return Response(status_code=403)
-        target = _static_serving.resolve_asset(ws, rel)
+        if not rel or rel.endswith("/"):
+            return Response(status_code=404)   # a directory is never a served file
+        try:
+            target = _static_serving.resolve_asset(ws, rel)
+        except _static_serving.AssetTraversal:
+            return Response(status_code=403)
+        except _static_serving.DeniedAsset:
+            return Response(status_code=404)
         return _serve_static_file(target, rel)
 
     if _readonly_enabled():

@@ -28,10 +28,10 @@
 
   function statusChip(status) {
     var colors = {
-      completed: ["#dcfce7", "#166534"], running: ["#dbeafe", "#1e40af"],
-      failed: ["#fee2e2", "#991b1b"], orphaned: ["#e5e7eb", "#374151"],
+      completed: ["var(--success-bg)", "var(--success-fg)"], running: ["var(--info-bg)", "var(--info-fg)"],
+      failed: ["var(--danger-bg)", "var(--danger-fg)"], orphaned: ["var(--surface-3)", "var(--text)"],
     };
-    var c = colors[status] || ["#e5e7eb", "#374151"];
+    var c = colors[status] || ["var(--surface-3)", "var(--text)"];
     return '<span style="background:' + c[0] + ";color:" + c[1] +
       ';padding:2px 8px;border-radius:10px;font-size:12px;">' + esc(status || "?") + "</span>";
   }
@@ -70,14 +70,14 @@
 
   function location(row) {
     var loc = row.store_path || row.db_path || "";
-    if (!loc) return '<span style="color:#9ca3af;">—</span>';
+    if (!loc) return '<span style="color:var(--text-subtle);">—</span>';
     var norm = String(loc).replace(/\\/g, "/");
     var parts = norm.split("/");
     var tail = parts.length > 2 ? "…/" + parts.slice(-2).join("/") : norm;
     // Clickable: reveals the full path (wraps) and copies it to the clipboard —
     // wired in renderTable(). Truncated by default to keep the row compact.
     return '<code class="sim-loc" data-loc="' + esc(loc) + '" role="button" tabindex="0" ' +
-      'style="font-size:11px;color:#6b7280;display:block;overflow:hidden;text-overflow:ellipsis;' +
+      'style="font-size:11px;color:var(--text-subtle);display:block;overflow:hidden;text-overflow:ellipsis;' +
       'white-space:nowrap;cursor:pointer;" title="Click to show the full path &amp; copy">' + esc(tail) + "</code>";
   }
 
@@ -93,10 +93,10 @@
       // registered composite but doesn't (the real case the warning was for).
       if (row && row.remote_origin && row.remote_origin.simulation_id != null) {
         return '<span title="Remote run — dispatched by config on the deployment; no local composite mapping." ' +
-          'style="color:#9ca3af;font-size:12px;white-space:nowrap;">remote</span>';
+          'style="color:var(--text-subtle);font-size:12px;white-space:nowrap;">remote</span>';
       }
       return '<span title="No composite associated — every simulation must map to one registered composite." ' +
-        'style="color:#b91c1c;font-size:12px;white-space:nowrap;">⚠ none</span>';
+        'style="color:var(--danger-fg);font-size:12px;white-space:nowrap;">⚠ none</span>';
     }
     var short = cid.split(".").pop();
     if (row.composite_registered) {
@@ -104,11 +104,11 @@
       // Explorer with its saved config pre-filled — wired in renderTable().
       return '<span class="sim-composite-link" data-run-id="' + esc(row.run_id || "") + '" ' +
         'title="' + esc(cid) + ' — open this run in the Composite Explorer (its saved config pre-filled)" ' +
-        'style="text-decoration:underline;text-underline-offset:2px;cursor:pointer;white-space:nowrap;color:#2563eb;">' +
+        'style="text-decoration:underline;text-underline-offset:2px;cursor:pointer;white-space:nowrap;color:var(--link);">' +
         '<code style="font-size:11px;color:inherit;">' + esc(short) + "</code> ↗</span>";
     }
     return '<span title="' + esc(cid) + ' — not a registered composite. Every simulation must map to one registered composite." ' +
-      'style="color:#b91c1c;font-size:12px;white-space:nowrap;">⚠ <code style="font-size:11px;color:inherit;">' + esc(short) + "</code></span>";
+      'style="color:var(--danger-fg);font-size:12px;white-space:nowrap;">⚠ <code style="font-size:11px;color:inherit;">' + esc(short) + "</code></span>";
   }
 
   // Source cell — the repo + commit the run launched from (source provenance,
@@ -120,10 +120,10 @@
   function sourceCell(row) {
     var s = row && row.source_ref;
     if (!s || (!s.repo && !s.commit_short && !s.commit)) {
-      return '<span style="color:#9ca3af;">—</span>';
+      return '<span style="color:var(--text-subtle);">—</span>';
     }
     var inferred = !!s.inferred;
-    var color = inferred ? "#9ca3af" : "#374151";
+    var color = inferred ? "var(--text-subtle)" : "var(--text)";
     var short = s.commit_short || (s.commit ? String(s.commit).slice(0, 7) : "");
     var tip = (s.remote_url ? s.remote_url + "\n" : "") +
       (s.commit ? "commit " + s.commit : "") +
@@ -133,17 +133,17 @@
     if (short) {
       if (s.commit_url) {
         commitHtml = '<a href="' + esc(s.commit_url) + '" target="_blank" rel="noopener" ' +
-          'title="Open commit on GitHub" style="color:' + (inferred ? "#9ca3af" : "#2563eb") +
+          'title="Open commit on GitHub" style="color:' + (inferred ? "var(--text-subtle)" : "var(--link)") +
           ';text-decoration:underline;text-underline-offset:2px;font-size:11px;">' + esc(short) + "</a>";
       } else {
         commitHtml = '<code style="font-size:11px;color:' + color + ';">' + esc(short) + "</code>";
       }
     }
     var prefix = inferred
-      ? '<span style="color:#9ca3af;" title="approximate — inferred from workspace HEAD">~</span>' : "";
+      ? '<span style="color:var(--text-subtle);" title="approximate — inferred from workspace HEAD">~</span>' : "";
     var repoHtml = s.repo
       ? '<span style="font-size:11px;color:' + color + ';">' + esc(s.repo) + "</span>" : "";
-    var sep = (repoHtml && commitHtml) ? '<span style="color:#d1d5db;">@</span>' : "";
+    var sep = (repoHtml && commitHtml) ? '<span style="color:var(--text-disabled);">@</span>' : "";
     return '<span title="' + esc(tip) + '" style="white-space:nowrap;overflow:hidden;' +
       'text-overflow:ellipsis;display:block;">' + prefix + repoHtml + sep + commitHtml + "</span>";
   }
@@ -154,7 +154,7 @@
   function config(row) {
     var c = row && row.config;
     if (!c || typeof c !== "object" || !Object.keys(c).length) {
-      return '<span style="color:#9ca3af;">—</span>';
+      return '<span style="color:var(--text-subtle);">—</span>';
     }
     var order = ["condition", "media", "seed", "n_steps", "config_overrides"];
     var keys = Object.keys(c).sort(function (a, b) {
@@ -174,7 +174,7 @@
     // Clickable: opens a popover with the full config + "Copy JSON" — wired in
     // renderTable() and the #simulations delegated handler.
     return '<code class="sim-config" data-config="' + esc(full) + '" role="button" tabindex="0" ' +
-      'style="font-size:11px;color:#6b7280;display:block;overflow:hidden;text-overflow:ellipsis;' +
+      'style="font-size:11px;color:var(--text-subtle);display:block;overflow:hidden;text-overflow:ellipsis;' +
       'white-space:nowrap;cursor:pointer;" title="Click to show the full config &amp; copy JSON">' +
       shown + esc(more) + "</code>";
   }
@@ -346,7 +346,7 @@
   // row's click-to-open handler already ignores.
   function _globalActions(row) {
     var list = _actionList(row);
-    if (!list.length) return '<span style="color:#9ca3af;">—</span>';
+    if (!list.length) return '<span style="color:var(--text-subtle);">—</span>';
     // One "⌄ Actions" menu per row: ALL actions — including 📊 Viz (first in VIEW) —
     // live inside it, grouped VIEW / DOWNLOAD / RE-RUN with an inline description each.
     // (No standalone primary button pulled out front — one clean trigger per row.)
@@ -356,11 +356,11 @@
       if (!items.length) return "";
       return '<div class="sim-action-menu-group">' +
         '<div class="sim-action-menu-header" style="font-size:10px;text-transform:uppercase;' +
-        'letter-spacing:.05em;color:#94a3b8;padding:6px 8px 2px;">' + g[1] + '</div>' +
+        'letter-spacing:.05em;color:var(--text-subtle);padding:6px 8px 2px;">' + g[1] + '</div>' +
         items.map(function (a) {
           return '<div class="sim-action-menu-item" style="display:flex;align-items:center;gap:6px;">' +
             a.html +
-            (a.desc ? '<span class="sim-action-desc" style="color:#94a3b8;font-size:11px;">' +
+            (a.desc ? '<span class="sim-action-desc" style="color:var(--text-subtle);font-size:11px;">' +
               esc(a.desc) + '</span>' : '') +
             '</div>';
         }).join("") + '</div>';
@@ -555,7 +555,7 @@
       if (!w) return;
       w.document.open();
       w.document.write('<!doctype html><meta charset="utf-8"><title>Remote run ' + simId +
-        ' — figures</title><body style="font-family:system-ui,-apple-system,sans-serif;margin:20px;color:#0f172a">' +
+        ' — figures</title><body style="font-family:system-ui,-apple-system,sans-serif;margin:20px;color:var(--heading)">' +
         bodyHtml + '</body>');
       w.document.close();
     };
@@ -576,15 +576,15 @@
         (d.analyses || []).forEach(function (a) {
           var figs = a.figures || [];
           if (!figs.length) return;
-          html += '<h3 style="font-size:13px;color:#475569;margin:18px 0 6px">' + esc(a.name) +
-            ' <span style="font-weight:400;color:#94a3b8">(' + figs.length + ')</span></h3>';
+          html += '<h3 style="font-size:13px;color:var(--text-secondary);margin:18px 0 6px">' + esc(a.name) +
+            ' <span style="font-weight:400;color:var(--text-subtle)">(' + figs.length + ')</span></h3>';
           figs.forEach(function (f) {
             nFigs++;
             var url = BP + "/api/remote-analysis-figure?simulation_id=" + encodeURIComponent(simId) +
               "&analysis=" + encodeURIComponent(a.name) + "&path=" + encodeURIComponent(f.path);
             html += /\.(svg|png|gif|jpe?g)$/i.test(f.path)
-              ? '<div style="margin:8px 0"><img src="' + url + '" style="max-width:100%;border:1px solid #e2e8f0"></div>'
-              : '<iframe src="' + url + '" style="width:100%;height:520px;border:1px solid #e2e8f0" loading="lazy"></iframe>';
+              ? '<div style="margin:8px 0"><img src="' + url + '" style="max-width:100%;border:1px solid var(--border)"></div>'
+              : '<iframe src="' + url + '" style="width:100%;height:520px;border:1px solid var(--border)" loading="lazy"></iframe>';
           });
         });
         if (!nFigs) html += '<p>Analyses present but no rendered figures (ptools tables only).</p>';
@@ -593,7 +593,7 @@
       .catch(function (err) {
         if (btnEl) { btnEl.disabled = false; btnEl.textContent = orig || "📊 Viz"; }
         var m = "Failed to load remote figures for sim " + simId + ": " + err;
-        if (w) shell('<p style="color:#c00">' + esc(String(err)) + '</p>'); else _toast(m);
+        if (w) shell('<p style="color:var(--danger-fg)">' + esc(String(err)) + '</p>'); else _toast(m);
       });
   }
 
@@ -712,20 +712,20 @@
     var runId = row.run_id || "";
     var runLabel = row.sim_name || row.label || runId;
     var st = study(row), inv = investigation(row);
-    var sep = ' <span style="color:#d1d5db;">·</span> ';
+    var sep = ' <span style="color:var(--text-disabled);">·</span> ';
     var subBits = [];
-    if (st) subBits.push('<span style="color:#4b5563;">' + esc(st) + "</span>");
-    if (inv) subBits.push('<span style="color:#9ca3af;">' + esc(inv) + "</span>");
+    if (st) subBits.push('<span style="color:var(--text-secondary);">' + esc(st) + "</span>");
+    if (inv) subBits.push('<span style="color:var(--text-subtle);">' + esc(inv) + "</span>");
     var comp = composite(row);
     var sub = subBits.join(sep);
     if (comp) sub += (sub ? sep : "") + comp;
     var titleTip = runId + (row.db_path ? "\n" + row.db_path : "");
     var runCell =
       '<div style="min-width:0;">' +
-        '<div style="font-size:12px;color:#111827;font-weight:500;overflow:hidden;' +
+        '<div style="font-size:12px;color:var(--heading);font-weight:500;overflow:hidden;' +
           'text-overflow:ellipsis;white-space:nowrap;" title="' + esc(titleTip) + '">' +
           esc(runLabel) + "</div>" +
-        '<div style="font-size:11px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;' +
+        '<div style="font-size:11px;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;' +
           'white-space:nowrap;margin-top:2px;">' + (sub || "") + "</div>" +
       "</div>";
     var kindCell =
@@ -738,13 +738,13 @@
       td(runCell, "overflow:hidden;") +
       td(config(row), "overflow:hidden;") +
       td(kindCell) +
-      td(esc(fmtTime(row.completed_at || row.started_at)), "color:#6b7280;white-space:nowrap;") +
+      td(esc(fmtTime(row.completed_at || row.started_at)), "color:var(--text-subtle);white-space:nowrap;") +
       td('<span class="run-status-live">' + statusChip(row.status) + "</span>") +
       td('<div class="run-actions">' + _globalActions(row) + "</div>", "vertical-align:middle;");
     var remoteSimId = row.remote_origin && row.remote_origin.simulation_id;
     var remoteAttr = remoteSimId != null ? ' data-remote-sim-id="' + esc(remoteSimId) + '"' : "";
     return '<tr data-run-id="' + esc(runId) + '" data-study="' + esc(study(row)) + '"' + remoteAttr +
-      ' style="border-bottom:1px solid #f3f4f6;cursor:pointer;" ' +
+      ' style="border-bottom:1px solid var(--border-faint);cursor:pointer;" ' +
       'title="Click to open this run">' + cells + "</tr>";
   }
 
@@ -760,10 +760,10 @@
     var cells = "";
     if (!studyScope) {
       var inv = investigation(row), st = study(row);
-      cells += td(inv ? '<code style="font-size:12px;color:#374151;">' + esc(inv) + "</code>" : '<span style="color:#9ca3af;">—</span>', "overflow-wrap:anywhere;");
-      cells += td(st ? '<code style="font-size:12px;color:#374151;">' + esc(st) + "</code>" : '<span style="color:#9ca3af;">—</span>', "overflow-wrap:anywhere;");
+      cells += td(inv ? '<code style="font-size:12px;color:var(--text);">' + esc(inv) + "</code>" : '<span style="color:var(--text-subtle);">—</span>', "overflow-wrap:anywhere;");
+      cells += td(st ? '<code style="font-size:12px;color:var(--text);">' + esc(st) + "</code>" : '<span style="color:var(--text-subtle);">—</span>', "overflow-wrap:anywhere;");
     }
-    if (keep("run")) cells += td('<code style="font-size:11px;color:#6b7280;display:block;overflow:hidden;' +
+    if (keep("run")) cells += td('<code style="font-size:11px;color:var(--text-subtle);display:block;overflow:hidden;' +
       'text-overflow:ellipsis;white-space:nowrap;" title="' + esc(runId + (row.db_path ? "\n" + row.db_path : "")) +
       '">' + esc(runLabel) + "</code>", "overflow:hidden;");
     if (keep("composite")) cells += td(composite(row), "overflow:hidden;");
@@ -772,7 +772,7 @@
     if (keep("location")) cells += td(location(row), "overflow:hidden;");
     if (keep("origin")) cells += td(originPill(row));
     if (keep("emitter")) cells += td(emitterPill(row.emitter_type));
-    if (keep("time")) cells += td(esc(fmtTime(row.completed_at || row.started_at)), "color:#6b7280;");
+    if (keep("time")) cells += td(esc(fmtTime(row.completed_at || row.started_at)), "color:var(--text-subtle);");
     // .run-status-live: a stable hook so live-status polling (item 84) can
     // replace just this chip in place once a remote row's real phase is
     // known, without knowing this column's position among the others (which
@@ -787,7 +787,7 @@
     var remoteSimId = row.remote_origin && row.remote_origin.simulation_id;
     var remoteAttr = remoteSimId != null ? ' data-remote-sim-id="' + esc(remoteSimId) + '"' : "";
     return '<tr data-run-id="' + esc(runId) + '" data-study="' + esc(study(row)) + '"' + remoteAttr + " " +
-      'style="border-bottom:1px solid #f3f4f6;cursor:pointer;" ' +
+      'style="border-bottom:1px solid var(--border-faint);cursor:pointer;" ' +
       'title="Click to open this run — its study, or the Composite Explorer">' + cells + "</tr>";
   }
 
@@ -897,7 +897,7 @@
       var arrow = (c.key && c.key === sort.key) ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
       var cursor = c.key ? "cursor:pointer;" : "";
       return '<th data-sort-key="' + (c.key || "") + '" style="text-align:left;padding:6px 8px;' +
-        "border-bottom:2px solid #e5e7eb;font-size:12px;color:#6b7280;user-select:none;" + cursor +
+        "border-bottom:2px solid var(--border);font-size:12px;color:var(--text-subtle);user-select:none;" + cursor +
         '">' + esc(c.label) + arrow + "</th>";
     }).join("") + "</tr></thead>";
     mount.innerHTML = '<table style="width:100%;border-collapse:collapse;">' + head +
@@ -954,7 +954,7 @@
         var done = function (ok) {
           var badge = document.createElement("span");
           badge.textContent = ok ? "  ✓ copied" : "  (copy failed)";
-          badge.style.cssText = "color:" + (ok ? "#16a34a" : "#b91c1c") + ";font-size:10px;white-space:nowrap";
+          badge.style.cssText = "color:" + (ok ? "var(--success-fg)" : "var(--danger-fg)") + ";font-size:10px;white-space:nowrap";
           el.appendChild(badge);
           setTimeout(function () { if (badge.parentNode) badge.parentNode.removeChild(badge); }, 1800);
         };

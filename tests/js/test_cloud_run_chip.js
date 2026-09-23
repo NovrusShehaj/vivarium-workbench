@@ -79,11 +79,11 @@ function run() {
 
   const completed = chip({ phase: 'completed', simId: 4567 });
   assert.ok(/✓ completed/.test(completed), 'completed chip shows a check');
-  assert.ok(/#166534/.test(completed), 'completed chip uses the green palette (matches statusChip)');
+  assert.ok(/var\(--success-fg\)/.test(completed), 'completed chip uses the success palette tokens (matches statusChip)');
 
   const failed = chip({ phase: 'failed', simId: 4567 });
   assert.ok(/✗ failed/.test(failed), 'failed chip shows a cross');
-  assert.ok(/#991b1b/.test(failed), 'failed chip uses the red palette');
+  assert.ok(/var\(--danger-fg\)/.test(failed), 'failed chip uses the danger palette tokens');
 
   const dfail = chip({ phase: 'dispatch-failed', error: '<boom>' });
   assert.ok(/Cloud dispatch failed/.test(dfail), 'dispatch-failed chip label');

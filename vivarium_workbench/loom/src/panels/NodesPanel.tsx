@@ -148,14 +148,14 @@ export function NodesPanel(props: NodesPanelProps) {
           title="Show and unfold every store branch"
           style={{
             background: 'transparent', border: 0, padding: 0,
-            color: '#2563eb', fontSize: 12, cursor: 'pointer',
+            color: 'var(--link, #2563eb)', fontSize: 12, cursor: 'pointer',
             textDecoration: 'underline',
           }}
         >
           Show all
         </button>
       </div>
-      {total === 0 && <p style={{ color: '#888', fontSize: 12 }}>None.</p>}
+      {total === 0 && <p style={{ color: 'var(--text-muted, #888)', fontSize: 12 }}>None.</p>}
       {rows.map(({ node, depth, hasChildren, open }) => {
         // EFFECTIVE visibility: off when the node OR any ancestor is hidden.
         const ancHidden = isHiddenByAncestor(node.path.slice(0, -1), props.hidden);
@@ -168,7 +168,7 @@ export function NodesPanel(props: NodesPanelProps) {
             style={{
               display: 'flex', alignItems: 'flex-start', gap: 4,
               padding: '3px 4px', paddingLeft: depth * 14 + 4, fontSize: 12,
-              background: isSelected ? '#eff6ff' : undefined,
+              background: isSelected ? 'var(--info-bg, #eff6ff)' : undefined,
               borderRadius: isSelected ? 4 : undefined,
               boxShadow: isSelected ? 'inset 2px 0 0 #2563eb' : undefined,
             }}
@@ -179,7 +179,7 @@ export function NodesPanel(props: NodesPanelProps) {
                 onClick={() => props.onSetCollapsed(node.id, open)}
                 title={open ? 'Fold branch' : 'Unfold branch'}
                 style={{
-                  cursor: 'pointer', color: '#6b7280', width: 12,
+                  cursor: 'pointer', color: 'var(--text-subtle, #6b7280)', width: 12,
                   textAlign: 'center', userSelect: 'none', lineHeight: '16px',
                 }}
               >
@@ -205,12 +205,12 @@ export function NodesPanel(props: NodesPanelProps) {
               style={{ marginTop: 2, cursor: 'pointer' }}
             />
             <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <span style={{ color: effectivelyHidden ? '#9ca3af' : '#111827' }}>
+              <span style={{ color: effectivelyHidden ? 'var(--text-subtle, #9ca3af)' : 'var(--heading, #111827)' }}>
                 {node.label}
               </span>
               {node.sub && (
                 <span style={{
-                  fontFamily: 'monospace', fontSize: 11, color: '#9ca3af',
+                  fontFamily: 'monospace', fontSize: 11, color: 'var(--text-subtle, #9ca3af)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {node.sub}

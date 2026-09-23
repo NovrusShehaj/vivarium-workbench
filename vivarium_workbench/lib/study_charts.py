@@ -124,6 +124,21 @@ def _extract(state: dict, extractor: str) -> float | None:
     return None
 
 
+# Chart colours as theme tokens with the light value as fallback: inline in the
+# workbench the SVG follows the resolved theme (tokens.css), and in documents
+# without the tokens (exported reports) it renders exactly as before.
+_SURFACE = "var(--surface, #ffffff)"
+_TITLE = "var(--heading, #0f172a)"
+_LABEL = "var(--text, #1e293b)"
+_TICK = "var(--chart-text, #64748b)"
+_GRID = "var(--chart-grid, #e2e8f0)"
+_AXIS = "var(--chart-axis, #94a3b8)"
+_SERIES1 = "var(--chart-series-1, #2563eb)"
+_SERIES2 = "var(--chart-series-2, #dc2626)"
+_PASS = "var(--success-fg, #16a34a)"
+_BAND = "var(--success-bg, #dcfce7)"
+
+
 def _render_svg(title: str, y_label: str, xs: list[float], ys: list[float],
                 width: int = 720, height: int = 220,
                 ys2: list[float] | None = None, y2_label: str | None = None,
@@ -142,7 +157,7 @@ def _render_svg(title: str, y_label: str, xs: list[float], ys: list[float],
     plot_h = height - pad_t - pad_b
 
     if not xs or not ys:
-        return (f'<div class="chart-empty" style="padding:24px;color:#94a3b8;'
+        return (f'<div class="chart-empty" style="padding:24px;color:var(--text-subtle, #94a3b8);'
                 f'font-style:italic">No data for "{escape(title)}".</div>')
 
     all_ys = list(ys) + (list(ys2) if ys2 else [])
@@ -172,9 +187,9 @@ def _render_svg(title: str, y_label: str, xs: list[float], ys: list[float],
         band_rect = (
             f'<rect x="{pad_l:.1f}" y="{sy(hi):.1f}" '
             f'width="{plot_w:.1f}" height="{(sy(lo)-sy(hi)):.1f}" '
-            f'fill="#dcfce7" fill-opacity="0.55"/>'
+            f'style="fill:{_BAND}" fill-opacity="0.55"/>'
             f'<text x="{pad_l + plot_w - 4:.1f}" y="{sy(hi) + 12:.1f}" '
-            f'font-size="10" fill="#16a34a" text-anchor="end">'
+            f'font-size="10" style="fill:{_PASS}" text-anchor="end">'
             f'pass band {_fmt(lo)}–{_fmt(hi)}</text>'
         )
     hline_svg = ""
@@ -182,27 +197,27 @@ def _render_svg(title: str, y_label: str, xs: list[float], ys: list[float],
         hline_svg = (
             f'<line x1="{pad_l:.1f}" y1="{sy(hline):.1f}" '
             f'x2="{pad_l+plot_w:.1f}" y2="{sy(hline):.1f}" '
-            f'stroke="#16a34a" stroke-width="1.5" stroke-dasharray="4,4"/>'
+            f'style="stroke:{_PASS}" stroke-width="1.5" stroke-dasharray="4,4"/>'
             f'<text x="{pad_l + plot_w - 4:.1f}" y="{sy(hline) - 4:.1f}" '
-            f'font-size="10" fill="#16a34a" text-anchor="end">'
+            f'font-size="10" style="fill:{_PASS}" text-anchor="end">'
             f'pass threshold {_fmt(hline)}</text>'
         )
 
     series_paths = (
-        f'<polyline points="{_points(ys)}" fill="none" stroke="#2563eb" stroke-width="1.5"/>'
+        f'<polyline points="{_points(ys)}" fill="none" style="stroke:{_SERIES1}" stroke-width="1.5"/>'
     )
     if ys2 is not None:
         series_paths += (
-            f'<polyline points="{_points(ys2)}" fill="none" stroke="#dc2626" stroke-width="1.5"/>'
+            f'<polyline points="{_points(ys2)}" fill="none" style="stroke:{_SERIES2}" stroke-width="1.5"/>'
         )
 
     # Simple 4-tick y-axis labels
     yticks = [y_min + (y_max - y_min) * f for f in (0.0, 0.25, 0.5, 0.75, 1.0)]
     ytick_text = "".join(
-        f'<text x="{pad_l-6:.1f}" y="{sy(y)+3:.1f}" font-size="10" fill="#64748b" '
+        f'<text x="{pad_l-6:.1f}" y="{sy(y)+3:.1f}" font-size="10" style="fill:{_TICK}" '
         f'text-anchor="end">{_fmt(y)}</text>'
         f'<line x1="{pad_l:.1f}" y1="{sy(y):.1f}" x2="{pad_l+plot_w:.1f}" y2="{sy(y):.1f}" '
-        f'stroke="#e2e8f0" stroke-dasharray="2,3"/>'
+        f'style="stroke:{_GRID}" stroke-dasharray="2,3"/>'
         for y in yticks
     )
 
@@ -211,13 +226,13 @@ def _render_svg(title: str, y_label: str, xs: list[float], ys: list[float],
     # unchanged (proportional to the seconds range); only the labels convert.
     xticks = [x_min + (x_max - x_min) * f for f in (0.0, 0.25, 0.5, 0.75, 1.0)]
     xtick_text = "".join(
-        f'<text x="{sx(x):.1f}" y="{pad_t+plot_h+14:.1f}" font-size="10" fill="#64748b" '
+        f'<text x="{sx(x):.1f}" y="{pad_t+plot_h+14:.1f}" font-size="10" style="fill:{_TICK}" '
         f'text-anchor="middle">{_fmt(x / 60.0)}</text>'
         for x in xticks
     )
     xtick_text += (
         f'<text x="{pad_l + plot_w / 2:.1f}" y="{pad_t+plot_h+30:.1f}" font-size="10" '
-        f'fill="#64748b" text-anchor="middle">time (min)</text>'
+        f'style="fill:{_TICK}" text-anchor="middle">time (min)</text>'
     )
 
     # Legend
@@ -225,27 +240,27 @@ def _render_svg(title: str, y_label: str, xs: list[float], ys: list[float],
     if ys2 is not None and y2_label is not None:
         legend = (
             f'<g transform="translate({pad_l+12},{pad_t+10})">'
-            f'<rect width="10" height="3" fill="#2563eb"/>'
-            f'<text x="14" y="4" font-size="11" fill="#1e293b">{escape(y_label)}</text>'
-            f'<rect y="14" width="10" height="3" fill="#dc2626"/>'
-            f'<text x="14" y="18" font-size="11" fill="#1e293b">{escape(y2_label)}</text>'
+            f'<rect width="10" height="3" style="fill:{_SERIES1}"/>'
+            f'<text x="14" y="4" font-size="11" style="fill:{_LABEL}">{escape(y_label)}</text>'
+            f'<rect y="14" width="10" height="3" style="fill:{_SERIES2}"/>'
+            f'<text x="14" y="18" font-size="11" style="fill:{_LABEL}">{escape(y2_label)}</text>'
             f'</g>'
         )
 
     return f'''<svg viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg"
        style="display:block;width:100%;height:auto;max-width:{width}px">
-  <rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff"/>
-  <text x="{width/2:.1f}" y="16" font-size="12" font-weight="600" fill="#0f172a"
+  <rect x="0" y="0" width="{width}" height="{height}" style="fill:{_SURFACE}"/>
+  <text x="{width/2:.1f}" y="16" font-size="12" font-weight="600" style="fill:{_TITLE}"
         text-anchor="middle">{escape(title)}</text>
   {band_rect}
   {hline_svg}
   {ytick_text}
   {xtick_text}
-  <line x1="{pad_l:.1f}" y1="{pad_t:.1f}" x2="{pad_l:.1f}" y2="{pad_t+plot_h:.1f}" stroke="#94a3b8"/>
-  <line x1="{pad_l:.1f}" y1="{pad_t+plot_h:.1f}" x2="{pad_l+plot_w:.1f}" y2="{pad_t+plot_h:.1f}" stroke="#94a3b8"/>
+  <line x1="{pad_l:.1f}" y1="{pad_t:.1f}" x2="{pad_l:.1f}" y2="{pad_t+plot_h:.1f}" style="stroke:{_AXIS}"/>
+  <line x1="{pad_l:.1f}" y1="{pad_t+plot_h:.1f}" x2="{pad_l+plot_w:.1f}" y2="{pad_t+plot_h:.1f}" style="stroke:{_AXIS}"/>
   {series_paths}
   {legend}
-  <text x="{pad_l-44:.1f}" y="{pad_t+plot_h/2:.1f}" font-size="10" fill="#64748b"
+  <text x="{pad_l-44:.1f}" y="{pad_t+plot_h/2:.1f}" font-size="10" style="fill:{_TICK}"
         transform="rotate(-90 {pad_l-44:.1f} {pad_t+plot_h/2:.1f})"
         text-anchor="middle">{escape(y_label)}</text>
 </svg>'''
@@ -1446,7 +1461,7 @@ def _embed_gif_chart(gif_path: Path, key: str, title: str, caption: str) -> dict
             '<div style="text-align:center; padding:8px">'
             f'<img src="data:image/gif;base64,{b64}" '
             f'alt="{escape(title)}" '
-            'style="max-width:100%; height:auto; border:1px solid #e2e8f0; '
+            'style="max-width:100%; height:auto; border:1px solid var(--border, #e2e8f0); '
             'border-radius:4px"></div>'
         ),
         # Explicit type marker (Fable §5(A), Task V4 review fix round 1):

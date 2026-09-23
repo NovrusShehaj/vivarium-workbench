@@ -15,7 +15,7 @@ from vivarium_workbench.lib.remote_link import (
     STATE_UP,
     link,
 )
-from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError
+from vivarium_workbench.lib.remote_api_client import RemoteApiClient, SmsApiError
 
 
 class _Resp(io.BytesIO):
@@ -76,7 +76,7 @@ def test_get_on_down_link_is_fast_and_no_urlopen(monkeypatch):
     link(base).mark_down("wedged")
     called = []
     _patch_unreachable(monkeypatch, sentinel=called)  # would append if reached
-    client = SmsApiClient(base)
+    client = RemoteApiClient(base)
     t0 = time.monotonic()
     with pytest.raises(CircuitOpen):
         client.capabilities()
@@ -88,7 +88,7 @@ def test_force_bypasses_open_breaker(monkeypatch):
     base = "http://test-force:8080"
     link(base).mark_down("wedged")
     _patch_ok(monkeypatch, {"capabilities": []})
-    client = SmsApiClient(base, force_link=True)
+    client = RemoteApiClient(base, force_link=True)
     assert client.capabilities() == {"capabilities": []}  # not blocked
     assert link(base).state == STATE_UP  # and the success marked it back up
 
@@ -127,7 +127,7 @@ def test_not_due_does_not_probe():
 def test_successful_get_marks_up(monkeypatch):
     base = "http://test-markup:8080"
     _patch_ok(monkeypatch, {"versions": [1]})
-    SmsApiClient(base).capabilities()
+    RemoteApiClient(base).capabilities()
     assert link(base).state == STATE_UP
     assert link(base).last_ok is not None
 
@@ -136,7 +136,7 @@ def test_connection_failure_marks_down(monkeypatch):
     base = "http://test-markdown:8080"
     _patch_unreachable(monkeypatch)
     with pytest.raises(SmsApiError):
-        SmsApiClient(base, max_retries=1).capabilities()
+        RemoteApiClient(base, max_retries=1).capabilities()
     assert link(base).state == STATE_DOWN
 
 
@@ -150,7 +150,7 @@ def test_http_error_does_not_trip_breaker(monkeypatch):
 
     monkeypatch.setattr("vivarium_workbench.lib.remote_api_client.urlopen", fake_urlopen)
     with pytest.raises(SmsApiError):
-        SmsApiClient(base, max_retries=1).capabilities()
+        RemoteApiClient(base, max_retries=1).capabilities()
     # 404 means the server answered — the tunnel is alive, breaker untouched.
     assert link(base).state != STATE_DOWN
 
@@ -211,21 +211,21 @@ def test_link_singleton_per_base_url():
 # -- e3: timeouts by call class ---------------------------------------------
 
 def test_for_call_classes():
-    assert (SmsApiClient.for_("probe").timeout, SmsApiClient.for_("probe").max_retries) == (3.0, 1)
-    assert (SmsApiClient.for_("status").timeout, SmsApiClient.for_("status").max_retries) == (5.0, 2)
-    assert (SmsApiClient.for_("list").timeout, SmsApiClient.for_("list").max_retries) == (15.0, 2)
-    dl = SmsApiClient.for_("download")
+    assert (RemoteApiClient.for_("probe").timeout, RemoteApiClient.for_("probe").max_retries) == (3.0, 1)
+    assert (RemoteApiClient.for_("status").timeout, RemoteApiClient.for_("status").max_retries) == (5.0, 2)
+    assert (RemoteApiClient.for_("list").timeout, RemoteApiClient.for_("list").max_retries) == (15.0, 2)
+    dl = RemoteApiClient.for_("download")
     assert dl.max_retries == 1 and dl.timeout >= 1800.0
 
 
 def test_for_unknown_kind():
     with pytest.raises(ValueError):
-        SmsApiClient.for_("bogus")
+        RemoteApiClient.for_("bogus")
 
 
 def test_for_uses_default_base_and_force_flag():
-    c = SmsApiClient.for_("status", force_link=True)
-    assert c.base_url  # resolved from sms_api_base()
+    c = RemoteApiClient.for_("status", force_link=True)
+    assert c.base_url  # resolved from remote_api_base()
     assert c.force_link is True
 
 

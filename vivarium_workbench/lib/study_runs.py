@@ -35,7 +35,6 @@ import yaml
 
 from vivarium_workbench.lib import composite_subprocess
 from vivarium_workbench.lib import lifecycle_mutations
-from vivarium_workbench.lib import remote_pinned
 from vivarium_workbench.lib import run_core
 from vivarium_workbench.lib import study_run_post
 from vivarium_workbench.lib import study_run_state
@@ -493,16 +492,12 @@ def launch_into_study(ws_root, study, spec_id, params, n_steps, *, seed=None,
         plan = run_core.invoke_run(ws_root, spec_id=spec_id, config=full_params,
                                    db_path=db_file, label=label, n_steps=n_steps,
                                    seed=effective_seed,
-                                   target=remote_pinned.resolve_run_target(ws_root))
+                                   target=run_core.run_target_for(ws_root))
     except run_core.RunTargetUnavailable as e:
         return {"error": str(e)}, 409
-    # Remote-build guard (item 18: unified with composite_test_run's target
-    # resolution via remote_pinned.resolve_run_target — a materialized session
-    # build (.viv-build.json) OR a deployment-wide pin (VIVARIUM_WORKBENCH_
-    # REMOTE_PINNED) now BOTH resolve to "deployment" here, matching the
-    # Composites tab; previously only the .viv-build.json case was caught, so
-    # a pinned deployment with no session build silently fell through to a
-    # local subprocess — the confirmed item-18 bug). This 409 was previously
+    # Remote-build guard: a workspace still carrying a ``.viv-build.json``
+    # stamp resolves to "deployment". The deployment-wide pin that also used to
+    # resolve here belonged to the retired SMS build registry. This 409 was previously
     # produced by invoke_run raising RunTargetUnavailable; SP-D2 made the
     # deployment target BUILT for the composite path, so invoke_run no longer
     # raises and callers reject explicitly. The legacy study-baseline path is
@@ -682,51 +677,10 @@ def run_study_baseline(ws_root, body):
     }
     dry_run = bool(body.get("dry_run"))
 
-    # item 83: on a deployment target, delegate to the ONE proven, real
-    # remote-dispatch mechanism (remote_run_submit -> real POST
-    # /api/v1/simulations, the same path "Run current spec" already uses when
-    # a session is pinned) instead of the unconditional 409 launch_into_study
-    # raises below. Scoped narrowly to the case that mechanism actually
-    # supports: the study's DEFAULT baseline entry (entry is baseline[0], no
-    # explicit ?composite= override) and a real (non-dry-run) dispatch.
-    # remote_run_submit has no way to select a specific composite -- it
-    # dispatches whatever the pinned simulator's own build contains -- so a
-    # non-default `requested` composite still falls through to
-    # launch_into_study's existing, accurate 409 rather than risk silently
-    # running the wrong composite. dry_run also falls through unchanged
-    # (preview stays local-only; no real dispatch to preview against).
-    if not dry_run and entry is baseline[0] and not requested:
-        target = remote_pinned.resolve_run_target(ws_root)
-        if target == "deployment":
-            num_generations = generator_overrides.get("n_generations")
-            num_seeds = generator_overrides.get("n_seeds")
-            # Backlog items 86/88: any composite-declared param beyond the two run-size
-            # knobs above (e.g. a fork/injection spec, or a multi-node dispatch request)
-            # rides through to viva-api as a generic passthrough dict — never silently
-            # dropped the way it previously was. Composite-agnostic: no key here is
-            # inspected or special-cased by name.
-            extra_params = {
-                k: v for k, v in generator_overrides.items()
-                if k not in ("n_generations", "n_seeds")
-            }
-            from vivarium_workbench.lib.sms_api_client import SmsApiClient
-            from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
-            simulator_id = remote_pinned.resolve_pinned_simulator_id(
-                SmsApiClient(_sms_api_base()), ws_root)
-            if simulator_id is None:
-                return {"error": "no remote build resolved for this deployment/"
-                                 "session — switch to a built workspace or "
-                                 "configure a pinned repo@branch"}, 409
-            from vivarium_workbench.lib.remote_run_views import remote_run_submit
-            return remote_run_submit(ws_root, {
-                "study": name,
-                "simulator_id": simulator_id,
-                "num_generations": num_generations,
-                "num_seeds": num_seeds,
-                "run_parca": bool(body.get("run_parca", True)),
-                "extra_params": extra_params or None,
-            })
-
+    # A deployment-target study used to delegate here to the retired SMS
+    # workflow submit endpoint for its default baseline
+    # entry. With that endpoint gone every study takes the local launch path
+    # below, which raises its own accurate 409 for a deployment target.
     return launch_into_study(
         ws_root, name, spec_id, generator_overrides, params_n_steps,
         emitter=study_emitter, emit_paths=emit_paths, runtime=runtime_block,
@@ -880,7 +834,7 @@ def run_study_variant(ws_root, body):
             plan = run_core.invoke_run(ws_root, spec_id=spec_id, config=full_params,
                                        db_path=study_dir / "runs.db", label=variant_name,
                                        n_steps=params_n_steps,
-                                       target=remote_pinned.resolve_run_target(ws_root))
+                                       target=run_core.run_target_for(ws_root))
         except run_core.RunTargetUnavailable as e:
             return {"error": str(e)}, 409
         # Remote-build guard — same as the baseline path above (SP-D2/G1, item
@@ -953,7 +907,7 @@ def run_study_variant(ws_root, body):
         try:
             plan = run_core.invoke_run(ws_root, spec_id=spec_id, config=full_params,
                                        db_path=db_file, label=variant_name, n_steps=params_n_steps,
-                                       target=remote_pinned.resolve_run_target(ws_root))
+                                       target=run_core.run_target_for(ws_root))
         except run_core.RunTargetUnavailable as e:
             return {"error": str(e)}, 409
         # Remote-build guard — same as the baseline path above (SP-D2/G1, item 18).

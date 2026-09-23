@@ -367,7 +367,7 @@ def _base_path_shim(base_path: str) -> str:
     Idempotent: a URL already starting with the prefix is left alone.
     """
     bpj = json.dumps(base_path)
-    prefixes = json.dumps(["/api/", "/bigraph-loom/", "/loom-explore", "/studies/", "/health", "/assets/", "/reports/"])
+    prefixes = json.dumps(["/api/", "/bigraph-loom/", "/loom-explore", "/studies/", "/health", "/assets/", "/reports/", "/ext/"])
     return (
         "<script>(function(){var BP=" + bpj + ";window.__BASE_PATH__=BP;if(!BP)return;"
         "var P=" + prefixes + ";"
@@ -397,11 +397,58 @@ def inject_base_path_shim(html: str, base_path: str) -> str:
     """
     if not base_path or not html:
         return html
-    shim = _base_path_shim(base_path)
+    return inject_head_snippet(html, _base_path_shim(base_path))
+
+
+def inject_head_snippet(html: str, snippet: str) -> str:
+    """Insert ``snippet`` at the top of the document's ``<head>``.
+
+    Used for documents the workbench serves but does not render (the vendored
+    bigraph-loom bundle): the base-path shim and the theme boot must run before
+    the bundle's own scripts. The snippet lands right after a leading
+    ``<meta charset>`` when the head has one (so the charset declaration stays
+    within the first bytes the browser prescans), otherwise right after the
+    opening ``<head>`` tag. Falls back to prepending when there is no
+    ``<head>``. No-op for an empty snippet.
+    """
+    if not snippet or not html:
+        return html
     m = re.search(r"<head[^>]*>", html, re.IGNORECASE)
-    if m:
-        return html[: m.end()] + shim + html[m.end():]
-    return shim + html
+    if not m:
+        return snippet + html
+    at = m.end()
+    head_end = html.lower().find("</head>", at)
+    head = html[at:head_end if head_end != -1 else len(html)]
+    charset = re.match(r"\s*<meta\s+charset\s*=\s*[\"']?[\w-]+[\"']?\s*/?>", head, re.IGNORECASE)
+    if charset:
+        at += charset.end()
+    return html[:at] + snippet + html[at:]
+
+
+def theme_boot_snippet() -> str:
+    """The pre-paint theme boot markup, read from ``templates/_theme_boot.html``.
+
+    The single source for every HTML entry point: the Jinja shells include the
+    partial (``{% include "_theme_boot.html" %}``) and documents the workbench
+    only serves (the loom bundle, published loom copies) get this exact text
+    injected, so the boot algorithm can never diverge between them.
+    """
+    from vivarium_workbench.lib.static_serving import TEMPLATES_DIR
+    return (TEMPLATES_DIR / "_theme_boot.html").read_text(encoding="utf-8")
+
+
+def theme_head_snippet(asset_prefix: str = "/assets/") -> str:
+    """Theme boot + ``tokens.css`` + ``theme.js`` for a served-but-not-rendered page.
+
+    ``asset_prefix`` is where the bundled static assets are reachable from that
+    page (``/assets/`` on the live server, a relative path in a static bundle).
+    """
+    prefix = asset_prefix if asset_prefix.endswith("/") else asset_prefix + "/"
+    return (
+        theme_boot_snippet()
+        + f'<link rel="stylesheet" href="{prefix}tokens.css">\n'
+        + f'<script src="{prefix}theme.js"></script>\n'
+    )
 
 
 def _apply_live_base_path(html: str, base_path: str) -> str:
@@ -436,8 +483,8 @@ def _apply_live_base_path(html: str, base_path: str) -> str:
         return html
     import re as _re
     bp = base_path
-    html = _re.sub(r'(\b(?:src|href)=")assets/', rf'\1{bp}/assets/', html)
-    html = _re.sub(r'(\b(?:src|href)=")(/(?:assets|bigraph-loom|reports)/)', rf'\1{bp}\2', html)
+    html = _re.sub(r'(\b(?:src|href)=")(assets|ext)/', rf'\1{bp}/\2/', html)
+    html = _re.sub(r'(\b(?:src|href)=")(/(?:assets|bigraph-loom|reports|ext)/)', rf'\1{bp}\2', html)
     bpj = json.dumps(bp)
     html = html.replace(
         '<script>window.__DASH_CONFIG__ = { mode: "local-server" };</script>',
@@ -466,8 +513,9 @@ def _normalize_asset_urls(html: str) -> str:
         attr = m.group(1)   # "src" or "href"
         url  = m.group(2)   # full URL value
 
-        # Skip externals and already-correct bundle URLs
-        if url.startswith(("https://", "http://", "/api/", "/assets/")):
+        # Skip externals, already-correct bundle URLs, and extension assets
+        # (served from /ext/<id>/assets/, never flattened into /assets/).
+        if url.startswith(("https://", "http://", "/api/", "/assets/", "ext/", "/ext/")):
             return m.group(0)
 
         # Strip query string to get the bare filename, then rebuild
@@ -482,8 +530,17 @@ def _normalize_asset_urls(html: str) -> str:
     )
 
 
-def render_workspace_report(ws_root: Path | None = None, *, today: str | None = None, base_path: str = "") -> Path:
-    """Build <ws_root>/reports/index.html from workspace.yaml + pending branches."""
+def render_workspace_report(
+    ws_root: Path | None = None, *, today: str | None = None, base_path: str = "",
+    extensions: list[dict] | None = None,
+) -> Path:
+    """Build <ws_root>/reports/index.html from workspace.yaml + pending branches.
+
+    ``extensions`` are the UI contributions of the opt-in extensions available
+    on the running server (``lib.extensions.ui_contributions``). The live
+    ``GET /`` route passes them; CLI renders and the static publisher do not,
+    so their shells carry no extension slots or side panel.
+    """
     ws_root = ws_root or _ws_root()
     wp = WorkspacePaths.load(ws_root)
     today = today or date.today().isoformat()
@@ -571,6 +628,8 @@ def render_workspace_report(ws_root: Path | None = None, *, today: str | None = 
     _logo_rel = (dashboard_logo or "").removeprefix("assets/")
     asset_version = (
         _mtime("walkthrough.js") + "_" + _mtime("style.css")
+        + "_" + _mtime("tokens.css") + "_" + _mtime("theme.js")
+        + "_" + _mtime("settings.js") + "_" + _mtime("sidepanel.js") + "_" + _mtime("dialog.js")
         + ("_" + _mtime(_logo_rel) if _logo_rel else "")
     )
 
@@ -641,6 +700,7 @@ def render_workspace_report(ws_root: Path | None = None, *, today: str | None = 
         registry_warning=registry_warning,
         pbg_doc_json=json.dumps(pbg_doc, indent=2, default=str),
         asset_version=asset_version,
+        extensions=list(extensions or []),
         owner_login=owner.get("login") or "",
         owner_name=owner.get("name") or "",
         owner_email=owner.get("email") or "",

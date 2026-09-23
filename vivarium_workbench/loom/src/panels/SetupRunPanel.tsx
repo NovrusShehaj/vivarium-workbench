@@ -315,7 +315,7 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
     return (
       <div className="sr-panel">
         <h3 style={{ marginTop: 0 }}>Setup &amp; Run</h3>
-        <p style={{ color: '#6b7280' }}>
+        <p style={{ color: 'var(--text-subtle, #6b7280)' }}>
           Use the Study&apos;s Run controls to run with this investigation&apos;s emitters.
         </p>
       </div>
@@ -331,8 +331,8 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
       {props.readOnly && (
         <p style={{
           margin: '0 0 12px', padding: '8px 10px', fontSize: 13,
-          background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6,
-          color: '#475569',
+          background: 'var(--surface-2, #f8fafc)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 6,
+          color: 'var(--text-secondary, #475569)',
         }}>
           Read-only preview — running requires a live dashboard.
         </p>
@@ -351,12 +351,12 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
                 <div key={k} className="sr-field">
                   <label htmlFor={id}>
                     <code style={{ fontWeight: 600 }}>{k}</code>
-                    <span style={{ color: '#666', marginLeft: 8, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-secondary, #666)', marginLeft: 8, fontSize: 12 }}>
                       ({pdef.type})
                     </span>
                   </label>
                   {pdef.description && (
-                    <div style={{ color: '#666', fontSize: 12, marginBottom: 4 }}>
+                    <div style={{ color: 'var(--text-secondary, #666)', fontSize: 12, marginBottom: 4 }}>
                       {pdef.description}
                     </div>
                   )}
@@ -424,16 +424,16 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
           {status.phase && status.phase !== 'simulating' ? (
             // Post-simulation stages (rendering visualizations / analysis flush):
             // the sim bar is done; announce the current stage instead.
-            <small style={{ color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <small style={{ color: 'var(--text-subtle, #6b7280)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="sr-phase-dot" />
               {_phaseLabel(status.phase)}… — running detached; safe to reload this tab.
             </small>
           ) : (
             <>
-              <div style={{ background: '#e5e7eb', borderRadius: 4, height: 10, overflow: 'hidden' }}>
+              <div style={{ background: 'var(--surface-3, #e5e7eb)', borderRadius: 4, height: 10, overflow: 'hidden' }}>
                 <div style={{ width: `${pct}%`, background: '#3b82f6', height: '100%' }} />
               </div>
-              <small style={{ color: '#6b7280' }}>
+              <small style={{ color: 'var(--text-subtle, #6b7280)' }}>
                 {isWorkflow
                   ? 'Running workflow'
                   : `Simulating — step ${status.progress_step} of ${status.n_steps ?? '?'}`}
@@ -444,7 +444,7 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
         </div>
       )}
       {isRunning && !status && (
-        <p style={{ color: '#6b7280' }}>Starting run…</p>
+        <p style={{ color: 'var(--text-subtle, #6b7280)' }}>Starting run…</p>
       )}
 
       {status && (status.status === 'failed' || status.status === 'orphaned') && (
@@ -457,7 +457,7 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
             <details style={{ marginTop: 6 }}>
               <summary style={{ cursor: 'pointer', color: '#7f1d1d' }}>Show log excerpt</summary>
               <pre style={{
-                background: '#fef2f2', border: '1px solid #fecaca', padding: 10,
+                background: 'var(--danger-bg, #fef2f2)', border: '1px solid var(--danger-border, #fecaca)', padding: 10,
                 fontSize: 11, lineHeight: 1.4, overflow: 'auto', maxHeight: 320,
                 marginTop: 6, whiteSpace: 'pre-wrap',
               }}>
@@ -469,7 +469,7 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
       )}
 
       {status?.status === 'completed' && (
-        <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 10px' }}>
+        <p style={{ color: 'var(--text-subtle, #6b7280)', fontSize: 13, margin: '4px 0 10px' }}>
           {isWorkflow
             ? <>Workflow complete. Switching to the <strong>Results</strong> tab…</>
             : <>Run complete — <strong>{status.n_steps ?? 0}</strong> steps. Switching to the <strong>Results</strong> tab…</>}
@@ -477,7 +477,7 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
       )}
 
       {!runId && !startError && (
-        <p style={{ color: '#888' }}>
+        <p style={{ color: 'var(--text-muted, #888)' }}>
           {isWorkflow
             ? <>Click <strong>Run</strong> to execute this composite&apos;s Step network once.</>
             : <>Click <strong>Run</strong> to advance this composite for the chosen duration.</>}
@@ -506,7 +506,7 @@ export function SetupRunPanel(props: SetupRunPanelProps) {
         >
           {isRunning ? (isWorkflow ? 'Running workflow…' : 'Running…') : 'Run'}
         </button>
-        <small style={{ color: '#666' }}>
+        <small style={{ color: 'var(--text-secondary, #666)' }}>
           Emit selections:{' '}
           {props.emitSet.size === 0
             ? <em>none — pick stores in the Wiring tab</em>

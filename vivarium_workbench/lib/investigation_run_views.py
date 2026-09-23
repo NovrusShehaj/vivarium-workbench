@@ -134,17 +134,16 @@ def investigation_run(ws_root: Path, body: dict) -> "tuple[dict, int]":
         )
         return investigation_run_unblocked(ws_root, {"investigation": name})
 
-    from vivarium_workbench.lib import remote_pinned
-    if remote_pinned.resolve_run_target(Path(ws_root)) == "deployment":
+    from vivarium_workbench.lib.run_core import run_target_for
+    if run_target_for(Path(ws_root)) == "deployment":
         return {
             "error": "investigation resolves to the 'deployment' run target",
             "name": name,
             "run_target": "deployment",
             "hint": "POST /api/investigation-run-unblocked instead: it submits a "
                     "background job (202 + job_id, poll "
-                    "/api/investigation-run-unblocked-status) and dispatches to "
-                    "viva-api. This route runs inline and cannot honor a "
-                    "deployment target.",
+                    "/api/investigation-run-unblocked-status). This route runs "
+                    "inline and cannot honor a deployment target.",
         }, 409
 
     # Resolve workspace package

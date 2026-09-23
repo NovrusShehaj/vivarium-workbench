@@ -201,34 +201,6 @@ def _make_results_tar_with_manifest(tmp_path, analysis_name="analysis-exp-ab12")
     return tar_path
 
 
-def test_composite_remote_folds_analysis_manifest_under_req_run_id(tmp_path, monkeypatch):
-    """Once remote_run.run_remote lands a tar.gz containing an analysis.json,
-    _execute_remote must fold it into
-    .pbg/runs/<req.run_id>/analyses.json -- req.run_id, the SAME id the
-    browser polls via /api/composite-run/<id>/status, NOT a fresh id
-    land_remote_run would mint."""
-    _stub_run_lifecycle(monkeypatch)
-    monkeypatch.setattr(composite_flush, "_auto_results_enabled", lambda run_dir: False)
-
-    tar_path = _make_results_tar_with_manifest(tmp_path)
-    monkeypatch.setattr(remote_run, "run_remote", lambda ws, spec_id, **k: tar_path)
-
-    ws_root = tmp_path / "workspace"
-    ws_root.mkdir()
-    req = _req(ws_root)
-    rc = run_runner._execute_remote(req, ws_root)
-
-    assert rc == 0
-    analyses_path = ws_root / ".pbg" / "runs" / req.run_id / "analyses.json"
-    assert analyses_path.is_file()
-    entries = json.loads(analyses_path.read_text())
-    assert entries == [{
-        "name": "doubling_time_line",
-        "written": ["analyses/analysis-exp-ab12/viz/doubling_time_line__all.html"],
-        "errors": [],
-    }]
-
-
 def test_composite_remote_fold_is_noop_without_manifest(tmp_path, monkeypatch):
     """A landed tar.gz with no analyses/*/analysis.json (analysis job hasn't
     finished yet, or auto_results was off at send time) must not write

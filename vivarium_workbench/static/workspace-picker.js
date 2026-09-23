@@ -383,8 +383,8 @@
       if (isSnap) { goSource(); return; }   // read-only → Source page (no switcher)
       open();
     });
-    // The trigger is a role="button" div (so the Source <button> can nest inside
-    // it); wire keyboard activation like a real button.
+    // The trigger is a role="button" div (the Source <button> is its sibling);
+    // wire keyboard activation like a real button.
     trigger.addEventListener("keydown", function (e) {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); trigger.click(); }
     });

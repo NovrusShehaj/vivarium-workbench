@@ -44,6 +44,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from vivarium_workbench.lib import env_resolver as _env_resolver
 from vivarium_workbench.lib import catalog as _catalog
 from vivarium_workbench.lib import pyproject_edit as _pyproject_edit
 from vivarium_workbench.lib import registry as _registry
@@ -112,18 +113,18 @@ def uninstall_unmanaged_or_404(ws_root: Path, name: str) -> tuple[dict, int]:
         }, 409
 
     # Orphaned venv install — safe to remove directly.
-    venv_py = ws_root / ".venv" / "bin" / "python3"
+    venv_py = _env_resolver.resolve_venv_python(ws_root)
     uv_path = shutil.which("uv")
     # ``matched_dist`` is set together with ``dist_info`` in the loop above, so
     # it is non-None past the ``dist_info is None`` early-return (assertion is
     # for the type-checker; the runtime branch matches the legacy handler).
     assert matched_dist is not None
     target = catalog_pypi or matched_dist
-    if uv_path and venv_py.exists():
+    if uv_path and venv_py and venv_py.exists():
         uninstall_cmd = [uv_path, "pip", "uninstall", "--python", str(venv_py), target]
     else:
-        venv_pip = ws_root / ".venv" / "bin" / "pip"
-        if venv_pip.exists():
+        venv_pip = _env_resolver.resolve_venv_pip(ws_root)
+        if venv_pip and venv_pip.exists():
             uninstall_cmd = [str(venv_pip), "uninstall", "-y", target]
         else:
             return {"error": "no venv pip/uv available to uninstall"}, 500
@@ -210,15 +211,15 @@ def catalog_uninstall(ws_root: Path, body: dict) -> tuple[dict, int]:
     pypi_name = entry.get("pypi_name")
     package_name = entry.get("package", name)
 
-    venv_py = ws_root / ".venv" / "bin" / "python3"
+    venv_py = _env_resolver.resolve_venv_python(ws_root)
     uv_path = shutil.which("uv")
 
     # Build uninstall command (best-effort; don't fail if pip uninstall errors).
-    if uv_path and venv_py.exists():
+    if uv_path and venv_py and venv_py.exists():
         uninstall_cmd_base = [uv_path, "pip", "uninstall", "--python", str(venv_py)]
     else:
-        venv_pip = ws_root / ".venv" / "bin" / "pip"
-        if venv_pip.exists():
+        venv_pip = _env_resolver.resolve_venv_pip(ws_root)
+        if venv_pip and venv_pip.exists():
             uninstall_cmd_base = [str(venv_pip), "uninstall", "-y"]
         else:
             uninstall_cmd_base = None

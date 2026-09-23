@@ -6,8 +6,11 @@
   'use strict';
 
   var GLYPH = { finding: '●', evidence: '◆', decision: '▣', conclusion: '★' };
-  var STATUS_COLOR = { published: '#2563eb', accepted: '#0d9488', refuted: '#e11d48',
-                       partial: '#d97706', pending: '#94a3b8' };
+  // Badge fills are theme tokens (resolved by the browser, so an open graph
+  // re-colours live on a theme switch). Labels use --bg: dark fills carry light
+  // text in the light theme and light fills carry dark text in the dark theme.
+  var STATUS_COLOR = { published: 'var(--link)', accepted: 'var(--accent-text)', refuted: 'var(--danger-fg)',
+                       partial: 'var(--warning-fg)', pending: 'var(--text-muted)' };
   var STAGE_SEQ = ['finding', 'evidence', 'decision', 'conclusion'];
   var _INTRA = { cites: 1, decides: 1, concludes: 1, via: 1 };
 
@@ -65,26 +68,26 @@
     if (!claims.length) return '';
     var rows = claims.map(function (c, i) {
       var dots = STAGE_SEQ.map(function (t) {
-        return '<span style="color:' + (c.stages[t] ? '#475569' : '#d1d5db') + '">' + GLYPH[t] + '</span>';
+        return '<span style="color:' + (c.stages[t] ? 'var(--text-secondary)' : 'var(--text-disabled)') + '">' + GLYPH[t] + '</span>';
       }).join('');
       var badge = '<span style="margin-left:6px;font-size:0.92em;padding:0 6px;border-radius:9999px;' +
-        'background:' + (STATUS_COLOR[c.status] || '#e2e8f0') + ';color:#fff">' + _esc(c.status) + '</span>';
+        'background:' + (STATUS_COLOR[c.status] || 'var(--text-muted)') + ';color:var(--bg)">' + _esc(c.status) + '</span>';
       return '<div class="aig-claim-row" data-claim-index="' + i + '" ' +
         'style="display:flex;gap:6px;align-items:flex-start;margin:3px 0;cursor:pointer">' +
         '<span style="flex:none;letter-spacing:1px">' + dots + '</span>' +
-        '<span style="flex:1;color:#334155;display:-webkit-box;-webkit-box-orient:vertical;' +
+        '<span style="flex:1;color:var(--text);display:-webkit-box;-webkit-box-orient:vertical;' +
         '-webkit-line-clamp:2;line-clamp:2;overflow:hidden">' + _esc(c.claimText) + '</span>' +
         badge + '</div>';
     }).join('');
     var n = claims.length;
     var header = 'Evidence chain' +
-      (chain.derived ? '<span style="font-weight:400;color:#94a3b8"> · derived</span>' : '') +
-      (n > 1 ? '<span style="font-weight:400;color:#94a3b8"> (' + n + ' claims)</span>' : '');
+      (chain.derived ? '<span style="font-weight:400;color:var(--text-subtle)"> · derived</span>' : '') +
+      (n > 1 ? '<span style="font-weight:400;color:var(--text-subtle)"> (' + n + ' claims)</span>' : '');
     var nViol = (chain.violations || []).length;
-    var viol = nViol ? '<div style="margin-top:3px;color:#b45309;font-weight:600">⚠ ' + nViol +
+    var viol = nViol ? '<div style="margin-top:3px;color:var(--warning-fg);font-weight:600">⚠ ' + nViol +
       ' chain gap' + (nViol === 1 ? '' : 's') + '</div>' : '';
-    return '<div style="margin-top:8px;padding-top:7px;border-top:1px dashed #e5e7eb;font-size:0.7em;line-height:1.4">' +
-      '<div style="font-weight:600;color:#475569;margin-bottom:3px">' + header + '</div>' +
+    return '<div style="margin-top:8px;padding-top:7px;border-top:1px dashed var(--border);font-size:0.7em;line-height:1.4">' +
+      '<div style="font-weight:600;color:var(--text-secondary);margin-bottom:3px">' + header + '</div>' +
       rows + viol + '</div>';
   }
 

@@ -239,13 +239,13 @@ export function ExploreRunBar(props: ExploreRunBarProps) {
           %. When polling gives up entirely, offer Resume. */}
       {run.isRunning && run.link !== 'ok' && !run.linkStalled && (
         <span className="explore-runbar-reconnect" title="Lost contact with the server — retrying with backoff."
-          style={{ fontSize: 12, color: '#b45309', marginLeft: 4 }}>
+          style={{ fontSize: 12, color: 'var(--warning-fg, #b45309)', marginLeft: 4 }}>
           {run.status?.remote ? '⚠ cloud link down' : '⟳ reconnecting…'}
         </span>
       )}
       {run.linkStalled && (
         <span className="explore-runbar-reconnect" title="No response from the server for about a minute."
-          style={{ fontSize: 12, color: '#b45309', marginLeft: 4 }}>
+          style={{ fontSize: 12, color: 'var(--warning-fg, #b45309)', marginLeft: 4 }}>
           ⚠ lost contact with the server
           <button type="button" className="explore-runbar-why" onClick={run.resumePolling}
             style={{ marginLeft: 6 }}>Resume</button>
@@ -277,7 +277,7 @@ export function ExploreRunBar(props: ExploreRunBarProps) {
         <span
           title={run.startWarning}
           style={{
-            fontSize: 12, color: '#b45309', background: '#fffbeb',
+            fontSize: 12, color: 'var(--warning-fg, #b45309)', background: 'var(--warning-bg, #fffbeb)',
             border: '1px solid #f6d98a', borderRadius: 6, padding: '2px 8px',
             maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}

@@ -104,23 +104,6 @@ def test_sweep_variant_on_remote_build_409(tmp_v2ecoli_study, monkeypatch):
     assert code == 409, resp
 
 
-def test_sweep_variant_on_pinned_deployment_409(tmp_v2ecoli_study, monkeypatch):
-    """Item 18: a deployment-wide pin, with NO .viv-build.json in this
-    workspace, must ALSO 409 the delegated-ensemble branch before it
-    delegates to v2ecoli-workflow — mirrors
-    test_sweep_variant_on_remote_build_409 but for the pin condition."""
-    from vivarium_workbench.lib import remote_pinned
-    assert not (tmp_v2ecoli_study / ".viv-build.json").exists()
-    monkeypatch.setattr(remote_pinned, "is_pinned_enabled", lambda: True)
-    monkeypatch.setattr(
-        composite_subprocess, "invoke_v2ecoli_workflow",
-        lambda *a, **k: (_ for _ in ()).throw(
-            AssertionError("delegation fired for a pinned deployment")))
-    resp, code = study_runs.run_study_variant(
-        tmp_v2ecoli_study, {"study": "s1", "variant": "ens"})
-    assert code == 409, resp
-
-
 def test_plain_variant_unchanged(tmp_path, monkeypatch):
     ws = tmp_path / "plain"
     _write_workspace(ws, "multi_cell")
@@ -151,31 +134,6 @@ def test_plain_variant_on_remote_build_409(tmp_path, monkeypatch):
     ws = tmp_path / "plain"
     _write_workspace(ws, "multi_cell")
     (ws / ".viv-build.json").write_text("{}")
-    _write_study(ws, "s1", [
-        {"name": "fast", "base_composite": "core",
-         "parameter_overrides": {"n_steps": 3}},
-    ])
-    monkeypatch.setattr(study_run_state, "resolve_study_baseline_state",
-                        lambda *a, **k: (_ for _ in ()).throw(
-                            AssertionError("single-run path reached")))
-    monkeypatch.setattr(composite_subprocess, "run_composite_subprocess",
-                        lambda *a, **k: (_ for _ in ()).throw(
-                            AssertionError("_run_composite_subprocess called")))
-    resp, code = study_runs.run_study_variant(
-        ws, {"study": "s1", "variant": "fast"})
-    assert code == 409, resp
-
-
-def test_plain_variant_on_pinned_deployment_409(tmp_path, monkeypatch):
-    """Item 18: a deployment-wide pin, with NO .viv-build.json in this
-    workspace, must ALSO 409 the single-run branch before it runs the
-    variant composite as a local subprocess — mirrors
-    test_plain_variant_on_remote_build_409 but for the pin condition."""
-    from vivarium_workbench.lib import remote_pinned
-    ws = tmp_path / "plain"
-    _write_workspace(ws, "multi_cell")
-    assert not (ws / ".viv-build.json").exists()
-    monkeypatch.setattr(remote_pinned, "is_pinned_enabled", lambda: True)
     _write_study(ws, "s1", [
         {"name": "fast", "base_composite": "core",
          "parameter_overrides": {"n_steps": 3}},

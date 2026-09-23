@@ -370,8 +370,8 @@ def default_launcher() -> WorkerLauncher:
     Remote when this deployment declares where workers should dial back to;
     local otherwise. Deliberately not a per-call or per-workspace switch.
     """
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient
-    from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
+    from vivarium_workbench.lib.remote_api_client import RemoteApiClient
+    from vivarium_workbench.lib.workspace_deps_views import _remote_api_base
 
     # PROXY first (plan §C/§C1). It is the only transport that works where the
     # workbench cannot be dialled — a laptop behind an SSM tunnel — so a
@@ -384,18 +384,18 @@ def default_launcher() -> WorkerLauncher:
     # redeploy of either image.
     proxy_base = (get_env("ENV_WORKER_PROXY_BASE", "") or "").strip()
     if proxy_base:
-        base = proxy_base if proxy_base.lower() not in ("1", "true", "yes") else _sms_api_base()
+        base = proxy_base if proxy_base.lower() not in ("1", "true", "yes") else _remote_api_base()
         logger.info("env workers: PROXY (relayed through viva-api at %s)", base)
-        return ProxyWorkerLauncher(SmsApiClient(base))
+        return ProxyWorkerLauncher(RemoteApiClient(base))
 
     host = get_env("ENV_WORKER_ADVERTISE_HOST", "") or ""
     if not host.strip():
         return LocalWorkerLauncher()
 
     # The SAME accessor every other viva-api call site uses (VIVA_API_BASE, else
-    # SMS_API_BASE). Constructing SmsApiClient() bare would silently take its
+    # SMS_API_BASE). Constructing RemoteApiClient() bare would silently take its
     # localhost:8080 default — which in a pod is the workbench itself, not the
     # api Service, so every worker launch would fail to reach viva-api.
-    base = _sms_api_base()
+    base = _remote_api_base()
     logger.info("env workers: REMOTE (image-as-worker), dial-back to %s, api at %s", host, base)
-    return RemoteWorkerLauncher(SmsApiClient(base), advertise_host=host.strip())
+    return RemoteWorkerLauncher(RemoteApiClient(base), advertise_host=host.strip())

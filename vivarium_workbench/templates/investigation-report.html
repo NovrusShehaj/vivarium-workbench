@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>/* Served by the workbench (http[s]): open in the workbench's explicit theme
+   (localStorage viv.theme). "system", no choice, or a standalone file:// copy
+   keep following prefers-color-scheme as before. */
+(function(){try{if(!/^https?:$/.test(location.protocol))return;var p=localStorage.getItem('viv.theme');if(p==='light'||p==='dark')document.documentElement.setAttribute('data-theme',p);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
 <style>
@@ -1415,7 +1419,18 @@ document.getElementById('foot-prov').textContent=(INV.provenance||'investigation
 document.getElementById('wsname').textContent=(INV.workspace||'');
 document.getElementById('themebtn').onclick=()=>{const r=document.documentElement;
   const cur=r.getAttribute('data-theme');const dark=cur?cur==='dark':matchMedia('(prefers-color-scheme:dark)').matches;
-  r.setAttribute('data-theme',dark?'light':'dark');};
+  const next=dark?'light':'dark';
+  r.setAttribute('data-theme',next);
+  // In the workbench the toggle is the app-wide preference (shell, study pages
+  // and loom follow via the storage event); a standalone copy stays local.
+  if(/^https?:$/.test(location.protocol)){try{localStorage.setItem('viv.theme',next);
+    document.cookie='viv_theme='+next+'; Path=/; Max-Age=31536000; SameSite=Lax'+(location.protocol==='https:'?'; Secure':'');}catch(e){}}};
+// Follow theme changes made in the workbench while this report is open.
+window.addEventListener('storage',e=>{if(e.key!=='viv.theme'&&e.key!==null)return;
+  if(!/^https?:$/.test(location.protocol))return;
+  let p=null;try{p=localStorage.getItem('viv.theme');}catch(_){}
+  const r=document.documentElement;
+  if(p==='light'||p==='dark')r.setAttribute('data-theme',p);else r.removeAttribute('data-theme');});
 // feedback delegation (bound once; #app persists)
 const app=document.getElementById('app');
 app.addEventListener('input',e=>{ if(e.target.classList.contains('fbnote')){

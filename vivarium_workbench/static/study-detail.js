@@ -192,7 +192,7 @@
     if (!em || !em.name) {
       return '<p class="empty-message">No emitter configuration declared.</p>';
     }
-    var errNote = em.error ? '<p class="muted" style="color:#92400e">' + e(em.error) + '</p>' : '';
+    var errNote = em.error ? '<p class="muted" style="color:var(--warning-fg)">' + e(em.error) + '</p>' : '';
     var rows = [
       ['Emitter', (em.class_name ? '<code>' + e(em.class_name) + '</code> (' + e(em.name) + ')' : '<code>' + e(em.name) + '</code>')],
       ['Module', em.module ? '<code style="font-size:0.85em;">' + e(em.module) + '</code>' : dash],
@@ -203,7 +203,7 @@
       ['Emit scope', em.scope ? e(em.scope) : dash],
     ];
     var body = rows.map(function (r) {
-      return '<tr style="border-bottom:1px solid #f1f5f9;">'
+      return '<tr style="border-bottom:1px solid var(--border-faint);">'
         + '<td style="padding:6px; font-weight:600; width:140px; vertical-align:top;">' + r[0] + '</td>'
         + '<td style="padding:6px; vertical-align:top;">' + r[1] + '</td></tr>';
     }).join('');
@@ -222,12 +222,12 @@
     }
     var head = '<table class="observables-table" style="width:100%; border-collapse: collapse;"><thead><tr>'
       + ['Store path', 'dtype', 'Shape', 'Units', 'Bytes'].map(function (h) {
-          return '<th style="text-align:left; padding:6px; border-bottom:1px solid #e2e8f0;">' + h + '</th>';
+          return '<th style="text-align:left; padding:6px; border-bottom:1px solid var(--border);">' + h + '</th>';
         }).join('') + '</tr></thead><tbody>';
     var body = shaped.map(function (o) {
       var dims = o.shape.map(function (d) { return String(d); });
       var shapeStr = '(' + dims.join(', ') + (dims.length === 1 ? ',' : '') + ')';
-      return '<tr style="border-bottom:1px solid #f1f5f9;">'
+      return '<tr style="border-bottom:1px solid var(--border-faint);">'
         + '<td style="padding:6px;"><code style="font-size:0.85em;">' + e(o.store_path) + '</code></td>'
         + '<td style="padding:6px;">' + e(o.dtype || '') + '</td>'
         + '<td style="padding:6px;"><code style="font-size:0.85em;">' + e(shapeStr) + '</code></td>'
@@ -305,10 +305,10 @@
         + 'margin:0 0 4px 0">' + e(g) + '/</div>'
         + '<table class="data-files-table" style="width:100%;border-collapse:collapse;font-size:0.9em">';
       groups[g].forEach(function (f) {
-        html += '<tr style="border-top:1px solid #eef2f6">'
+        html += '<tr style="border-top:1px solid var(--border-faint)">'
           + '<td style="padding:5px 8px"><a href="' + e(f.download_url) + '">'
           + e(f.name) + '</a></td>'
-          + '<td style="padding:5px 8px;text-align:right;color:#64748b;white-space:nowrap">'
+          + '<td style="padding:5px 8px;text-align:right;color:var(--text-muted);white-space:nowrap">'
           + e(_fmtBytes(f.size)) + '</td></tr>';
       });
       html += '</table></div>';
@@ -401,9 +401,9 @@
   function _emitStatusBadge(status) {
     var e = escapeHtmlForTests;
     var styles = {
-      emitted:          {bg: '#d1fae5', fg: '#065f46', bd: '#6ee7b7', glyph: '✓', label: 'emitted'},
-      not_in_emit_plan: {bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5', glyph: '✗', label: 'not in emit plan'},
-      derived:          {bg: '#f1f5f9', fg: '#475569', bd: '#cbd5e1', glyph: '⏳', label: 'derived'},
+      emitted:          {bg: 'var(--success-bg)', fg: 'var(--success-fg)', bd: 'var(--success-border)', glyph: '✓', label: 'emitted'},
+      not_in_emit_plan: {bg: 'var(--danger-bg)', fg: 'var(--danger-fg)', bd: 'var(--danger-border)', glyph: '✗', label: 'not in emit plan'},
+      derived:          {bg: 'var(--surface-3)', fg: 'var(--text-secondary)', bd: 'var(--border-2)', glyph: '⏳', label: 'derived'},
     };
     var s = styles[status] || styles.derived;
     return '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;background:'
@@ -412,7 +412,7 @@
 
   function _renderReadoutsTable(j) {
     var e = escapeHtmlForTests;
-    var note = j.note ? '<p class="muted" style="color:#92400e">' + e(j.note) + '</p>' : '';
+    var note = j.note ? '<p class="muted" style="color:var(--warning-fg)">' + e(j.note) + '</p>' : '';
     var rows = j.rows || [];
     var idxHtml = function (o) {
       return o.index_by ? '<code style="font-size:0.85em;">' + e(o.index_by.type) + '=' + e(o.index_by.value) + '</code>'
@@ -437,7 +437,7 @@
     cols.forEach(function (c) { keep[c.id] = true; });
     var head = '<table class="observables-table" style="width:100%; border-collapse: collapse;"><thead><tr>'
       + cols.map(function(c) {
-          return '<th style="text-align:left; padding:6px; border-bottom:1px solid #e2e8f0;">' + c.label + '</th>';
+          return '<th style="text-align:left; padding:6px; border-bottom:1px solid var(--border);">' + c.label + '</th>';
         }).join('') + '</tr></thead><tbody>';
     var body = rows.map(function(o) {
       var tds = '';
@@ -447,7 +447,7 @@
       if (keep.indexed_by) tds += '<td style="padding:6px; vertical-align:top;">' + idxHtml(o) + '</td>';
       if (keep.units) tds += '<td style="padding:6px; vertical-align:top; font-size:0.9em;">' + e(o.units || '') + '</td>';
       if (keep.description) tds += '<td style="padding:6px; vertical-align:top; max-width:380px; font-size:0.9em;">' + e(o.description || '') + '</td>';
-      return '<tr style="border-bottom:1px solid #f1f5f9;" data-readout="' + e(o.name) + '">' + tds + '</tr>';
+      return '<tr style="border-bottom:1px solid var(--border-faint);" data-readout="' + e(o.name) + '">' + tds + '</tr>';
     }).join('');
     return note + head + body + '</tbody></table>';
   }
@@ -878,7 +878,7 @@
     }).join(' ');
     return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" ' +
       'style="display:block" aria-hidden="true"><polyline points="' + pts +
-      '" fill="none" stroke="#6366f1" stroke-width="1.5"/></svg>';
+      '" fill="none" style="stroke:var(--chart-series-1)" stroke-width="1.5"/></svg>';
   }
 
   function _resultsFmtNum(v) {
@@ -933,7 +933,7 @@
         '<p class="muted" style="font-size:0.85em;margin:0 0 8px">From run <code>' +
         escapeHtmlForTests(String(d.run_label || d.run_id || '')) + '</code></p>' +
         '<table style="width:100%;border-collapse:collapse;font-size:0.86em">' +
-        '<thead><tr style="text-align:left;border-bottom:1px solid #e5e7eb">' +
+        '<thead><tr style="text-align:left;border-bottom:1px solid var(--border)">' +
         '<th style="padding:5px 8px">Path</th><th style="padding:5px 8px">dtype</th>' +
         '<th style="padding:5px 8px">Sparkline</th>' +
         '<th style="padding:5px 8px;text-align:right">First</th>' +
@@ -942,7 +942,7 @@
         '<th style="padding:5px 8px;text-align:right">Max</th>' +
         '<th style="padding:5px 8px"></th></tr></thead><tbody>' +
         stores.map(function (s) {
-          return '<tr style="border-bottom:1px solid #f3f4f6">' +
+          return '<tr style="border-bottom:1px solid var(--border-faint)">' +
             '<td style="padding:5px 8px"><code style="font-size:0.85em">' + escapeHtmlForTests(s.path) + '</code></td>' +
             '<td style="padding:5px 8px">' + escapeHtmlForTests(s.dtype || '') + '</td>' +
             '<td style="padding:5px 8px">' + _resultsSparklineSvg(s.sparkline) + '</td>' +
@@ -998,8 +998,8 @@
       }
       function _statusOf(row) { return String(row.status || '').toLowerCase() || 'unknown'; }
       function _stColor(st) {
-        return st === 'completed' ? '#059669' : st === 'failed' ? '#dc2626'
-          : st === 'running' ? '#2563eb' : st === 'cancelled' ? '#b45309' : '#9ca3af';
+        return st === 'completed' ? 'var(--success-fg)' : st === 'failed' ? 'var(--danger-fg)'
+          : st === 'running' ? 'var(--link)' : st === 'cancelled' ? 'var(--warning-fg)' : 'var(--text-subtle)';
       }
       var byStatus = {};
       rows.forEach(function (r) { var s = _statusOf(r); byStatus[s] = (byStatus[s] || 0) + 1; });
@@ -1016,7 +1016,7 @@
         var dl = hasData
           ? '<a class="action-btn" download href="' + (window.__BASE_PATH__ || "") + '/api/simulation-run-download?run_id=' + encodeURIComponent(runId) + '">⬇ Data</a>'
           : '<span class="muted" style="font-size:0.82em">no store</span>';
-        return '<tr class="rawrow" data-name="' + esc(label.toLowerCase()) + '" style="border-bottom:1px solid #f3f4f6">' +
+        return '<tr class="rawrow" data-name="' + esc(label.toLowerCase()) + '" style="border-bottom:1px solid var(--border-faint)">' +
           '<td style="padding:5px 8px"><code style="font-size:0.85em">' + esc(label) + '</code></td>' +
           '<td style="padding:5px 8px"><span style="color:' + _stColor(st) + ';font-size:0.8em;font-weight:600">' + esc(st) + '</span></td>' +
           '<td style="padding:5px 8px">' + loc + '</td>' +
@@ -1035,7 +1035,7 @@
         '<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;flex-wrap:wrap">' +
         '<strong>' + rows.length + ' runs</strong><span class="muted" style="font-size:0.88em">' + statusSummary + '</span>' +
         '<input id="rawdata-search" placeholder="filter runs…" ' +
-        'style="margin-left:auto;padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.85em">' +
+        'style="margin-left:auto;padding:4px 8px;border:1px solid var(--border-2);border-radius:5px;font-size:0.85em">' +
         '</div>' + groupsHtml;
       var _search = document.getElementById('rawdata-search');
       if (_search) _search.addEventListener('input', function () {
@@ -1232,7 +1232,7 @@
       '<details class="model-config-used" open style="margin:0">' +
       '<summary class="muted" style="font-size:0.78em;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;cursor:pointer">' +
       'Config used <span style="font-weight:400;text-transform:none">— source of truth: <code>' + esc(ref) + '</code>, run by both arms</span></summary>' +
-      '<pre class="study-config-pre" style="font-size:0.8em;line-height:1.45;background:var(--surface-2,#f6f8fa);border:1px solid var(--border,#e1e4e8);border-radius:6px;padding:8px 10px;margin:4px 0 0;overflow:auto;max-height:420px">Resolving ' + esc(ref) + ' …</pre></details>';
+      '<pre class="study-config-pre" style="font-size:0.8em;line-height:1.45;background:var(--surface-2,var(--code-bg));border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:4px 0 0;overflow:auto;max-height:420px">Resolving ' + esc(ref) + ' …</pre></details>';
     mount.appendChild(wrap);
     var pre = wrap.querySelector('.study-config-pre');
     var api = (window.DataSource && window.DataSource.apiUrl)
@@ -1332,7 +1332,7 @@
       if (!_hasStudyCfg && _cfgObj && Object.keys(_cfgObj).length) {
         _cfgUsedHtml = '<details class="model-config-used" open style="margin:0 0 8px 0">' +
           '<summary class="muted" style="font-size:0.78em;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;cursor:pointer">Config used</summary>' +
-          '<pre class="model-config-used-pre" style="font-size:0.8em;line-height:1.45;background:var(--surface-2,#f6f8fa);border:1px solid var(--border,#e1e4e8);border-radius:6px;padding:8px 10px;margin:4px 0 0;overflow:auto;max-height:360px">' +
+          '<pre class="model-config-used-pre" style="font-size:0.8em;line-height:1.45;background:var(--surface-2,var(--code-bg));border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:4px 0 0;overflow:auto;max-height:360px">' +
           esc(_yamlish(_cfgObj)) + '</pre></details>';
       }
       wrap.innerHTML = '<div class="muted" style="font-size:0.78em;font-weight:600;margin:0 0 4px 2px;text-transform:uppercase;letter-spacing:0.02em">' +
@@ -1510,19 +1510,19 @@
           'data-param-type="' + esc(def.type || '') + '" value="' + esc(shown === '—' ? '' : shown) + '" ' +
           'style="width:100%;min-width:80px;font-family:monospace;font-size:0.85em;padding:2px 4px;box-sizing:border-box" />'
         : '<code>' + esc(shown) + '</code>';
-      return '<tr' + (overridden ? ' style="background:#eff6ff"' : '') + '>' +
+      return '<tr' + (overridden ? ' style="background:var(--info-bg)"' : '') + '>' +
         '<td style="padding:3px 8px"><code>' + esc(k) + '</code></td>' +
-        '<td style="padding:3px 8px;color:#6b7280">' + esc(def.type || '') + '</td>' +
+        '<td style="padding:3px 8px;color:var(--text-subtle)">' + esc(def.type || '') + '</td>' +
         '<td style="padding:3px 8px">' + valueCell +
-        (overridden ? ' <span style="color:#2563eb;font-size:0.72em;font-weight:600">override</span>' : '') + '</td>' +
-        '<td style="padding:3px 8px;color:#6b7280">' + esc(def.description || '') + '</td></tr>';
+        (overridden ? ' <span style="color:var(--link);font-size:0.72em;font-weight:600">override</span>' : '') + '</td>' +
+        '<td style="padding:3px 8px;color:var(--text-subtle)">' + esc(def.description || '') + '</td></tr>';
     }).join('');
     mount.innerHTML =
-      '<div style="font-size:0.85em;color:#374151;margin-bottom:4px"><strong>Config that runs</strong> ' +
+      '<div style="font-size:0.85em;color:var(--text);margin-bottom:4px"><strong>Config that runs</strong> ' +
       '<span class="muted">— resolved parameters (composite defaults ⊕ this study\'s overrides)</span></div>' +
       '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85em">' +
       '<thead><tr>' + ['Parameter', 'Type', 'Value', 'Description'].map(function (h) {
-        return '<th style="text-align:left;padding:3px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;">' + h + '</th>';
+        return '<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);color:var(--text-subtle);">' + h + '</th>';
       }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       (editable
         ? '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
@@ -1530,7 +1530,7 @@
           '<span class="model-config-status muted" style="font-size:0.8em"></span></div>'
         : '') +
       '<details style="margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:0.82em">Full resolved config (JSON)</summary>' +
-      '<pre style="font-size:0.78em;background:#f8fafc;padding:8px;border-radius:4px;overflow-x:auto;margin:4px 0 0">' +
+      '<pre style="font-size:0.78em;background:var(--surface-2);padding:8px;border-radius:4px;overflow-x:auto;margin:4px 0 0">' +
       esc(JSON.stringify(effective, null, 2)) + '</pre></details>';
     if (!editable) return;
     mount.querySelectorAll('.model-param-input').forEach(function (input) {
@@ -1594,7 +1594,7 @@
     // composite is a registered composite; otherwise we surface the gap.
     var explore = (runId && row.spec_id && row.composite_registered)
       ? '<a class="action-btn" href="/?focus=composite-explore&id=' + encodeURIComponent(row.spec_id) + '&run_id=' + encodeURIComponent(runId) + '#composite-explore">↗ Open run in Composite Explorer</a>'
-      : '<span style="color:#b91c1c;font-size:0.85em">⚠ ' + (row.spec_id
+      : '<span style="color:var(--danger-fg);font-size:0.85em">⚠ ' + (row.spec_id
           ? 'composite <code>' + e(row.spec_id) + '</code> is not registered — cannot open in the Explorer'
           : 'no composite associated with this run') + '</span>';
     var kv = function (k, v) {
@@ -1691,7 +1691,7 @@
         }
       })
       .catch(function(e) {
-        panel.innerHTML = '<p class="muted" style="color:#dc2626">Chart load failed: ' + (e && e.message || e) + '</p>';
+        panel.innerHTML = '<p class="muted" style="color:var(--danger-fg)">Chart load failed: ' + (e && e.message || e) + '</p>';
         if (panelId === 'viz-charts-panel') {
           _figuresSourceState.charts = false;
           _updateFiguresEmptyState();
@@ -1959,108 +1959,25 @@
   // published read-only snapshot has no backend to launch against, so both
   // buttons are hidden there (see the snapshot-mode block near the end of
   // this file, mirroring the remote-run-panel hide).
-  // Mode-aware dispatch: ONE button, the actual target decided by deployment
-  // config, never a second button next to it. Items 18/19 exist specifically
-  // to eliminate the "which button do I click" choice, not reintroduce it
-  // under a new name. Remote-pinned deployments (VIVARIUM_WORKBENCH_REMOTE_PINNED,
-  // e.g. the live smscdk prod deployment) dispatch to AWS Batch via
-  // remote-run-submit; everything else keeps the existing local-engine path.
+  // ONE dispatch button. This used to be mode-aware — a remote-pinned
+  // deployment dispatched to AWS Batch, everything else ran on the local
+  // engine — but the remote side retired with the SMS workflow endpoints.
   var _CANCELLED = { status: 0, body: { cancelled: true } };
 
   function _dispatchCurrentSpecBaseline() {
-    return api('GET', '/api/remote-run-config').then(function(cfgRes) {
-      var cfg = (cfgRes.status === 200 && cfgRes.body) || {};
-      if (cfg.pinned && cfg.simulator_id) return _dispatchRemotePinned(cfg);
-      if (!confirm("Run this study's CURRENT baseline spec as a new run?")) return _CANCELLED;
-      return api('POST', '/api/study-run-baseline', { study: studyName() });
-    });
+    // This used to resolve a remote-pinned deployment first and dispatch to
+    // AWS Batch through the SMS workflow endpoint. Both routes retired with
+    // that surface, so the baseline always runs here.
+    if (!confirm("Run this study's CURRENT baseline spec as a new run?")) {
+      return Promise.resolve(_CANCELLED);
+    }
+    return api('POST', '/api/study-run-baseline', { study: studyName() });
   }
 
-  // item 20: the resolved target (repo/branch/commit/simulator id) is fetched
-  // fresh via /api/remote-run-config immediately above -- never a stale
-  // client-rendered label -- but nothing surfaced it to a human before this
-  // function fired the actual AWS Batch dispatch. Show it and require an
-  // explicit confirm, so a workspace-identity mismatch is caught here, before
-  // money gets spent, not discovered afterward via aws batch describe-jobs.
-  //
-  // Deliberate addition beyond the || 1 removal below: window._study can be a
-  // STALE in-memory copy fetched before a param edit landed server-side (a
-  // confirmed real failure mode, not theoretical -- a tab left open across a
-  // baseline-param save re-dispatched the OLD 1x1 params from memory even
-  // though study.yaml on disk was already correct). Re-fetching via
-  // window.DataSource.loadStudy immediately before reading params closes that
-  // gap; window._study is refreshed too so the rest of the page stops reading
-  // stale state from this point on as well.
-  function _dispatchRemotePinned(cfg) {
-    var slug = studyName();
-    var refetch = (window.DataSource && window.DataSource.loadStudy)
-      ? window.DataSource.loadStudy(slug).catch(function () { return null; })
-      : Promise.resolve(null);
-    return refetch.then(function (freshStudy) {
-      if (freshStudy) window._study = freshStudy;
-      var baseline = (window._study && window._study.baseline) || [];
-      var params = (baseline[0] && baseline[0].params) || {};
-      var numGenerations = params.n_generations;
-      var numSeeds = params.n_seeds;
-      // n_generations/n_seeds directly size a real AWS Batch job -- unlike
-      // ordinary composite params (already correctly default-backed via
-      // /api/composite-resolve, untouched here), an explicit value the user
-      // set must NEVER be silently replaced by a default. An unset value
-      // blocks the dispatch outright rather than falling back to 1x1.
-      var missing = [];
-      if (!numGenerations) missing.push('n_generations');
-      if (!numSeeds) missing.push('n_seeds');
-      if (missing.length) {
-        alert(
-          'Cannot dispatch: ' + missing.join(' and ') +
-          (missing.length > 1 ? ' are' : ' is') + ' not set.\n\n' +
-          'Set ' + (missing.length > 1 ? 'both' : 'it') + ' in the Model tab ' +
-          '(Runnable models → edit ' + missing.join(' / ') + ' → Save parameter changes) before running.'
-        );
-        return _CANCELLED;
-      }
-      var msg = 'Dispatch to AWS Batch:\n\n' +
-        '  repo:    ' + (cfg.repo_url || '(unknown)') + '\n' +
-        '  branch:  ' + (cfg.branch || '(unknown)') + '\n' +
-        '  commit:  ' + ((cfg.commit || '(unknown)').slice(0, 12)) + '\n' +
-        '  simulator id: ' + cfg.simulator_id + '\n' +
-        '  generations:  ' + numGenerations + '\n' +
-        '  seeds:        ' + numSeeds + '\n\n' +
-        'Proceed?';
-      if (!confirm(msg)) return _CANCELLED;
-      return api('POST', '/api/remote-run-submit', {
-        study: slug,
-        simulator_id: cfg.simulator_id,
-        num_generations: numGenerations,
-        num_seeds: numSeeds,
-      });
-    });
-  }
-  window._dispatchCurrentSpecBaseline = _dispatchCurrentSpecBaseline;
-
-  // ─── item 110: dispatch an arbitrary process-bigraph composite_id (e.g.
-  // pbg-native's v2ecoli.composites.lineage_ray_batch, item 101/109) to the
-  // remote compute backend -- independent of this study's own pinned
-  // baseline composite. Mirrors `atlantis composite run`'s already-proven
-  // parameter surface (viva-api PR #382) exactly: named fields for the
-  // common params + a raw-JSON escape hatch for anything else
-  // (injected_processes/variants/config_overrides/emitter_arg/cache_dir/
-  // media/...), rather than inventing a new shape. Fully additive: a new
-  // button, a new panel, a new function -- `_dispatchRemotePinned` and the
-  // default "Run current spec" flow above are untouched.
-  //
-  // Reaches viva-api through the SAME endpoint `_dispatchRemotePinned`
-  // already uses (`POST /api/remote-run-submit`), which already accepts a
-  // top-level `extra_params` field verbatim (`remote_run_views.
-  // remote_run_submit`: `extra_params=body.get("extra_params") or None` ->
-  // `SmsApiClient.run_simulation(extra_params=...)` -> the real
-  // `POST /api/v1/simulations` JSON body's own `extra_params` key) -- the
-  // exact field name/shape every real pbg-native dispatch this session
-  // fired (database_id 253/255/282/283/288) used. No new server-side code
-  // needed; confirmed directly against current source before building this,
-  // not assumed from the earlier gap report alone (which cited a different,
-  // more complex passthrough in study_runs.py that this simpler, more
-  // direct field makes unnecessary for this feature).
+  // The composite-dispatch panel: named fields for the common run params plus
+  // a raw-JSON escape hatch. Its dispatch target (the SMS workflow endpoint)
+  // is retired — the panel still renders, and _dispatchRemoteComposite below
+  // reports the retirement rather than posting to a route that is gone.
   function _compositePanelEl() {
     var el = document.getElementById('study-composite-panel');
     if (el) return el;
@@ -2070,7 +1987,7 @@
     el = document.createElement('div');
     el.id = 'study-composite-panel';
     el.style.cssText = 'display:none;position:absolute;z-index:20;margin-top:6px;padding:12px;'
-      + 'background:var(--panel-bg,#fff);border:1px solid var(--border,#e2e8f0);border-radius:6px;'
+      + 'background:var(--panel-bg,var(--surface));border:1px solid var(--border,var(--border));border-radius:6px;'
       + 'box-shadow:0 4px 16px rgba(0,0,0,0.12);font:12px/1.5 system-ui,-apple-system,sans-serif;'
       + 'width:360px;right:0;top:100%';
     el.innerHTML =
@@ -2145,17 +2062,15 @@
       // simulation config for every mechanism, including nextflow_dispatch,
       // whereas cache_variant is meaningless on the Nextflow path and is
       // hidden with the wrap (#1044 added this field; the wrap is this PR's).
-      + '<label style="display:block;margin-top:6px">config_filename (optional — a real filename under '
-      + 'vEcoli/configs/ in the pinned repo; sms-api 404s without one on repos with no '
-      + 'api_simulation_default.json — GET /api/v1/simulations/discovery?simulator_id=&lt;id&gt; lists the '
-      + 'pinned commit’s real options)'
+      + '<label style="display:block;margin-top:6px">config_filename (optional — a real '
+      + 'simulation config filename in the target repo)'
       + '<input type="text" id="cp-config-filename" placeholder="e.g. mecillinam_wellmixed.json" '
       + 'style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
       + '<label style="display:block;margin-top:6px"><span id="cp-params-desc">extra params (raw JSON, merged into multi_node_dispatch.params — '
       + 'e.g. injected_processes/variants/config_overrides/emitter_arg/cache_dir/out_dir/media)</span>'
       + '<textarea id="cp-params-json" rows="5" placeholder="{}" '
       + 'style="width:100%;box-sizing:border-box;margin-top:2px;font-family:monospace;font-size:11px"></textarea></label>'
-      + '<div id="cp-error" style="color:#dc2626;margin-top:4px;display:none"></div>'
+      + '<div id="cp-error" style="color:var(--danger-fg);margin-top:4px;display:none"></div>'
       + '<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">'
       + '<button type="button" id="cp-cancel" class="btn-mini">Cancel</button>'
       + '<button type="button" id="cp-dispatch" class="btn-mini">Dispatch</button>'
@@ -2241,7 +2156,7 @@
       overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.35);'
         + 'display:flex;align-items:center;justify-content:center';
       var box = document.createElement('div');
-      box.style.cssText = 'background:var(--panel-bg,#fff);border:1px solid var(--border,#e2e8f0);'
+      box.style.cssText = 'background:var(--panel-bg,var(--surface));border:1px solid var(--border,var(--border));'
         + 'border-radius:6px;box-shadow:0 8px 32px rgba(0,0,0,0.25);padding:16px 20px;'
         + 'max-width:520px;width:90%;font:12px/1.5 system-ui,-apple-system,sans-serif';
       var text = document.createElement('div');
@@ -2280,219 +2195,14 @@
     });
   }
 
+  // Remote composite dispatch ran on the retired SMS workflow endpoint
+  // simulator_id resolved from the retired build registry, posting to a
+  // workflow endpoint that is also gone — so the panel reports the retirement
+  // instead of failing at the network layer.
   function _dispatchRemoteComposite() {
-    _cpError(null);
-    var mechSel = document.getElementById('cp-mechanism');
-    var mechanism = (mechSel && mechSel.value) || 'multi_node_dispatch';
-    var cacheVariant = (document.getElementById('cp-cache-variant').value || '').trim();
-    var configFilename = (document.getElementById('cp-config-filename').value || '').trim();
-    var rawJson = (document.getElementById('cp-params-json').value || '').trim();
-    var extraParams = {};
-    if (rawJson) {
-      try {
-        extraParams = JSON.parse(rawJson);
-      } catch (e) {
-        _cpError('extra params is not valid JSON: ' + e.message);
-        return;
-      }
-      if (typeof extraParams !== 'object' || extraParams === null || Array.isArray(extraParams)) {
-        _cpError('extra params must be a JSON object, e.g. {"injected_processes": {...}}.');
-        return;
-      }
-    }
-
-    var numGenerations, numSeeds, dispatchExtraParams, confirmLines;
-
-    if (mechanism === 'nextflow_dispatch') {
-      var nfCompositeId = (document.getElementById('cp-nf-composite-id').value || '').trim();
-      if (!nfCompositeId) { _cpError('composite_id is required.'); return; }
-      var nfExecutor = (document.getElementById('cp-nf-executor').value || '').trim() || 'awsbatch';
-      numSeeds = parseInt(document.getElementById('cp-nf-n-seeds').value, 10);
-      numGenerations = parseInt(document.getElementById('cp-nf-n-generations').value, 10);
-      if (!(numSeeds > 0)) { _cpError('n_seeds must be a positive integer.'); return; }
-      if (!(numGenerations > 0)) { _cpError('n_generations must be a positive integer.'); return; }
-      var nfCacheUri = (document.getElementById('cp-nf-cache-uri').value || '').trim();
-      var nfIncludeAnalysis = document.getElementById('cp-nf-include-analysis').value;
-      var nfIndependentFounders = document.getElementById('cp-nf-independent-founders').value;
-      var nfLaunch = !!document.getElementById('cp-nf-launch').checked;
-      // task_env: NAME=VALUE per line, split on the FIRST '=' (a value may
-      // contain one) -- the same rule as the CLI's _parse_task_env. Refused
-      // here rather than after the round trip so the message names the line.
-      var nfTaskEnv = null;
-      var taskEnvRaw = (document.getElementById('cp-nf-task-env').value || '').trim();
-      if (taskEnvRaw) {
-        nfTaskEnv = {};
-        var envLines = taskEnvRaw.split(/\r?\n/);
-        for (var li = 0; li < envLines.length; li++) {
-          var envLine = envLines[li].trim();
-          if (!envLine) continue;
-          var eq = envLine.indexOf('=');
-          if (eq <= 0) { _cpError('task_env line ' + (li + 1) + ' must be NAME=VALUE: ' + envLine); return; }
-          nfTaskEnv[envLine.slice(0, eq)] = envLine.slice(eq + 1);
-        }
-      }
-      // The Nextflow path has no cache_variant: it fetches a cache_uri. A
-      // stray cache_variant in the raw JSON (copy-pasted from an MNP dispatch)
-      // would be ignored server-side and the run would silently build/fetch the
-      // plain per-commit cache, which is the exact silent-fallback class #1041
-      // fixed for MNP -- so refuse it instead of dropping it.
-      if ('cache_variant' in extraParams) {
-        _cpError('nextflow_dispatch has no cache_variant; pass the staged cache as cache_uri instead.');
-        return;
-      }
-      // Raw JSON merges FLAT onto nextflow_dispatch, except its `params` key,
-      // which merges INTO nextflow_dispatch.params (the generator's own
-      // parameters) -- never replacing the object the dedicated fields built.
-      // Dedicated fields win over a duplicate inside raw params, mirroring the
-      // cache_variant rule above.
-      var rawParams = null;
-      if ('params' in extraParams) {
-        rawParams = extraParams.params;
-        if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
-          _cpError('extra params "params" must be a JSON object (the workflow_nf generator parameters).');
-          return;
-        }
-        extraParams = Object.assign({}, extraParams);
-        delete extraParams.params;
-      }
-      var nfParams = Object.assign({}, rawParams || {}, { n_seeds: numSeeds, n_generations: numGenerations });
-      if (nfCacheUri) nfParams.cache_uri = nfCacheUri;
-      if (nfIncludeAnalysis !== '') nfParams.include_analysis = (nfIncludeAnalysis === 'true');
-      if (nfIndependentFounders !== '') nfParams.independent_founders = (nfIndependentFounders === 'true');
-      // Absent options are OMITTED, never sent as null: viva-api's
-      // nextflow_dispatch is a passthrough, and a null would override a
-      // deployment-derived default (work_dir, resources) with nothing.
-      var nfDispatch = Object.assign({}, extraParams, {
-        composite_id: nfCompositeId,
-        executor: nfExecutor,
-        launch: nfLaunch,
-        params: nfParams,
-      });
-      if (nfTaskEnv) nfDispatch.task_env = nfTaskEnv;
-      dispatchExtraParams = { nextflow_dispatch: nfDispatch };
-      // num_generations/num_seeds: the workbench route hard-requires both (see
-      // the mbp comment below), and viva-api records them on the simulation
-      // row; the Nextflow path itself sizes the campaign from
-      // nextflow_dispatch.params.n_seeds/n_generations. Same numbers, sent to
-      // both places on purpose -- the row's metadata and the generator agree.
-      confirmLines = '  mechanism:    nextflow_dispatch\n'
-        + '  composite_id: ' + nfCompositeId + '\n'
-        + '  executor:     ' + nfExecutor + (nfLaunch ? '' : '  (launch=false: render only)') + '\n'
-        + '  n_seeds:      ' + numSeeds + '\n'
-        + '  n_generations:' + numGenerations + '\n'
-        + (nfCacheUri ? '  cache_uri:    ' + nfCacheUri + '\n' : '')
-        + (nfIncludeAnalysis !== '' ? '  include_analysis: ' + nfIncludeAnalysis + '\n' : '')
-        + (nfIndependentFounders !== '' ? '  independent_founders: ' + nfIndependentFounders + '\n' : '')
-        + (nfTaskEnv ? '  task_env:     ' + JSON.stringify(nfTaskEnv) + '\n' : '')
-        + (rawJson ? '  extra params: ' + rawJson + '\n' : '');
-    } else if (mechanism === 'mbp_dispatch') {
-      var variant = (document.getElementById('cp-mbp-variant').value || '').trim();
-      if (!variant) { _cpError('variant is required.'); return; }
-      var maxGenerations = parseInt(document.getElementById('cp-mbp-max-generations').value, 10);
-      if (!(maxGenerations > 0)) { _cpError('max_generations must be a positive integer.'); return; }
-      var seedRaw = document.getElementById('cp-mbp-seed').value;
-      var seed = seedRaw === '' ? null : parseInt(seedRaw, 10);
-      // cache_variant pulled out of extraParams (whichever way the caller
-      // supplied it) so a value left over in the raw-JSON box from an older
-      // dispatch can never silently diverge from the dedicated field --
-      // the dedicated field wins when both are set.
-      var extraCacheVariant = extraParams.cache_variant;
-      if ('cache_variant' in extraParams) {
-        extraParams = Object.assign({}, extraParams);
-        delete extraParams.cache_variant;
-      }
-      var effectiveCacheVariant = cacheVariant || extraCacheVariant;
-      // mbp_dispatch is a single-container job -- one dispatch = one lineage,
-      // not a seed sweep, so it has no n_seeds concept of its own. The
-      // workbench's own /api/remote-run-submit route hard-requires
-      // num_generations/num_seeds regardless of mechanism (never silently
-      // defaulted -- see _dispatchRemotePinned's own comment above); neither
-      // is read by _submit_mbp_tracked_dispatch itself, which sizes the run
-      // from mbp_dispatch.max_generations/.seed directly, so
-      // num_generations reuses max_generations (the same concept under a
-      // different name server-side) and num_seeds is a fixed 1.
-      numGenerations = maxGenerations;
-      numSeeds = 1;
-      var mbpDispatch = Object.assign({ variant: variant, max_generations: maxGenerations }, extraParams);
-      if (effectiveCacheVariant) mbpDispatch.cache_variant = effectiveCacheVariant;
-      if (seed !== null && !isNaN(seed)) mbpDispatch.seed = seed;
-      dispatchExtraParams = { mbp_dispatch: mbpDispatch };
-      confirmLines = '  mechanism:    mbp_dispatch\n'
-        + '  variant:      ' + variant + '\n'
-        + '  max_generations: ' + maxGenerations + '\n'
-        + (seed !== null && !isNaN(seed) ? '  seed:         ' + seed + '\n' : '')
-        + (effectiveCacheVariant ? '  cache_variant: ' + effectiveCacheVariant + '\n' : '')
-        + (rawJson ? '  extra params: ' + rawJson + '\n' : '');
-    } else {
-      var compositeId = (document.getElementById('cp-composite-id').value || '').trim();
-      if (!compositeId) { _cpError('composite_id is required.'); return; }
-      var numNodes = parseInt(document.getElementById('cp-num-nodes').value, 10);
-      numSeeds = parseInt(document.getElementById('cp-n-seeds').value, 10);
-      numGenerations = parseInt(document.getElementById('cp-n-generations').value, 10);
-      if (!(numNodes > 0)) { _cpError('num_nodes must be a positive integer.'); return; }
-      if (!(numSeeds > 0)) { _cpError('n_seeds must be a positive integer.'); return; }
-      if (!(numGenerations > 0)) { _cpError('n_generations must be a positive integer.'); return; }
-      // cache_variant AND require_clean_chain must both land as siblings of
-      // `params`, never nested inside it -- viva-api reads both directly off
-      // mnp_dispatch (simulation_service_ray.py:3285/:3289 --
-      // mnp_dispatch.get("cache_variant")/mnp_dispatch.get("require_clean_chain"),
-      // never mnp_dispatch["params"].get(...)). Pulled out of extraParams here
-      // (whichever the caller supplied it through -- the raw-JSON box, old
-      // habit or a copy-pasted dispatch body) BEFORE the params merge below,
-      // exactly the bug this fix addresses; the dedicated cache_variant field
-      // wins if both it and the raw JSON set one.
-      var extraCacheVariant = extraParams.cache_variant;
-      var extraRequireCleanChain = extraParams.require_clean_chain;
-      if ('cache_variant' in extraParams || 'require_clean_chain' in extraParams) {
-        extraParams = Object.assign({}, extraParams);
-        delete extraParams.cache_variant;
-        delete extraParams.require_clean_chain;
-      }
-      var effectiveCacheVariant = cacheVariant || extraCacheVariant;
-      var params = Object.assign({ n_seeds: numSeeds, n_generations: numGenerations }, extraParams);
-      var mnpDispatch = {
-        composite_id: compositeId,
-        num_nodes: numNodes,
-        params: params,
-      };
-      if (effectiveCacheVariant) mnpDispatch.cache_variant = effectiveCacheVariant;
-      if (extraRequireCleanChain !== undefined) mnpDispatch.require_clean_chain = extraRequireCleanChain;
-      dispatchExtraParams = { multi_node_dispatch: mnpDispatch };
-      confirmLines = '  mechanism:    multi_node_dispatch\n'
-        + '  composite_id: ' + compositeId + '\n'
-        + '  num_nodes:    ' + numNodes + '\n'
-        + '  n_seeds:      ' + numSeeds + '\n'
-        + '  n_generations:' + numGenerations + '\n'
-        + (effectiveCacheVariant ? '  cache_variant: ' + effectiveCacheVariant + '\n' : '')
-        + (rawJson ? '  extra params: ' + rawJson + '\n' : '');
-    }
-
-    var slug = studyName();
-    return api('GET', '/api/remote-run-config').then(function (cfgRes) {
-      var cfg = (cfgRes.status === 200 && cfgRes.body) || {};
-      if (!cfg.pinned || !cfg.simulator_id) {
-        _cpError('This deployment is not remote-pinned — composite dispatch needs a pinned simulator_id.');
-        return _CANCELLED;
-      }
-      var msg = 'Dispatch composite to AWS Batch:\n\n'
-        + '  simulator id: ' + cfg.simulator_id + '\n'
-        + confirmLines
-        + (configFilename ? '  config_filename: ' + configFilename + '\n' : '')
-        + '\nProceed?';
-      return _confirmModal(msg).then(function (ok) {
-        if (!ok) return _CANCELLED;
-        var panel = document.getElementById('study-composite-panel');
-        if (panel) panel.style.display = 'none';
-        return api('POST', '/api/remote-run-submit', {
-          study: slug,
-          simulator_id: cfg.simulator_id,
-          num_generations: numGenerations,
-          num_seeds: numSeeds,
-          config_filename: configFilename || undefined,
-          extra_params: dispatchExtraParams,
-        });
-      });
-    });
+    _cpError('Remote composite dispatch is retired. Run the composite locally, '
+             + 'or point a remote Smoldyn run at the viva-smoldyn service.');
+    return Promise.resolve(_CANCELLED);
   }
   window._dispatchRemoteComposite = _dispatchRemoteComposite;
 
@@ -2523,7 +2233,7 @@
       if (!host) return null;
       el = document.createElement('div');
       el.id = 'study-chain-progress';
-      el.style.cssText = 'margin-top:8px; font:12px/1.5 system-ui,-apple-system,sans-serif; color:var(--muted,#8a8fa3)';
+      el.style.cssText = 'margin-top:8px; font:12px/1.5 system-ui,-apple-system,sans-serif; color:var(--text-muted)';
       host.insertBefore(el, btn.nextSibling);
     }
     return el;
@@ -2768,10 +2478,10 @@
 
   // Verdict -> pill colour (matches the behavioral pill palette).
   var _RC_PILL = {
-    within_tol: ['#16a34a', '#fff', 'within tol'],
-    drift:      ['#d97706', '#fff', 'drift'],
-    mismatch:   ['#dc2626', '#fff', 'mismatch'],
-    ungraded:   ['#64748b', '#fff', 'ungraded']
+    within_tol: ['var(--success-fg)', 'var(--bg)', 'within tol'],
+    drift:      ['var(--warning-fg)', 'var(--bg)', 'drift'],
+    mismatch:   ['var(--danger-fg)', 'var(--bg)', 'mismatch'],
+    ungraded:   ['var(--text-muted)', 'var(--bg)', 'ungraded']
   };
 
   // Fill each `kind: report_card` test's mount with the embedded card + verdict.
@@ -2817,10 +2527,10 @@
       return;
     }
     host.innerHTML = '<details open style="margin:0">'
-      + '<summary style="cursor:pointer;font-weight:700;color:#111827;font-size:1.02em">'
+      + '<summary style="cursor:pointer;font-weight:700;color:var(--heading);font-size:1.02em">'
       + 'Interactive comparison — v2ecoli vs vEcoli (plotly)</summary>'
       + '<iframe class="viz-embed" src="' + escapeHtmlForTests(pUrl) + '" loading="lazy" '
-      + 'style="width:100%;height:900px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin-top:8px"></iframe>'
+      + 'style="width:100%;height:900px;border:1px solid var(--border);border-radius:8px;background:var(--surface);margin-top:8px"></iframe>'
       + '</details>';
   }
 
@@ -2848,16 +2558,16 @@
 
   // Verdict vocab: colour + glyph (matches the grade_card / render_html palette).
   var _RC_GL = {
-    within_tol: ['#16a34a', '✓', 'within tol'],
-    drift:      ['#d97706', '≈', 'drift'],
-    mismatch:   ['#dc2626', '✗', 'mismatch'],
-    ungraded:   ['#64748b', '−', 'ungraded']
+    within_tol: ['var(--success-fg)', '✓', 'within tol'],
+    drift:      ['var(--warning-fg)', '≈', 'drift'],
+    mismatch:   ['var(--danger-fg)', '✗', 'mismatch'],
+    ungraded:   ['var(--text-muted)', '−', 'ungraded']
   };
 
   function _rcPill(verdict) {
     var p = _RC_GL[verdict || 'ungraded'] || _RC_GL.ungraded;
     return '<span style="font-size:0.72em;font-family:monospace;padding:2px 10px;'
-      + 'border-radius:9999px;background:' + p[0] + ';color:#fff">' + p[1] + ' ' + p[2] + '</span>';
+      + 'border-radius:9999px;background:' + p[0] + ';color:var(--bg)">' + p[1] + ' ' + p[2] + '</span>';
   }
 
   function _rcCounts(groups) {
@@ -2881,7 +2591,7 @@
   function _rcGroupChip(v, n) {
     var p = _RC_GL[v];
     return '<span style="display:inline-block;padding:2px 9px;border-radius:9999px;background:'
-      + p[0] + ';color:#fff;font-size:0.72em;margin-left:5px">' + p[1] + ' ' + n + ' ' + p[2] + '</span>';
+      + p[0] + ';color:var(--bg);font-size:0.72em;margin-left:5px">' + p[1] + ' ' + n + ' ' + p[2] + '</span>';
   }
 
   // Cross-iteration diff (Slice 3): the since-last-run change for one axis,
@@ -2907,10 +2617,10 @@
   // unchanged are not surfaced here (unchanged is the common case and would
   // just be noise; new/gone axes already read clearly from the table itself).
   var _CHANGE_GL = {
-    fixed:     ['#16a34a', 'fixed'],
-    broke:     ['#dc2626', 'broke'],
-    improved:  ['#0284c7', 'improved'],
-    regressed: ['#d97706', 'regressed']
+    fixed:     ['var(--success-fg)', 'fixed'],
+    broke:     ['var(--danger-fg)', 'broke'],
+    improved:  ['var(--link)', 'improved'],
+    regressed: ['var(--warning-fg)', 'regressed']
   };
 
   function _changeBadge(change) {
@@ -2918,7 +2628,7 @@
     if (!g) return '';
     return '<span class="axis-change-badge axis-change-' + change + '" style="margin-left:6px;'
       + 'font-size:0.68em;font-family:monospace;padding:1px 7px;border-radius:9999px;'
-      + 'background:' + g[0] + ';color:#fff">' + g[1] + '</span>';
+      + 'background:' + g[0] + ';color:var(--bg)">' + g[1] + '</span>';
   }
 
   // Signed margin bar: a.margin (a report_card_verdict/v2 axis extra, in
@@ -2932,15 +2642,15 @@
     var m = Math.max(-1, Math.min(1, a.margin));
     var pct = Math.abs(m) * 50;                    // half-width max, centred
     var soft = (a.severity === 'directional' || a.severity === 'soft');
-    var color = soft ? '#94a3b8' : (_RC_GL[a.verdict] || _RC_GL.ungraded)[0];
+    var color = soft ? 'var(--text-subtle)' : (_RC_GL[a.verdict] || _RC_GL.ungraded)[0];
     var barStyle = 'position:absolute;top:0;bottom:0;background:' + color + ';'
       + (m >= 0 ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%');
     return '<div class="axis-margin-bar-track" style="position:relative;width:100%;'
-      + 'height:' + (soft ? '4px' : '8px') + ';background:#eef2f7;border-radius:3px;overflow:hidden">'
+      + 'height:' + (soft ? '4px' : '8px') + ';background:var(--surface-3);border-radius:3px;overflow:hidden">'
       + '<div class="axis-margin-bar" style="' + barStyle + '"></div>'
-      + '<div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#cbd5e1"></div>'
+      + '<div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border-2)"></div>'
       + '</div>'
-      + '<div style="font-size:0.72em;color:#94a3b8;margin-top:2px">' + m.toFixed(2) + '</div>';
+      + '<div style="font-size:0.72em;color:var(--text-subtle);margin-top:2px">' + m.toFixed(2) + '</div>';
   }
 
   // The graded-scorecard look (dark header + overall pill w/ tally + per-group
@@ -2956,12 +2666,12 @@
     var op = _RC_GL[overall] || _RC_GL.ungraded;
 
     var header =
-      '<div style="background:linear-gradient(135deg,#1f2937,#0b1220);color:#fff;'
+      '<div style="background:linear-gradient(135deg,#1f2937,#0b1220);color:var(--on-fill);'
       + 'padding:14px 18px;border-radius:10px 10px 0 0">'
       + '<div style="font-weight:700;font-size:1.02em;letter-spacing:0.01em">'
       + e(card) + ' — report card</div>'
       + '<div style="margin-top:9px"><span style="display:inline-block;padding:3px 12px;'
-      + 'border-radius:9999px;background:' + op[0] + ';color:#fff;font-weight:700;'
+      + 'border-radius:9999px;background:' + op[0] + ';color:var(--bg);font-weight:700;'
       + 'font-size:0.82em;letter-spacing:0.04em">'
       + String(overall).toUpperCase().replace(/_/g, ' ') + _rcTally(counts) + '</span></div></div>';
 
@@ -2975,23 +2685,23 @@
         var val = (a.value != null && typeof a.value === 'number') ? a.value.toPrecision(4) : '';
         var chg = _axisChange(card, gname, a.id);
         return '<tr class="rc-row-' + (a.verdict || 'ungraded') + '">'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;border-left:3px solid ' + (_RC_GL[a.verdict] || _RC_GL.ungraded)[0] + '">'
-          + '<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;color:#1f2937">'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);border-left:3px solid ' + (_RC_GL[a.verdict] || _RC_GL.ungraded)[0] + '">'
+          + '<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;color:var(--text)">'
           + e(String(a.label || a.id || '')) + '</span>' + _rcPill(a.verdict)
           + (chg ? _changeBadge(chg.change) : '') + '</div></td>'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;font-variant-numeric:tabular-nums;color:#334155">' + e(val) + '</td>'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;color:#475569;font-size:0.9em">' + e(String(meter)) + '</td>'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;min-width:90px">' + _marginBar(a) + '</td>'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);font-variant-numeric:tabular-nums;color:var(--text)">' + e(val) + '</td>'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);color:var(--text-secondary);font-size:0.9em">' + e(String(meter)) + '</td>'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);min-width:90px">' + _marginBar(a) + '</td>'
           + '</tr>';
       }).join('');
-      return '<section style="background:#fff;border:1px solid #e5e7eb;border-top:0;padding:12px 14px">'
+      return '<section style="background:var(--surface);border:1px solid var(--border);border-top:0;padding:12px 14px">'
         + '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">'
-        + '<h4 style="margin:0;font-size:0.98em;color:#111827">' + e(gname.replace(/_/g, ' ')) + '</h4>'
+        + '<h4 style="margin:0;font-size:0.98em;color:var(--heading)">' + e(gname.replace(/_/g, ' ')) + '</h4>'
         + _rcGroupChip('within_tol', gc.within_tol) + _rcGroupChip('drift', gc.drift)
         + _rcGroupChip('mismatch', gc.mismatch) + _rcGroupChip('ungraded', gc.ungraded) + '</div>'
         + (axes.length
           ? '<table style="width:100%;border-collapse:collapse;font-size:0.9em">'
-            + '<thead><tr style="text-align:left;color:#94a3b8;font-size:0.78em">'
+            + '<thead><tr style="text-align:left;color:var(--text-subtle);font-size:0.78em">'
             + '<th style="padding:4px 10px">Axis</th><th style="padding:4px 10px">Value</th>'
             + '<th style="padding:4px 10px">Summary</th><th style="padding:4px 10px">Δ / Margin</th>'
             + '</tr></thead><tbody>' + rows + '</tbody></table>'
@@ -3060,10 +2770,10 @@
   // honestly mapped.
   var _RIGOR_SEVERITY_PROXY = { ok: 'PASS', warn: 'PARTIAL', gap: 'FAIL', not_applicable: 'SKIP' };
   var _RIGOR_OUTCOME_COLORS = {
-    'met':            { bg: '#d1fae5', fg: '#065f46' },
-    'conditional':    { bg: '#fef3c7', fg: '#92400e' },
-    'not-met':        { bg: '#fee2e2', fg: '#991b1b' },
-    'not-assessable': { bg: '#f1f5f9', fg: '#475569' }
+    'met':            { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    'conditional':    { bg: 'var(--warning-bg)', fg: 'var(--warning-fg)' },
+    'not-met':        { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' },
+    'not-assessable': { bg: 'var(--surface-3)', fg: 'var(--text-secondary)' }
   };
 
   function _renderQualityDimension(d) {
@@ -3076,7 +2786,7 @@
     var oc = _RIGOR_OUTCOME_COLORS[cls] || _RIGOR_OUTCOME_COLORS['not-assessable'];
     var comments = ((d && d.comments) || []).join(' ');
     return '<li class="quality-check-item outcome-' + cls + '" data-severity="' + e(sev) + '" '
-      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #f1f5f9">'
+      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border-faint)">'
       + '<span class="outcome-chip outcome-' + cls + '" title="rigor severity: ' + e(sev || 'unknown') + '" '
       + 'style="font-size:0.75em;font-weight:600;padding:2px 9px;border-radius:9999px;flex-shrink:0;'
       + 'background:' + oc.bg + ';color:' + oc.fg + '">' + glyph + '&nbsp;' + e(label) + '</span>'
@@ -3235,7 +2945,7 @@
     var label = tok ? outcomeLabel(tok) : 'not assessable';
     var oc = _RIGOR_OUTCOME_COLORS[cls] || _RIGOR_OUTCOME_COLORS['not-assessable'];
     return '<li class="audit-check-item outcome-' + cls + '" data-status="' + e(status) + '" '
-      + 'style="display:flex;gap:10px;align-items:flex-start;padding:5px 0 5px 20px;border-top:1px solid #f8fafc">'
+      + 'style="display:flex;gap:10px;align-items:flex-start;padding:5px 0 5px 20px;border-top:1px solid var(--border-faint)">'
       + '<span class="outcome-chip outcome-' + cls + '" title="audit status: ' + e(status || 'unknown') + '" '
       + 'style="font-size:0.72em;font-weight:600;padding:1px 8px;border-radius:9999px;flex-shrink:0;'
       + 'background:' + oc.bg + ';color:' + oc.fg + '">' + glyph + '&nbsp;' + e(label) + '</span>'
@@ -3254,7 +2964,7 @@
     var label = tok ? outcomeLabel(tok) : 'not assessable';
     var oc = _RIGOR_OUTCOME_COLORS[cls] || _RIGOR_OUTCOME_COLORS['not-assessable'];
     return '<li class="audit-level-item outcome-' + cls + '" data-level="' + e(g.level) + '" '
-      + 'style="padding:7px 0;border-top:1px solid #f1f5f9">'
+      + 'style="padding:7px 0;border-top:1px solid var(--border-faint)">'
       + '<div style="display:flex;gap:10px;align-items:center">'
       + '<strong style="min-width:26px">' + e(g.level) + '</strong>'
       + '<span class="outcome-chip outcome-' + cls + '" title="' + e(g.level) + ' status: ' + e(status || 'unknown') + '" '
@@ -3366,7 +3076,7 @@
       });
     }
     return '<li class="audit-axis-item outcome-' + cls + '" data-axis="' + e((ax && ax.id) || '') + '" '
-      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #f1f5f9">'
+      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border-faint)">'
       + '<span class="outcome-chip outcome-' + cls + '" title="verdict: ' + e((ax && ax.verdict) || 'unknown') + '" '
       + 'style="font-size:0.75em;font-weight:600;padding:2px 9px;border-radius:9999px;flex-shrink:0;'
       + 'background:' + oc.bg + ';color:' + oc.fg + '">' + glyph + '&nbsp;' + e(label) + '</span>'
@@ -3376,9 +3086,9 @@
   }
 
   var _AUDIT_GATE_COLORS = {
-    pass: { bg: '#d1fae5', fg: '#065f46' },
-    warn: { bg: '#fef3c7', fg: '#92400e' },
-    fail: { bg: '#fee2e2', fg: '#991b1b' }
+    pass: { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    warn: { bg: 'var(--warning-bg)', fg: 'var(--warning-fg)' },
+    fail: { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' }
   };
 
   // Returns {state, html} for the #audit-sufficiency mount's INNER content —
@@ -3491,7 +3201,7 @@
     var modules = Array.isArray(sourcing.modules) ? sourcing.modules : [];
     var reqs = Array.isArray(requires) ? requires : [];
     var summary = '<div class="sourcing-decision muted" style="font-size:0.9em;margin:6px 0 2px 0">'
-      + '<strong style="color:#334155">' + e(decision) + '</strong>'
+      + '<strong style="color:var(--text)">' + e(decision) + '</strong>'
       + (modules.length ? ' &middot; ' + e(modules.join(', ')) : '')
       + (reqs.length ? ' &nbsp;<span title="required capabilities">requires: ' + e(reqs.join(', ')) + '</span>' : '')
       + '</div>';
@@ -3564,15 +3274,15 @@
   // current state. GRACEFUL empty state (`present: false`) when a study was
   // never run through /viva-model-build — the common case, not an error.
   var _BUILD_STATE_COLORS = {
-    DONE: { bg: '#d1fae5', fg: '#065f46' },
-    GIVE_UP: { bg: '#fee2e2', fg: '#991b1b' }
+    DONE: { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    GIVE_UP: { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' }
   };
 
   // verdict → colors for per-test margin cells (matches the audit-panel vocabulary)
   var _LOOP_VERDICT_COLORS = {
-    within_tol: { bg: '#d1fae5', fg: '#065f46' },
-    drift: { bg: '#fef3c7', fg: '#92400e' },
-    mismatch: { bg: '#fee2e2', fg: '#991b1b' }
+    within_tol: { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    drift: { bg: 'var(--warning-bg)', fg: 'var(--warning-fg)' },
+    mismatch: { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' }
   };
 
   // The integrity ribbon — the honesty guarantees at a glance.
@@ -3583,8 +3293,8 @@
     var priorHashes = prereg.prior_hashes || [];
     var rb = function (label, val, ok) {
       return '<span style="font-family:ui-monospace,Menlo,monospace;font-size:0.72rem;padding:3px 9px;'
-        + 'border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b">' + e(label)
-        + ' <strong style="color:' + (ok ? '#059669' : '#0f172a') + '">' + e(val) + '</strong></span>';
+        + 'border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted)">' + e(label)
+        + ' <strong style="color:' + (ok ? 'var(--success-fg)' : 'var(--heading)') + '">' + e(val) + '</strong></span>';
     };
     var reopens = state.reopen_count != null ? state.reopen_count : 0;
     return '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">'
@@ -3593,7 +3303,7 @@
       + rb('reopens', reopens, reopens === 0)
       + (priorHashes.length ? rb('prior hashes', priorHashes.length, false) : '')
       + '<span style="font-family:ui-monospace,Menlo,monospace;font-size:0.72rem;padding:3px 9px;border-radius:8px;'
-      + 'border:1px solid #e2e8f0;background:#fff;color:#64748b" title="locked-tests hash">'
+      + 'border:1px solid var(--border);background:var(--surface);color:var(--text-muted)" title="locked-tests hash">'
       + e((state.locked_tests_hash || 'not locked').slice(0, 20)) + '…</span></div>';
   }
 
@@ -3614,15 +3324,15 @@
     var rows = names.map(function (nm) {
       var cells = history.map(function (h) {
         var t = (h.tests || []).filter(function (x) { return x.name === nm; })[0];
-        if (!t) return '<td style="color:#cbd5e1">—</td>';
-        var c = _LOOP_VERDICT_COLORS[t.verdict] || { bg: '#f8fafc', fg: '#64748b' };
+        if (!t) return '<td style="color:var(--text-disabled)">—</td>';
+        var c = _LOOP_VERDICT_COLORS[t.verdict] || { bg: 'var(--surface-2)', fg: 'var(--text-muted)' };
         var m = (t.margin == null) ? '—' : (t.margin >= 0 ? '+' : '') + Number(t.margin).toFixed(2);
         return '<td style="background:' + c.bg + ';color:' + c.fg + ';font-family:ui-monospace,Menlo,monospace">' + e(m) + '</td>';
       }).join('');
       return '<tr><td style="text-align:left;font-weight:600">' + e(nm) + '</td>' + cells + '</tr>';
     }).join('');
     return '<div style="margin-top:12px"><strong style="font-size:0.9em">Iteration trajectory</strong>'
-      + '<div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;margin-top:6px">'
+      + '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-top:6px">'
       + '<table style="border-collapse:collapse;width:100%;font-size:0.78rem;text-align:center">'
       + '<thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
       + '<p class="muted" style="font-size:0.78rem;margin:6px 0 0">Each cell is the real signed margin to the band edge; green→met, red→missed. Read a row to watch one test converge.</p></div>';
@@ -3636,10 +3346,10 @@
       var md = (h && h.margin_deltas) || {};
       var deltas = Object.keys(md).map(function (k) {
         var v = md[k]; var s = (typeof v === 'number') ? (v >= 0 ? '+' : '') + v.toFixed(2) : v;
-        return '<code style="font-size:0.75rem;background:#f1f5f9;padding:1px 5px;border-radius:4px;margin-right:4px">' + e(k) + ' ' + e(s) + '</code>';
+        return '<code style="font-size:0.75rem;background:var(--surface-3);padding:1px 5px;border-radius:4px;margin-right:4px">' + e(k) + ' ' + e(s) + '</code>';
       }).join('');
-      var g = _LOOP_VERDICT_COLORS[(h && h.gate) === 'pass' ? 'within_tol' : (h && h.gate) === 'warn' ? 'drift' : 'mismatch'] || { bg: '#f1f5f9', fg: '#475569' };
-      return '<li style="padding:8px 0;border-top:1px solid #f1f5f9;font-size:0.86em">'
+      var g = _LOOP_VERDICT_COLORS[(h && h.gate) === 'pass' ? 'within_tol' : (h && h.gate) === 'warn' ? 'drift' : 'mismatch'] || { bg: 'var(--surface-3)', fg: 'var(--text-secondary)' };
+      return '<li style="padding:8px 0;border-top:1px solid var(--border-faint);font-size:0.86em">'
         + '<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
         + '<strong>iter ' + e((h && h.iteration) != null ? h.iteration : '') + '</strong>'
         + '<span>' + e((h && h.edit) || '') + (h && h.target ? ' &rarr; <code>' + e(h.target) + '</code>' : '') + '</span>'
@@ -3659,7 +3369,7 @@
       return '<p class="empty-message">' + e(reason) + '</p>';
     }
     var history = state.history || [];
-    var sc = _BUILD_STATE_COLORS[state.state] || { bg: '#f1f5f9', fg: '#475569' };
+    var sc = _BUILD_STATE_COLORS[state.state] || { bg: 'var(--surface-3)', fg: 'var(--text-secondary)' };
     // header + state chip
     var html = '<div class="check-group-header" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
       + '<strong>Was it earned?</strong> <span class="muted" style="font-size:0.85em">the model-building loop &mdash; '
@@ -3777,12 +3487,12 @@
   // (loadTestsTab) and the tab-header Decision line (_renderTestsGateSummary,
   // above) read, so the two can never disagree about the same gate.
   var _GATE_STATUS_GL = {
-    pass: ['#16a34a', '✓ gate: pass', 'gate passes'],
-    warn: ['#d97706', '≈ gate: warn', 'gate: warn — proceed with caution'],
-    fail: ['#dc2626', '✗ gate: fail', 'gate fails']
+    pass: ['var(--success-fg)', '✓ gate: pass', 'gate passes'],
+    warn: ['var(--warning-fg)', '≈ gate: warn', 'gate: warn — proceed with caution'],
+    fail: ['var(--danger-fg)', '✗ gate: fail', 'gate fails']
   };
   function _gateStatusInfo(status) {
-    return _GATE_STATUS_GL[status] || ['#64748b', 'gate: ' + status, 'gate: ' + status];
+    return _GATE_STATUS_GL[status] || ['var(--text-muted)', 'gate: ' + status, 'gate: ' + status];
   }
 
   // Verdict-chip vocabulary for a test's graded axis (outcome.axis.verdict) —
@@ -3801,10 +3511,10 @@
   // _pill_bg/_pill_fg/_pill_text mapping in study-detail.html (kept in sync
   // by hand; both read the same closed result vocabulary).
   var _TEST_RESULT_PILL = {
-    PASS: ['#d1fae5', '#065f46', '✓ PASS'],
-    FAIL: ['#fee2e2', '#991b1b', '✗ FAIL'],
-    SKIP: ['#fef3c7', '#92400e', '⏭ SKIP'],
-    PARTIAL: ['#fde68a', '#92400e', '◐ PARTIAL']
+    PASS: ['var(--success-bg)', 'var(--success-fg)', '✓ PASS'],
+    FAIL: ['var(--danger-bg)', 'var(--danger-fg)', '✗ FAIL'],
+    SKIP: ['var(--warning-bg)', 'var(--warning-fg)', '⏭ SKIP'],
+    PARTIAL: ['var(--warning-bg)', 'var(--warning-fg)', '◐ PARTIAL']
   };
 
   // Classification badge tint — mirrors the four-way border colour the
@@ -3812,11 +3522,11 @@
   // supporting/diagnostic/regression), plus "secondary" (the DATA CONTRACT's
   // spelling for this task) mapped onto the same blue as "supporting".
   var _CLASS_BADGE = {
-    primary: ['#d1fae5', '#065f46'],
-    secondary: ['#dbeafe', '#1e3a8a'],
-    supporting: ['#dbeafe', '#1e3a8a'],
-    diagnostic: ['#fef3c7', '#92400e'],
-    regression: ['#f1f5f9', '#475569']
+    primary: ['var(--success-bg)', 'var(--success-fg)'],
+    secondary: ['var(--info-bg)', 'var(--info-fg)'],
+    supporting: ['var(--info-bg)', 'var(--info-fg)'],
+    diagnostic: ['var(--warning-bg)', 'var(--warning-fg)'],
+    regression: ['var(--surface-3)', 'var(--text-secondary)']
   };
 
   // Format a number for display: integers print bare, everything else is
@@ -3892,14 +3602,14 @@
     width = Math.max(width, 1.5);
     var marginLabel = '';
     if (typeof axis.margin === 'number' && isFinite(axis.margin)) {
-      marginLabel = '<span style="color:#475569;font-size:0.82em;font-variant-numeric:tabular-nums">'
+      marginLabel = '<span style="color:var(--text-secondary);font-size:0.82em;font-variant-numeric:tabular-nums">'
         + 'Δ-to-pass ' + (axis.margin >= 0 ? '+' : '') + axis.margin.toPrecision(3)
         + (axis.severity ? ' · ' + escapeHtmlForTests(String(axis.severity)) : '') + '</span>';
     }
     return '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">'
-      + '<div style="position:relative;height:9px;flex:1;max-width:220px;background:#eef2f7;'
+      + '<div style="position:relative;height:9px;flex:1;max-width:220px;background:var(--surface-3);'
         + 'border-radius:5px" title="pass boundary at centre">'
-      + '<div style="position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:#94a3b8"></div>'
+      + '<div style="position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--border-control)"></div>'
       + '<div style="position:absolute;left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;'
         + 'top:0;bottom:0;background:' + color + ';border-radius:5px;opacity:0.85"></div>'
       + '</div>' + marginLabel + '</div>';
@@ -3948,7 +3658,7 @@
     test = test || {};
     var name = test.name || '(unnamed)';
     var cls = test.classification || 'unclassified';
-    var clsColor = _CLASS_BADGE[cls] || ['#f1f5f9', '#475569'];
+    var clsColor = _CLASS_BADGE[cls] || ['var(--surface-3)', 'var(--text-secondary)'];
     var axis = (outcome && outcome.axis && typeof outcome.axis === 'object') ? outcome.axis : null;
     var vKey = (axis && axis.verdict) || 'ungraded';
     var vColor = (_RC_GL[vKey] || _RC_GL.ungraded)[0];
@@ -3957,11 +3667,11 @@
 
     // 1. Header — name · classification badge · verdict chip · result pill.
     var header = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-      + '<strong style="font-size:0.95em;color:#111827">' + e(name) + '</strong>'
+      + '<strong style="font-size:0.95em;color:var(--heading)">' + e(name) + '</strong>'
       + '<span style="font-size:0.7em;font-weight:600;padding:2px 9px;border-radius:9999px;'
         + 'background:' + clsColor[0] + ';color:' + clsColor[1] + '">' + e(cls) + '</span>'
       + '<span style="font-size:0.72em;font-family:monospace;padding:2px 10px;border-radius:9999px;'
-        + 'background:' + vColor + ';color:#fff">' + e(vLabel) + '</span>'
+        + 'background:' + vColor + ';color:var(--bg)">' + e(vLabel) + '</span>'
       + (resPill
           ? '<span style="font-size:0.72em;font-family:monospace;padding:2px 9px;border-radius:9999px;'
             + 'background:' + resPill[0] + ';color:' + resPill[1] + '">' + e(resPill[2]) + '</span>'
@@ -3974,7 +3684,7 @@
 
     // 2. What it checks.
     var whatItChecks = test.description
-      ? '<div style="margin-top:6px;font-size:0.92em;color:#334155">' + e(String(test.description)) + '</div>'
+      ? '<div style="margin-top:6px;font-size:0.92em;color:var(--text)">' + e(String(test.description)) + '</div>'
       : '';
 
     // 3. Band + measured.
@@ -3986,7 +3696,7 @@
     else if (typeof mv === 'number') mvText = _fmtNum(mv);
     else if (typeof mv === 'object') { try { mvText = JSON.stringify(mv); } catch (err) { mvText = String(mv); } }
     else mvText = String(mv);
-    var bandLine = '<div style="margin-top:8px;font-size:0.85em;color:#475569">'
+    var bandLine = '<div style="margin-top:8px;font-size:0.85em;color:var(--text-secondary)">'
       + (bandText ? e(bandText) : '<span class="muted">no pass_if band declared</span>')
       + ' <span style="margin-left:10px"><strong>measured:</strong> ' + e(mvText) + '</span>'
       + '</div>';
@@ -4017,8 +3727,8 @@
       evidenceBits.push('<span class="muted">calibration anchor:</span> ' + e(anchorText));
     }
     var evidence = evidenceBits.length
-      ? '<div style="margin-top:8px;font-size:0.82em;color:#475569;padding:6px 8px;'
-        + 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px">'
+      ? '<div style="margin-top:8px;font-size:0.82em;color:var(--text-secondary);padding:6px 8px;'
+        + 'background:var(--surface-2);border:1px solid var(--border);border-radius:4px">'
         + evidenceBits.join('<br>') + '</div>'
       : '';
 
@@ -4048,7 +3758,7 @@
       runIdent = _canonRun ? (_canonRun.run_id || _canonRun.name) : null;
     }
     var runLink = runIdent
-      ? '<a href="#run-' + e(runIdent) + '" onclick="_setStudyTab(\'simulate\')" style="color:#3b82f6">'
+      ? '<a href="#run-' + e(runIdent) + '" onclick="_setStudyTab(\'simulate\')" style="color:var(--link)">'
         + 'from run ' + e(runIdent) + ' ↗</a>'
       : '<span class="muted">no run recorded yet</span>';
     var assertionRaw;
@@ -4060,7 +3770,7 @@
     var footer = '<div style="margin-top:8px;font-size:0.82em">' + runLink + '</div>'
       + '<details style="margin-top:6px;font-size:0.82em">'
       + '<summary class="muted" style="cursor:pointer">Assertion</summary>'
-      + '<pre style="background:#fff;padding:8px;margin:4px 0 0 0;border:1px solid #e2e8f0;'
+      + '<pre style="background:var(--surface);padding:8px;margin:4px 0 0 0;border:1px solid var(--border);'
         + 'border-radius:3px;overflow-x:auto">' + e(assertionRaw) + '</pre></details>';
 
     return '<div class="test-report-card" data-verdict="' + e(vKey) + '">'
@@ -4133,7 +3843,7 @@
         ' <span class="study-gate-badge" data-gate="' + _gate.status +
         '" title="severity-aware gate: only hard-severity axis mismatches fail"' +
         ' style="margin-left:8px;padding:1px 7px;border-radius:9px;font-weight:600;' +
-        'color:#fff;background:' + _gc[0] + '">' + _glabel + '</span>');
+        'color:var(--bg);background:' + _gc[0] + '">' + _glabel + '</span>');
     }
 
     // --- Task 4.2: per-test report cards ---------------------------------
@@ -4301,8 +4011,8 @@
     codeBits.push('by <code>' + e(String(c.evaluated_by || '?')) + '</code>');
     var codeChip =
       '<span class="outcome-chip outcome-chip-computed" ' +
-      'style="display:inline-block;padding:4px 8px;border-radius:4px;background:#eef2ff;' +
-      'border:1px solid #c7d2fe;color:#3730a3;font-size:0.82em">' +
+      'style="display:inline-block;padding:4px 8px;border-radius:4px;background:var(--active);' +
+      'border:1px solid var(--active-indicator);color:var(--active-fg);font-size:0.82em">' +
       '<span class="muted" style="font-size:0.85em">code computed</span> ' +
       codeBits.join(' · ') + '</span>';
 
@@ -4311,23 +4021,23 @@
     if (a && (a.result != null)) {
       authoredChip =
         ' <span class="outcome-chip outcome-chip-authored" ' +
-        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:#f8fafc;' +
-        'border:1px solid #e2e8f0;color:#475569;font-size:0.82em">' +
+        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:var(--surface-2);' +
+        'border:1px solid var(--border);color:var(--text-secondary);font-size:0.82em">' +
         '<span class="muted" style="font-size:0.85em">authored</span> ' +
         '<strong>' + e(String(a.result)) + '</strong></span>';
     }
 
     var divBadge = divergent
       ? ' <span class="reconcile-divergent" ' +
-        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:#fee2e2;' +
-        'border:1px solid #fca5a5;color:#991b1b;font-weight:600;font-size:0.82em">' +
+        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:var(--danger-bg);' +
+        'border:1px solid var(--danger-border);color:var(--danger-fg);font-weight:600;font-size:0.82em">' +
         '⚠ reconcile: divergent</span>'
       : '';
 
     var runLink = runIdent
       ? '<div class="muted small" style="margin-top:4px">from run ' +
         '<a href="#run-' + e(runIdent) + '" onclick="_setStudyTab(\'simulate\')" ' +
-        'style="color:#3b82f6">' + e(runIdent) + '</a></div>'
+        'style="color:var(--link)">' + e(runIdent) + '</a></div>'
       : '';
 
     var bandLine = passIf
@@ -4340,8 +4050,8 @@
       : '';
 
     return '<div class="computed-outcome-row" ' +
-      'style="margin-top:6px;padding:8px 10px;background:#fff;border:1px solid ' +
-      (divergent ? '#fca5a5' : '#e2e8f0') + ';border-radius:4px;font-size:0.85em">' +
+      'style="margin-top:6px;padding:8px 10px;background:var(--surface);border:1px solid ' +
+      (divergent ? 'var(--danger-border)' : 'var(--border)') + ';border-radius:4px;font-size:0.85em">' +
       '<div><strong>measured_value:</strong> <code>' + e(mvStr) + '</code></div>' +
       '<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
       codeChip + authoredChip + divBadge + '</div>' +
@@ -4395,7 +4105,7 @@
   // reused after a study-grade success AND after a Tests-tab-initiated
   // baseline run completes (see _gradeAfterRunId / _pollChainProgress above).
   // Reuses window.DataSource.loadStudy (the page's existing study-reload
-  // path, also used by _dispatchRemotePinned) rather than a bespoke fetch.
+  // path) rather than a bespoke fetch.
   function _reloadStudyAndTests() {
     var slug = studyName();
     var reload = (window.DataSource && window.DataSource.loadStudy)
@@ -4512,9 +4222,9 @@
 
     // Status badge colours
     var badgeCss = {
-      open:      'background:#fef3c7;color:#92400e;',
-      addressed: 'background:#d1fae5;color:#065f46;',
-      dismissed: 'background:#f1f5f9;color:#64748b;text-decoration:line-through;',
+      open:      'background:var(--warning-bg);color:var(--warning-fg);',
+      addressed: 'background:var(--success-bg);color:var(--success-fg);',
+      dismissed: 'background:var(--surface-3);color:var(--text-muted);text-decoration:line-through;',
     };
 
     var itemsHtml = '';
@@ -4550,20 +4260,20 @@
         // .responded_at, same source). Always rendered — "unattributed" when
         // no responder is recorded, never silently omitted.
         responseHtml =
-          '<div style="margin:6px 0 0 0;padding:8px 12px;background:#f0fdf4;' +
-          'border-left:3px solid #10b981;border-radius:4px;font-size:0.88em">' +
-          '<strong style="font-size:0.85em;color:#065f46">Response — ' +
+          '<div style="margin:6px 0 0 0;padding:8px 12px;background:var(--success-bg);' +
+          'border-left:3px solid var(--success-fg);border-radius:4px;font-size:0.88em">' +
+          '<strong style="font-size:0.85em;color:var(--success-fg)">Response — ' +
           '<span class="actor-glyph" title="actor kind: ' + _esc(actorKind(item.responded_by)) + '">' +
           actorGlyph(item.responded_by) + '</span> ' +
           _esc(attributionText(item.responded_by, item.responded_at)) +
           ':</strong>' +
           '<pre style="white-space:pre-wrap;margin:4px 0 0 0;font-family:inherit;' +
-          'font-size:0.92em;color:#374151">' + _esc(item.response) + '</pre>' +
+          'font-size:0.92em;color:var(--text)">' + _esc(item.response) + '</pre>' +
           '</div>';
       }
 
       itemsHtml +=
-        '<div style="padding:10px 14px;border-bottom:1px solid #f1f5f9">' +
+        '<div style="padding:10px 14px;border-bottom:1px solid var(--border-faint)">' +
         '<div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">' +
         badgeHtml + metaHtml +
         '</div>' +
@@ -4574,9 +4284,9 @@
 
     var summaryHtml =
       '<span style="font-size:0.9em">' +
-      '<span style="color:#92400e">' + openCt + ' open</span>' +
-      ' / <span style="color:#065f46">' + addrCt + ' addressed</span>' +
-      ' / <span style="color:#64748b">' + disCt + ' dismissed</span>' +
+      '<span style="color:var(--warning-fg)">' + openCt + ' open</span>' +
+      ' / <span style="color:var(--success-fg)">' + addrCt + ' addressed</span>' +
+      ' / <span style="color:var(--text-muted)">' + disCt + ' dismissed</span>' +
       ' <span class="muted">(' + total + ' total)</span>' +
       '</span>';
 
@@ -4590,7 +4300,7 @@
       '<div class="overview-section" style="margin-top:18px">' +
       '<h2 class="overview-label">Expert Feedback</h2>' +
       '<div style="margin-bottom:10px">' + summaryHtml + '</div>' +
-      '<div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">' +
+      '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">' +
       itemsHtml +
       '</div>' +
       actionsSectionHtml +
@@ -4605,10 +4315,10 @@
   // are no actions to show. Pure render — escapes all text.
   function _actionBadgeCss(status) {
     return ({
-      open:      'background:#fef3c7;color:#92400e;',
-      applied:   'background:#d1fae5;color:#065f46;',
-      dismissed: 'background:#f1f5f9;color:#64748b;text-decoration:line-through;',
-    })[status] || 'background:#fef3c7;color:#92400e;';
+      open:      'background:var(--warning-bg);color:var(--warning-fg);',
+      applied:   'background:var(--success-bg);color:var(--success-fg);',
+      dismissed: 'background:var(--surface-3);color:var(--text-muted);text-decoration:line-through;',
+    })[status] || 'background:var(--warning-bg);color:var(--warning-fg);';
   }
 
   function _renderFeedbackActionsSection() {
@@ -4628,7 +4338,7 @@
         'font-family:ui-monospace,monospace;margin-right:6px">' +
         _esc(status) + '</span>';
       var kindChip =
-        '<code style="font-size:0.82em;background:#eef2ff;color:#3730a3;' +
+        '<code style="font-size:0.82em;background:var(--active);color:var(--active-fg);' +
         'padding:1px 6px;border-radius:4px">' + _esc(action.kind || '') + '</code>';
       var target = action.target_finding
         ? ' <span class="muted" style="font-size:0.82em">→ ' + _esc(action.target_finding) + '</span>'
@@ -4636,15 +4346,15 @@
       var applyBtn = (status === 'open')
         ? '<button type="button" class="feedback-apply-btn" data-item-id="' +
           _esc(it.item_id) + '" style="margin-left:auto;padding:2px 10px;' +
-          'font-size:0.82em;border:1px solid #6366f1;background:#eef2ff;' +
-          'color:#3730a3;border-radius:4px;cursor:pointer">Apply</button>'
+          'font-size:0.82em;border:1px solid var(--active-indicator);background:var(--active);' +
+          'color:var(--active-fg);border-radius:4px;cursor:pointer">Apply</button>'
         : '';
       rows +=
-        '<div style="padding:8px 14px;border-bottom:1px solid #f1f5f9">' +
+        '<div style="padding:8px 14px;border-bottom:1px solid var(--border-faint)">' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
         badge + kindChip + target + applyBtn +
         '</div>' +
-        '<p style="margin:4px 0 0 0;font-size:0.9em;color:#374151">' +
+        '<p style="margin:4px 0 0 0;font-size:0.9em;color:var(--text)">' +
         _esc(action.proposed_text || '') + '</p>' +
         '<p class="muted" style="margin:2px 0 0 0;font-size:0.78em">' +
         _esc((it.text || '').slice(0, 140)) + '</p>' +
@@ -4653,8 +4363,8 @@
 
     return (
       '<div style="margin-top:12px">' +
-      '<h3 style="font-size:0.9em;color:#475569;margin:0 0 6px 0">Proposed Actions</h3>' +
-      '<div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">' +
+      '<h3 style="font-size:0.9em;color:var(--text-secondary);margin:0 0 6px 0">Proposed Actions</h3>' +
+      '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">' +
       rows +
       '</div>' +
       '</div>'
@@ -4677,9 +4387,9 @@
           .then(function(res) {
             if (res.ok && (res.j.applied || res.j.already_applied)) {
               btn.textContent = 'Applied';
-              btn.style.borderColor = '#10b981';
-              btn.style.background = '#d1fae5';
-              btn.style.color = '#065f46';
+              btn.style.borderColor = 'var(--success-fg)';
+              btn.style.background = 'var(--success-bg)';
+              btn.style.color = 'var(--success-fg)';
             } else {
               btn.disabled = false;
               btn.textContent = 'Apply';
@@ -4703,7 +4413,7 @@
   function _showStudyLoadError(e) {
     var el = document.getElementById('study-root') || document.body;
     el.innerHTML =
-      '<div style="padding:2rem;color:#dc2626">' +
+      '<div style="padding:2rem;color:var(--danger-fg)">' +
       'Could not load study data: ' + String(e && e.message || e) +
       '</div>';
   }
@@ -4747,8 +4457,8 @@
       explanatory_gain: { result: 'GAP' }
     };
     var colors = {
-      PASS: ['#dcfce7', '#166534'], PARTIAL: ['#fef3c7', '#92400e'],
-      FAIL: ['#fee2e2', '#991b1b'], GAP: ['#f1f5f9', '#475569'], PENDING: ['#f1f5f9', '#475569']
+      PASS: ['var(--success-bg)', 'var(--success-fg)'], PARTIAL: ['var(--warning-bg)', 'var(--warning-fg)'],
+      FAIL: ['var(--danger-bg)', 'var(--danger-fg)'], GAP: ['var(--surface-3)', 'var(--text-secondary)'], PENDING: ['var(--surface-3)', 'var(--text-secondary)']
     };
     badges.forEach(function(el) {
       var track = el.getAttribute('data-verdict-track');
@@ -4795,9 +4505,9 @@
         });
         var gaps = sev.error + sev.warning;
         var head, col;
-        if (!findings.length) { head = '✓ ready'; col = '#166534'; }
-        else if (gaps) { head = '⚠ ' + gaps + ' readiness gap' + (gaps === 1 ? '' : 's'); col = '#92400e'; }
-        else { head = 'ℹ ' + sev.info + ' note' + (sev.info === 1 ? '' : 's'); col = '#1e40af'; }
+        if (!findings.length) { head = '✓ ready'; col = 'var(--success-fg)'; }
+        else if (gaps) { head = '⚠ ' + gaps + ' readiness gap' + (gaps === 1 ? '' : 's'); col = 'var(--warning-fg)'; }
+        else { head = 'ℹ ' + sev.info + ' note' + (sev.info === 1 ? '' : 's'); col = 'var(--info-fg)'; }
 
         if (!findings.length) {
           container.innerHTML = '<span class="readiness-inline" style="font-size:0.85em;color:' + col + '" '
@@ -4812,7 +4522,7 @@
         var groups = checks.map(function (c) {
           var items = byCheck[c].map(function (f) {
             var s = f.severity || 'info';
-            var dot = s === 'error' ? '#dc2626' : (s === 'warning' ? '#f59e0b' : '#3b82f6');
+            var dot = s === 'error' ? 'var(--danger-fg)' : (s === 'warning' ? 'var(--warning-fg)' : 'var(--link)');
             return '<li style="margin-top:3px"><span style="color:' + dot + ';font-weight:700">●</span> ' + _esc(f.message || '') + '</li>';
           }).join('');
           return '<div style="margin-top:9px"><code>' + _esc(c) + '</code> '
@@ -4823,7 +4533,7 @@
           '<details class="readiness-inline">'
           + '<summary style="font-size:0.85em;color:' + col + ';cursor:pointer;list-style:none;outline:none" '
           + 'title="code-computed by the report linter (deterministic) — click to expand">' + head + '</summary>'
-          + '<div style="margin-top:6px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85em" class="readiness-inline-body">'
+          + '<div style="margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:0.85em" class="readiness-inline-body">'
           + '<div class="muted" style="font-size:0.9em">' + breakdown + '</div>'
           + groups
           + '</div>'
@@ -4855,7 +4565,7 @@
       _setStudyTab('simulate');
       if (h.indexOf('#run-') === 0) {
         var el = document.getElementById(h.slice(1));  // id="run-<runId>"
-        if (el && el.scrollIntoView) { try { el.scrollIntoView({block: 'center'}); el.style.outline = '2px solid #2b6cb0'; } catch (e) {} }
+        if (el && el.scrollIntoView) { try { el.scrollIntoView({block: 'center'}); el.style.outline = '2px solid var(--link)'; } catch (e) {} }
       }
     }
   }

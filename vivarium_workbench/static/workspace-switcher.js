@@ -123,7 +123,7 @@
     const name = document.createElement('span');
     name.className = 'viv-ws-name';
     name.innerHTML = `<strong>${escapeHtml(ws.name)}</strong>${
-      ws.branch ? ` <small style="color:#94a3b8;font-weight:400">@ ${escapeHtml(ws.branch)}</small>` : ''
+      ws.branch ? ` <small style="color:var(--text-subtle);font-weight:400">@ ${escapeHtml(ws.branch)}</small>` : ''
     }${ws.status === 'current' ? ' <small>(this)</small>' : ''}`;
     line1.appendChild(name);
 

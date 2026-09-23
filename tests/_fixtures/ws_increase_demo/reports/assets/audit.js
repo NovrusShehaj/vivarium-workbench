@@ -13,15 +13,17 @@
   'use strict';
 
   var STATUS = {
-    pass: { glyph: '✓', color: '#0d9488', label: 'pass' },
-    warn: { glyph: '⚠', color: '#d97706', label: 'warn' },
-    fail: { glyph: '✗', color: '#e11d48', label: 'fail' },
+    pass: { glyph: '✓', color: 'var(--accent-text)', label: 'pass' },
+    warn: { glyph: '⚠', color: 'var(--warning-fg)', label: 'warn' },
+    fail: { glyph: '✗', color: 'var(--danger-fg)', label: 'fail' },
   };
 
-  // L0 (red) → L5 (green) reproducibility ramp; '—' (ungraded) = gray.
-  var GRADE_COLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#16a34a'];
+  // L0 (red) → L5 (green) reproducibility ramp; '—' (ungraded) = gray. A data
+  // ramp, identical in both themes: 700/800 shades so the white label text on
+  // each pill stays >= 4.9:1 (WCAG AA) — the 400/500 shades were 1.9-3.8:1.
+  var GRADE_COLORS = ['#b91c1c', '#c2410c', '#a16207', '#4d7c0f', '#15803d', '#166534'];
   function _gradeColor(level) {
-    return (typeof level === 'number' && level >= 0 && level <= 5) ? GRADE_COLORS[level] : '#94a3b8';
+    return (typeof level === 'number' && level >= 0 && level <= 5) ? GRADE_COLORS[level] : '#64748b';
   }
   function _gradeBadge(grade) {
     if (!grade) return '';
@@ -30,7 +32,7 @@
       : 'reproducibility ' + grade.label + ' — fully rebuildable';
     return '<span title="' + _esc(title) + '" style="flex:none;font-weight:700;font-size:0.8em;' +
       'padding:1px 9px;border-radius:9999px;letter-spacing:0.03em;background:' + _gradeColor(grade.level) +
-      ';color:#fff">' + _esc(grade.label) + '</span>';
+      ';color:var(--on-fill)">' + _esc(grade.label) + '</span>';
   }
 
   function _esc(s) {
@@ -44,21 +46,21 @@
   }
 
   function _checkRowHtml(c) {
-    var st = STATUS[c.status] || { glyph: '?', color: '#94a3b8', label: c.status };
+    var st = STATUS[c.status] || { glyph: '?', color: 'var(--text-subtle)', label: c.status };
     var detail = c.detail
-      ? '<span style="color:#64748b"> — ' + _esc(c.detail) + '</span>'
+      ? '<span style="color:var(--text-muted)"> — ' + _esc(c.detail) + '</span>'
       : '';
     return '<div style="display:flex;gap:8px;align-items:flex-start;margin:2px 0;font-size:0.85em;line-height:1.4">' +
       '<span style="flex:none;color:' + st.color + ';font-weight:700;width:1.1em;text-align:center">' + st.glyph + '</span>' +
-      '<span style="flex:none;color:#94a3b8;font-variant-numeric:tabular-nums;width:1.8em">' + _esc(c.level) + '</span>' +
-      '<span style="flex:1;color:#334155"><span style="font-weight:600">' + _esc(c.name) + '</span>' + detail + '</span>' +
+      '<span style="flex:none;color:var(--text-subtle);font-variant-numeric:tabular-nums;width:1.8em">' + _esc(c.level) + '</span>' +
+      '<span style="flex:1;color:var(--text)"><span style="font-weight:600">' + _esc(c.name) + '</span>' + detail + '</span>' +
       '</div>';
   }
 
   function _auditBlockHtml(kind, audit) {
     var grade = audit.grade;
     var structural = (audit.checks || []);
-    var worst = STATUS[audit.worst] || { glyph: '?', color: '#94a3b8', label: audit.worst };
+    var worst = STATUS[audit.worst] || { glyph: '?', color: 'var(--text-subtle)', label: audit.worst };
 
     // Body: the L0-L5 reproducibility ladder (studies carry grade.checks); an
     // investigation shows a member/blocked summary. Structural checks (when the
@@ -72,7 +74,7 @@
       var status = grade.blocked_by
         ? 'blocked at ' + _esc(grade.blocked_by.level) + ' — ' + _esc(grade.blocked_by.name)
         : 'fully rebuildable (L5)';
-      body = '<div style="font-size:0.83em;color:#64748b;margin:2px 0">' + members + status + '</div>';
+      body = '<div style="font-size:0.83em;color:var(--text-muted);margin:2px 0">' + members + status + '</div>';
     } else {
       body = '';
     }
@@ -82,13 +84,13 @@
     // only appears when there IS a structural audit to summarize.
     var worstPill = structural.length
       ? '<span style="flex:none;color:' + worst.color + ';font-weight:700">' + worst.glyph + '</span>' +
-        '<span style="flex:none;font-size:0.8em;padding:0 8px;border-radius:9999px;background:' + worst.color + ';color:#fff">' + _esc(worst.label) + '</span>'
+        '<span style="flex:none;font-size:0.8em;padding:0 8px;border-radius:9999px;background:' + worst.color + ';color:var(--bg)">' + _esc(worst.label) + '</span>'
       : '';
-    return '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin:8px 0;background:#fff">' +
+    return '<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin:8px 0;background:var(--surface)">' +
       '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
       _gradeBadge(grade) +
-      '<span style="flex:1;font-weight:600;color:#1e293b">' + _esc(audit.slug) + '</span>' +
-      '<span style="flex:none;font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8">' + _esc(kind) + '</span>' +
+      '<span style="flex:1;font-weight:600;color:var(--heading)">' + _esc(audit.slug) + '</span>' +
+      '<span style="flex:none;font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-subtle)">' + _esc(kind) + '</span>' +
       worstPill +
       '</div>' + body + '</div>';
   }
@@ -106,25 +108,25 @@
       .map(function (k) {
         var lvl = k === '—' ? -1 : parseInt(k.slice(1), 10);
         return '<span title="' + _esc(k) + ': ' + dist[k] + '" style="font-size:0.8em;font-weight:600;padding:1px 8px;' +
-          'border-radius:9999px;background:' + _gradeColor(lvl) + ';color:#fff">' + _esc(k) + ' ' + dist[k] + '</span>';
+          'border-radius:9999px;background:' + _gradeColor(lvl) + ';color:var(--on-fill)">' + _esc(k) + ' ' + dist[k] + '</span>';
       }).join('');
     var histo = chips
-      ? '<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><span style="color:#94a3b8;font-size:0.78em;' +
+      ? '<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><span style="color:var(--text-subtle);font-size:0.78em;' +
         'text-transform:uppercase;letter-spacing:0.05em">grade</span>' + chips + '</div>'
       : '';
 
     return '<div style="display:flex;gap:24px;align-items:baseline;flex-wrap:wrap;padding:12px 14px;' +
-      'border:1px solid #e5e7eb;border-radius:6px;background:#f8fafc;margin-bottom:12px">' +
-      '<div style="font-weight:700;font-size:1.05em;color:#1e293b">Reproducibility audit</div>' +
-      '<div style="color:#475569"><strong>' + nStudies + '</strong> studies</div>' +
-      '<div style="color:#475569"><strong>' + nInv + '</strong> investigations</div>' +
+      'border:1px solid var(--border);border-radius:6px;background:var(--surface-2);margin-bottom:12px">' +
+      '<div style="font-weight:700;font-size:1.05em;color:var(--heading)">Reproducibility audit</div>' +
+      '<div style="color:var(--text-secondary)"><strong>' + nStudies + '</strong> studies</div>' +
+      '<div style="color:var(--text-secondary)"><strong>' + nInv + '</strong> investigations</div>' +
       (nHard ? '<div style="color:' + hardColor + '"><strong>' + nHard + '</strong> hard failure' + (nHard === 1 ? '' : 's') + '</div>' : '') +
       histo +
       '</div>';
   }
 
   function _notice(html) {
-    return '<div style="padding:16px;color:#64748b;font-size:0.9em">' + html + '</div>';
+    return '<div style="padding:16px;color:var(--text-muted);font-size:0.9em">' + html + '</div>';
   }
 
   function _render(report) {
@@ -134,8 +136,8 @@
     var investigations = report.investigations || [];
     var parts = [_summaryHtml(report)];
     if (report.error) {
-      parts.push('<div style="padding:8px 12px;margin-bottom:10px;border-radius:6px;background:#fef3c7;' +
-        'color:#92400e;font-size:0.85em">Audit degraded: ' + _esc(report.error) + '</div>');
+      parts.push('<div style="padding:8px 12px;margin-bottom:10px;border-radius:6px;background:var(--warning-bg);' +
+        'color:var(--warning-fg);font-size:0.85em">Audit degraded: ' + _esc(report.error) + '</div>');
     }
     if (!studies.length && !investigations.length) {
       parts.push(_notice('No studies or investigations to audit in this workspace.'));

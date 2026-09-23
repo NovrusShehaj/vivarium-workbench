@@ -36,6 +36,7 @@ from pathlib import Path
 import yaml
 
 from vivarium_workbench.lib import install_errors as _install_errors
+from vivarium_workbench.lib import env_resolver as _env_resolver
 from vivarium_workbench.lib import registry as _registry
 from vivarium_workbench.lib import workspace_deps_views as _workspace_deps
 from vivarium_workbench.lib import workspace_yaml as _workspace_yaml
@@ -130,7 +131,7 @@ def system_deps_install(ws_root: Path, body: dict) -> tuple[dict, int]:
                 break
 
     # Re-check each requested dep after install attempts.
-    venv_py = ws_root / ".venv" / "bin" / "python3"
+    venv_py = _env_resolver.resolve_venv_python(ws_root) or (ws_root / ".venv" / "bin" / "python3")
     recheck = []
     for cn in check_names:
         check = by_name.get(cn)
@@ -189,13 +190,13 @@ def import_install(ws_root: Path, body: dict) -> tuple[dict, int]:
     # Pick installer: prefer pip in the venv; fall back to system `uv` when
     # the venv has no pip (created via `uv venv`). Both produce the same
     # editable install in the venv's site-packages.
-    venv_pip = ws_root / ".venv" / "bin" / "pip"
-    venv_py = ws_root / ".venv" / "bin" / "python3"
-    if venv_pip.exists():
+    venv_pip = _env_resolver.resolve_venv_pip(ws_root)
+    venv_py = _env_resolver.resolve_venv_python(ws_root)
+    if venv_pip and venv_pip.exists():
         cmd = [str(venv_pip), "install", "-e", target]
     else:
         uv_path = shutil.which("uv")
-        if uv_path and venv_py.exists():
+        if uv_path and venv_py and venv_py.exists():
             cmd = [uv_path, "pip", "install", "--python", str(venv_py), "-e", target]
         else:
             hint = (

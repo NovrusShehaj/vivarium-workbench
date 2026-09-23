@@ -50,8 +50,11 @@ jobs:
         #
         # `test` (polars/pyarrow/zarr) is REQUIRED here, unlike in types.yml:
         # without it 11 tests fail rather than skip, because the parquet/zarr
-        # readers are missing entirely.
-        run: uv sync --frozen --extra dev --extra test
+        # readers are missing entirely. `assistant` + `assistant-google` install
+        # the optional AI-assistant extension's deps (httpx, keyring, google-auth)
+        # for tests/assistant/; the core suite (incl. tests/test_no_ai_deps.py)
+        # never needs them.
+        run: uv sync --frozen --extra dev --extra test --extra assistant --extra assistant-google
       - name: pytest (shard ${{ matrix.group }}/4, quarantine deselected)
         # Serial single-job was ~14 min, xdist-only ~6 min. Sharding divides the
         # remaining test time by 4; the ~45s of checkout+sync is paid per shard
@@ -97,6 +100,6 @@ jobs:
         with:
           enable-cache: true
       - name: Install (locked)
-        run: uv sync --frozen --extra dev --extra test
+        run: uv sync --frozen --extra dev --extra test --extra assistant --extra assistant-google
       - name: pytest (quarantined only)
         run: uv run --frozen bash scripts/pytest_gate.sh --only-known

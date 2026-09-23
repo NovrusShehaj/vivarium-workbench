@@ -32,7 +32,8 @@ _warned_borrowed: set[str] = set()
 
 # venv interpreter relative paths — POSIX first (macOS/Linux, day one), then the
 # Windows layout (materialization-lifecycle §2b: Windows is a later target).
-_VENV_INTERPRETERS = (".venv/bin/python", ".venv/Scripts/python.exe")
+_VENV_INTERPRETERS = (".venv/bin/python", ".venv/bin/python3", ".venv/Scripts/python.exe")
+_VENV_PIPS = (".venv/bin/pip", ".venv/bin/pip3", ".venv/Scripts/pip.exe")
 
 
 def _linked_worktree_main(ws: Path) -> Path | None:
@@ -88,6 +89,44 @@ def resolve_interpreter(workspace: Path | str) -> str:
     if managed is not None:
         return managed
     return _fallback_interpreter(ws)
+
+
+def resolve_venv_python(workspace: Path | str) -> Path | None:
+    """Find the workspace's python executable, falling back to resolve_interpreter."""
+    ws = Path(workspace)
+    for rel in _VENV_INTERPRETERS:
+        cand = ws / rel
+        if cand.is_file():
+            return cand
+    main = _linked_worktree_main(ws)
+    if main is not None:
+        for rel in _VENV_INTERPRETERS:
+            cand = main / rel
+            if cand.is_file():
+                return cand
+    try:
+        resolved = resolve_interpreter(ws)
+        if resolved and Path(resolved).is_file():
+            return Path(resolved)
+    except Exception:
+        pass
+    return None
+
+
+def resolve_venv_pip(workspace: Path | str) -> Path | None:
+    """Find the workspace's pip executable, if one exists in its .venv or worktree."""
+    ws = Path(workspace)
+    for rel in _VENV_PIPS:
+        cand = ws / rel
+        if cand.is_file():
+            return cand
+    main = _linked_worktree_main(ws)
+    if main is not None:
+        for rel in _VENV_PIPS:
+            cand = main / rel
+            if cand.is_file():
+                return cand
+    return None
 
 
 #: Interpreters already checked for `vivarium_workbench`, so the probe below

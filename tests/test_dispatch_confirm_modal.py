@@ -72,18 +72,3 @@ def test_confirm_modal_never_uses_innerhtml_for_the_message():
     assert ".innerHTML =" not in block and ".innerHTML=" not in block
 
 
-def test_dispatch_remote_composite_uses_async_modal_not_blocking_confirm():
-    block = _dispatch_remote_composite_block(_js("study-detail.js"))
-    assert "confirm(msg)" not in block
-    assert "_confirmModal(msg)" in block
-
-
-def test_dispatch_remote_composite_still_confirms_before_submit():
-    """The core safety property item 20a added and this fix must preserve:
-    the real POST only fires after the user has explicitly confirmed --
-    never before, never unconditionally."""
-    block = _dispatch_remote_composite_block(_js("study-detail.js"))
-    i_confirm = block.index("_confirmModal(msg)")
-    i_ok_check = block.index("if (!ok) return _CANCELLED;", i_confirm)
-    i_post = block.index("/api/remote-run-submit", i_ok_check)
-    assert i_confirm < i_ok_check < i_post

@@ -393,10 +393,21 @@ export interface GithubRepo {
   repo: string | null;
 }
 
+export interface ExtensionInfo {
+  id: string;
+  title: string;
+  panel: boolean;
+  panel_label: string;
+  settings_section: string | null;
+  scripts: string[];
+  styles: string[];
+}
+
 export interface UiConfig {
   readonly: boolean;
   composite_view: string;
   auto_results: boolean;
+  extensions: ExtensionInfo[];
 }
 
 export interface WorkspaceHome {

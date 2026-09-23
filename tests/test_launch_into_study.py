@@ -133,26 +133,3 @@ def test_launch_into_study_remote_build_guard_409(tmp_path, monkeypatch):
     assert not called
 
 
-def test_launch_into_study_pinned_deployment_guard_409(tmp_path, monkeypatch):
-    """Item 18: a deployment-wide pin (VIVARIUM_WORKBENCH_REMOTE_PINNED), with
-    NO .viv-build.json in this workspace, must ALSO reject before any flush —
-    previously only the .viv-build.json case was caught here (invoke_run's own
-    run_target_for fallback), so a pinned deployment with a plain workspace
-    silently fell through to a local subprocess. Mirrors
-    test_launch_into_study_remote_build_guard_409 but for the pin condition."""
-    from vivarium_workbench.lib import remote_pinned
-    (tmp_path / "studies" / "s1").mkdir(parents=True)
-    assert not (tmp_path / ".viv-build.json").exists()  # the pin alone must be sufficient
-    monkeypatch.setattr(remote_pinned, "is_pinned_enabled", lambda: True)
-
-    called = []
-    monkeypatch.setattr(
-        study_runs, "_launch_run_and_flush",
-        lambda *a, **k: called.append(1) or ({}, 200),
-        raising=False,
-    )
-
-    resp, status = study_runs.launch_into_study(
-        tmp_path, "s1", "some.composite", {}, 5)
-    assert status == 409
-    assert not called

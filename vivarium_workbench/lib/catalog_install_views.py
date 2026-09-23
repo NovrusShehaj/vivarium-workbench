@@ -41,6 +41,7 @@ import sys
 from pathlib import Path
 
 from vivarium_workbench.lib import install_errors as _install_errors
+from vivarium_workbench.lib import env_resolver as _env_resolver
 from vivarium_workbench.lib import pyproject_edit as _pyproject_edit
 from vivarium_workbench.lib import registry as _registry
 from vivarium_workbench.lib import workspace_deps_views as _workspace_deps
@@ -174,7 +175,7 @@ def catalog_install(ws_root: Path, body: dict) -> tuple[dict, int]:
     sys_deps_block = entry.get("system_dependencies") or {}
     sys_deps_checks = sys_deps_block.get("checks") or []
     if sys_deps_checks and not bool(body.get("skip_system_deps_check")):
-        venv_py_for_check = ws_root / ".venv" / "bin" / "python3"
+        venv_py_for_check = _env_resolver.resolve_venv_python(ws_root) or (ws_root / ".venv" / "bin" / "python3")
         plat = _workspace_deps.platform_key()
         missing = []
         for check in sys_deps_checks:
@@ -213,23 +214,23 @@ def catalog_install(ws_root: Path, body: dict) -> tuple[dict, int]:
     abs_target = (ws_root / target_path).resolve()
 
     # Resolve uv / pip command upfront (before the action closure).
-    venv_pip = ws_root / ".venv" / "bin" / "pip"
-    venv_py = ws_root / ".venv" / "bin" / "python3"
+    venv_pip = _env_resolver.resolve_venv_pip(ws_root)
+    venv_py = _env_resolver.resolve_venv_python(ws_root)
     uv_path = shutil.which("uv")
 
     if use_pypi:
         # PyPI path: use uv exclusively (faster, no submodule needed).
-        if uv_path and venv_py.exists():
+        if uv_path and venv_py and venv_py.exists():
             pypi_install_cmd = [uv_path, "pip", "install", "--python", str(venv_py), pypi_name]
-        elif venv_pip.exists():
+        elif venv_pip and venv_pip.exists():
             pypi_install_cmd = [str(venv_pip), "install", pypi_name]
         else:
             return {"error": "neither pip nor uv available"}, 500
     else:
         # Git-submodule fallback: editable local install.
-        if venv_pip.exists():
+        if venv_pip and venv_pip.exists():
             pip_cmd_base = [str(venv_pip), "install", "-e"]
-        elif uv_path and venv_py.exists():
+        elif uv_path and venv_py and venv_py.exists():
             pip_cmd_base = [uv_path, "pip", "install", "--python", str(venv_py), "-e"]
         else:
             return {"error": "neither pip nor uv available"}, 500
@@ -339,7 +340,7 @@ def catalog_install(ws_root: Path, body: dict) -> tuple[dict, int]:
             # additively into the workspace venv first (best-effort, never
             # prunes). Modules without a uv.lock are unaffected.
             uv_lock = abs_target / "uv.lock"
-            if uv_path and venv_py.exists() and uv_lock.is_file():
+            if uv_path and venv_py and venv_py.exists() and uv_lock.is_file():
                 _install_locked_deps_with_uv(
                     uv_path, venv_py, abs_target,
                     timeout=_install_timeout(), log_holder=log_holder,

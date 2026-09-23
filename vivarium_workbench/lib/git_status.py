@@ -102,17 +102,22 @@ def diagnose_push_error(err: str) -> dict | None:
     return None
 
 
+def _normalize_repo_url(url: str) -> str:
+    """Strip a trailing ``.git`` and surrounding whitespace from a remote URL."""
+    url = url.strip()
+    if url.endswith(".git"):
+        url = url[: -len(".git")]
+    return url
+
+
 def remote_repo_url(ws_root: Path) -> str | None:
     """Return origin's normalized remote URL, or ``None`` when unresolved.
 
     Mirrors ``server._remote_repo_url`` parameterised on ``ws_root``: runs
     ``git remote get-url origin`` in ``cwd=ws_root``, returns ``None`` on a
-    non-zero exit or empty URL, else the URL normalized via
-    :func:`lib.source_build_views._normalize_repo_url` (reused, not re-copied —
-    server keeps its own ``_normalize_repo_url``; dedup at the flip).
+    non-zero exit or empty URL, else the URL normalized by
+    :func:`_normalize_repo_url`.
     """
-    from vivarium_workbench.lib.source_build_views import _normalize_repo_url
-
     r = subprocess.run(
         ["git", "remote", "get-url", "origin"], cwd=ws_root,
         capture_output=True, text=True, timeout=5,
@@ -139,15 +144,12 @@ def remote_push_and_sha(ws_root: Path) -> str:
     for this push only (the same mechanism ``actions/checkout`` uses) — it's
     never written to disk or to the persisted git config.
 
-    The push timeout (600s) matches ``remote_build_source._DOWNLOAD_TIMEOUT_S``
-    on purpose: a session bound to a switched build via
-    ``remote_build_source.ensure_git_workspace`` has NO shared history with
-    origin (a fresh ``git init``, not a clone), so its first push sends the
-    entire materialized tree as one brand-new commit — comparable in size to
-    the same content's tarball download, which needed that long over a slow
-    link. A short timeout here would surface as an opaque "internal server
-    error" (subprocess.TimeoutExpired is unhandled by any caller) instead of a
-    push that just needed more time.
+    The push timeout is deliberately long (600s): a workspace with no shared
+    history with origin (a fresh ``git init`` rather than a clone) sends its
+    entire tree as one brand-new commit on the first push. A short timeout
+    would surface as an opaque "internal server error"
+    (subprocess.TimeoutExpired is unhandled by any caller) instead of a push
+    that just needed more time.
     """
     from vivarium_workbench.lib import github_auth
 

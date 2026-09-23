@@ -67,11 +67,14 @@ def test_js_has_no_remote_run_handlers():
     assert "/api/remote-run-build" not in js
     assert "/api/remote-run-land" not in js
     assert "/api/remote-run-poll" not in js
-    # /api/remote-run-submit is now a deliberate, minimal caller (see above) —
-    # confirm it's the mode-aware dispatch, not the old thin client, calling it
+    # Phase 4 of the SMS retirement removed the last caller too: the
+    # mode-aware dispatch lost its remote branch (_dispatchRemotePinned) when
+    # /api/remote-run-submit and /api/remote-run-config retired with the SMS
+    # workflow surface. The local baseline dispatch remains.
     assert "_dispatchCurrentSpecBaseline" in js
-    assert "_dispatchRemotePinned" in js
-    assert "/api/remote-run-submit" in js
+    assert "_dispatchRemotePinned" not in js
+    assert "/api/remote-run-submit" not in js
+    assert "/api/remote-run-config" not in js
 
 
 def test_rendered_study_detail_has_no_remote_run_panel():

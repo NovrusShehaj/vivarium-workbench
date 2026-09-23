@@ -25,65 +25,6 @@ import yaml
 # -----------------------------------------------------------------------
 
 
-class TestBuildSourceBuilds:
-    """build_source_builds() — env-based, no ws_root."""
-
-    def test_happy_path(self, monkeypatch):
-        """When sms-api returns simulators, builds list is populated."""
-        from vivarium_workbench.lib import workspace_deps_views as wdv
-
-        canned = {"builds": [
-            {"simulator_id": 1, "repo": "v2ecoli", "commit": "abc123",
-             "branch": "main", "label": "v2ecoli @ abc123 (build #1)"},
-        ], "error": None}
-        monkeypatch.setattr(
-            "vivarium_workbench.lib.remote_build_source.list_build_sources",
-            lambda client: canned,
-        )
-        result = wdv.build_source_builds()
-        assert result == canned
-        assert isinstance(result["builds"], list)
-        assert result["error"] is None
-
-    def test_sms_api_down_returns_empty_with_error(self, monkeypatch):
-        """When sms-api is unreachable, builds is [] and error has a reason."""
-        from vivarium_workbench.lib import workspace_deps_views as wdv
-
-        monkeypatch.setattr(
-            "vivarium_workbench.lib.remote_build_source.list_build_sources",
-            lambda client: {"builds": [], "error": "connection refused"},
-        )
-        result = wdv.build_source_builds()
-        assert result["builds"] == []
-        assert result["error"] == "connection refused"
-
-    def test_uses_sms_api_base_env(self, monkeypatch):
-        """The SMS_API_BASE env var is forwarded to the SmsApiClient."""
-        from vivarium_workbench.lib import workspace_deps_views as wdv
-
-        seen_base: list[str] = []
-
-        class _FakeClient:
-            def __init__(self, base: str) -> None:
-                seen_base.append(base)
-
-        # Clear the canonical name: _sms_api_base reads VIVA_API_BASE first, and
-        # conftest's _isolate_viva_api_base sets both. This test exercises the
-        # legacy alias specifically (cf. test_env_worker_launcher, same pattern).
-        monkeypatch.delenv("VIVA_API_BASE", raising=False)
-        monkeypatch.setenv("SMS_API_BASE", "http://myproxy:9090")
-        monkeypatch.setattr(
-            "vivarium_workbench.lib.sms_api_client.SmsApiClient",
-            _FakeClient,
-        )
-        monkeypatch.setattr(
-            "vivarium_workbench.lib.remote_build_source.list_build_sources",
-            lambda client: {"builds": [], "error": None},
-        )
-        wdv.build_source_builds()
-        assert seen_base == ["http://myproxy:9090"]
-
-
 class TestBuildWorkspaces:
     """build_workspaces(ws_root) — reads catalog, joins server entries."""
 

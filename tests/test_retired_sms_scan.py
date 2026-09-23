@@ -4,43 +4,28 @@ The viva-api core separation retired the SMS surface (E. coli/ParCa/PTools).
 This gate enforces the workbench half of the plan
 (docs/superpowers/plans/2026-09-21-workbench-sms-retirement-and-smoldyn-backend-plan.md,
 §8): the retired endpoint path strings must not appear in *executable* remote
-code. Phase 4 deletes the remaining files; until then they are pinned in
-_RETIRED_FILES_PENDING_REMOVAL so the gate tightens automatically as phases
-land (a file removed from the tree drops out of the allowlist; a NEW file
-introducing one of these strings fails).
+code. Phase 4 removed the last of them, so the pending-removal allowlist is
+now empty and any reappearance fails.
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-#: Retired endpoint path fragments (viva-api core separation).
+#: Retired endpoint path fragments (viva-api core separation). Anchored to the
+#: API surface: a bare "/analyses/" also matches local study output directories
+#: (``<study>/analyses/<run_id>/``), which are not an endpoint.
 RETIRED_PATTERNS = (
     "/api/v1/simulations",
+    "/api/v1/analyses",
     "/core/v1/simulator",
-    "/analyses/",
+    "/core/v1/simulation/parca",
 )
 
-#: Files that still reference retired endpoints pending the Phase 4 removal.
-#: Everything here is scheduled for deletion or rewrite in Phase 4; a file
-#: dropping OFF this list (deleted or cleaned) is a tightening, and any OTHER
-#: file carrying one of these strings fails the gate.
-_RETIRED_FILES_PENDING_REMOVAL = {
-    "vivarium_workbench/api/app.py",
-    "vivarium_workbench/env_worker.py",
-    "vivarium_workbench/lib/composite_resolve.py",
-    "vivarium_workbench/lib/composite_runs.py",
-    "vivarium_workbench/lib/composite_test_run_views.py",
-    "vivarium_workbench/lib/remote_analysis_figures.py",
-    "vivarium_workbench/lib/remote_build_source.py",
-    "vivarium_workbench/lib/remote_pinned.py",
-    "vivarium_workbench/lib/remote_run_landing.py",
-    "vivarium_workbench/lib/remote_run_views.py",
-    "vivarium_workbench/lib/remote_simulations.py",
-    "vivarium_workbench/lib/sms_api_client.py",
-    "vivarium_workbench/lib/source_build_views.py",
-    "vivarium_workbench/lib/study_runs.py",
-}
+#: Files still referencing a retired endpoint. Phase 4 emptied this: every
+#: entry below would be a regression, not a known gap.
+_RETIRED_FILES_PENDING_REMOVAL: set[str] = set()
+
 
 _ROOT = Path(__file__).resolve().parents[1] / "vivarium_workbench"
 
@@ -91,3 +76,43 @@ def test_retired_strings_absent_from_new_backends():
         text = (_ROOT.parent / rel).read_text(encoding="utf-8")
         for pattern in RETIRED_PATTERNS:
             assert pattern not in text, f"{rel} unexpectedly references {pattern}"
+
+
+#: Modules and symbols the retirement removed outright. The plan's §8 criterion
+#: is "no SmsApiClient symbol remains"; the module names catch a file being
+#: restored from history without its callers being reviewed.
+_RETIRED_SYMBOLS = (
+    "SmsApiClient",
+    "sms_api_client",
+    "remote_run_views",
+    "remote_run_jobs",
+    "remote_pinned",
+    "remote_simulations",
+    "remote_build_source",
+    "source_build_views",
+    "remote_analysis_figures",
+    "remote_run_landing",
+    "remote_reconcile",
+    "comparison_pinning",
+)
+
+
+def test_no_retired_module_or_client_symbol_remains():
+    """Phase 4 deleted these; an import of one would not even resolve."""
+    offenders: dict[str, list[str]] = {}
+    for path in _ROOT.rglob("*.py"):
+        rel = path.relative_to(_ROOT.parent).as_posix()
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for symbol in _RETIRED_SYMBOLS:
+            # Word-anchored: `_append_remote_simulations` is a retained
+            # pass-through seam, not a reference to the deleted module.
+            pattern = re.compile(rf"(?<![\w.]){re.escape(symbol)}(?!\w)")
+            # Only flag live code, not the prose that records the removal.
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("#") or not stripped:
+                    continue
+                if pattern.search(line) and ("import " in line or f"{symbol}(" in line):
+                    offenders.setdefault(rel, []).append(symbol)
+                    break
+    assert not offenders, offenders

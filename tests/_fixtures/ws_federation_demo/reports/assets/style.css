@@ -1917,28 +1917,37 @@ body.popcard-mode .pcard-maximize{ display:none; }   /* already full-window */
 /* persistent Run bar (not an accordion) — always visible at the card's top level */
 /* Run bar: the ▶ RUN label IS the run button (cyan, matching a section head),
    with the Steps selector beside it — one compact group at the bar's start. */
+/* Match the loom's Explore run bar (.explore-runbar) so the collapsed card and
+   the open-loom surface read as one design. */
 .pcard-runbar{
-  display:flex; align-items:center; flex-wrap:wrap; gap:10px;
-  padding:6px 16px; border-top:1px solid #eef2f7; border-bottom:1px solid #eef2f7;
-  background:#fff; box-shadow:inset 3px 0 0 #0891b2;   /* cyan run accent */
+  display:flex; align-items:center; flex-wrap:wrap; gap:12px;
+  padding:7px 14px; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb;
+  background:#f8fafc; font-size:13px;
 }
-/* The RUN button: looks like the section-head label, acts like a button. */
+/* Mode pill — mirrors the loom run bar's ◇ steps / ◷ time chip. */
+.pcard-run-kind{
+  font-size:11px; font-weight:700; letter-spacing:.03em;
+  padding:2px 8px; border-radius:999px; white-space:nowrap; cursor:help; flex:none;
+  color:#7c3aed; background:#f3effe; border:1px solid #ddd0fb;   /* steps = purple */
+}
+/* The RUN button — solid teal, matching the loom's ▶ Run (.sr-run-btn). */
 .pcard-run-go{
   display:inline-flex; align-items:center; gap:6px; flex:none;
-  font-family:inherit; font-size:0.72em; font-weight:700;
-  text-transform:uppercase; letter-spacing:0.07em; line-height:1;
-  color:#0891b2; background:none;
-  border:1px solid transparent; border-radius:6px;
-  padding:6px 12px; cursor:pointer; transition:background .12s, border-color .12s;
+  font-family:inherit; font-size:13px; font-weight:600; line-height:1;
+  color:#fff; background:#0d6e6b;
+  border:none; border-radius:6px;
+  padding:6px 16px; cursor:pointer; transition:background .12s;
 }
-.pcard-run-go:hover{ background:#ecfeff; border-color:#a5f3fc; }
-.pcard-run-go:active{ background:#cffafe; }
-.pcard-run-go:disabled, .pcard-run-go-disabled{ opacity:.5; cursor:default; }
-.pcard-runbar .loom-run-field{ margin-left:6px; }      /* Steps sits next to the button */
-.pcard-runbar .pcard-run-note{ margin-left:10px; }     /* read-only note next to the button */
+.pcard-run-go:hover{ background:#0a5754; }
+.pcard-run-go:disabled, .pcard-run-go-disabled{ opacity:.6; cursor:not-allowed; }
+.pcard-runbar .loom-run-field{ margin-left:2px; font-size:13px; }   /* Steps label next to the button */
+.pcard-runbar .pcard-run-time{ width:64px; margin-left:2px; }
+.pcard-runbar .pcard-run-note{ margin-left:6px; }     /* read-only note next to the button */
 .pcard-run-out{ font-size:0.8em; color:#64748b; }
+/* OUTPUTS section head → teal, matching the loom's OUTPUTS toggle (.loom-outputs-toggle). */
+.pcard-sec-outputs > .pcard-sec-head .pcard-sec-name{ color:#0d6e6b; }
 :root[data-theme="dark"] .pcard-runbar{ background:var(--surface-1, #0f1728); border-color:var(--border-faint); }
-:root[data-theme="dark"] .pcard-run-go:hover{ background:rgba(8,145,178,.15); border-color:#0e7490; }
+:root[data-theme="dark"] .pcard-run-go:hover{ background:#0a5754; }
 
 /* resizable sections: capped, scrollable body + a drag grip (dbl-click = fit) */
 .pcard-sec-resizable.pcard-sec-open > .pcard-sec-body{ max-height:var(--pch,300px); overflow:auto; }
@@ -1998,18 +2007,25 @@ body.pcard-sec-resizing{ cursor:ns-resize; user-select:none; }
 .pcard-sec-feature > .pcard-sec-head:hover{ background:#f4efff; }
 .pcard-sec-feature > .pcard-sec-head .pcard-sec-caret{ color:#7c3aed; }
 .pcard-sec-feature > .pcard-sec-head .pcard-sec-name{ color:#6d28d9; }
-/* Unified composite header IS the single loom toggle: hide the separate
-   "Explore" accordion strip on composite cards; the header caret drives it. */
+/* The single loom toggle is the full-width "graph" bar; hide the separate
+   "Explore" accordion head on composite cards. */
 .pcard-composite .pcard-sec-explore > .pcard-sec-head{ display:none; }
 .pcard-composite .pcard-sec-feature{ background:transparent; }
-/* Obvious Explore button (replaces the tiny caret). */
-.pcard-explore-btn{
-  border:1px solid #b7ebe3; background:#ecfdf9; color:#0d6e6b; cursor:pointer;
-  font-size:12px; font-weight:700; line-height:1; padding:4px 11px; border-radius:6px;
-  flex:none; align-self:center; margin-right:2px; white-space:nowrap;
+/* Full-width "graph" bar — the ONE control that opens the loom. Styled to match
+   the loom's own collapsed graph grip so the handoff (card bar → loom's own grip)
+   is seamless: same height, ground, centered handle + "▸ graph" label. */
+.pcard-graph-bar{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  width:100%; height:22px; padding:0; border:1px solid #e5e7eb; border-left:0; border-right:0;
+  background:#eef2f7; color:#64748b; cursor:pointer; user-select:none;
 }
-.pcard-explore-btn:hover{ background:#d5f2ee; border-color:#4bb3ae; }
-.pcard-loom-open .pcard-explore-btn{ background:#fff; color:#475569; border-color:#e5e7eb; }
+.pcard-graph-bar:hover{ background:#e6edf5; }
+.pcard-graph-bar-handle{ width:40px; height:4px; border-radius:999px; background:#cbd5e1; }
+.pcard-graph-bar:hover .pcard-graph-bar-handle{ background:#94a3b8; }
+.pcard-graph-bar-label{ font-size:11px; font-weight:600; letter-spacing:.02em; }
+/* The card-level bar is only the pre-mount trigger. Once the loom is open it owns
+   run + outputs + the graph grip, so hide the card-level bar (one control shows). */
+.pcard-composite.pcard-loom-open > .loom-card > .pcard-acc > .pcard-graph-bar{ display:none; }
 /* Collapse-the-bar button (⤢): only useful once the loom is open. */
 .pcard-hdr-collapse{
   border:1px solid #e5e7eb; background:#fff; color:#64748b; cursor:pointer;
@@ -2155,6 +2171,10 @@ body.pcard-sec-resizing{ cursor:ns-resize; user-select:none; }
 .pcard-sec-wide > .pcard-sec-body{ padding:0; }
 .pcard-sec-wide .pcard-loom{ margin:0; }
 .pcard-sec-wide .ccard-loom-frame{ width:100%; min-height:340px; }
+/* Composite loom frame is auto-height (JS sizes it to the loom's content via
+   explore:autoheight, floored at 120px). Drop the 340px min so a collapsed graph
+   + closed outputs shrinks to a compact strip instead of leaving white space. */
+.pcard-composite .ccard-loom-frame{ min-height:0; }
 .pcard-composite .loom-card-composite{ position:relative; }
 .pcard-composite .composite-ws-tag{ margin-left:8px; }
 :root[data-theme="dark"] .proc-kind-composite ~ .composite-ws-tag{ opacity:0.9; }
@@ -4379,21 +4399,6 @@ details.overview-section[open] > summary.overview-label{ margin-bottom:8px; }
   border-radius: 5px; padding: 3px 11px; cursor: pointer;
 }
 .ccard-loom-live-btn:hover { background: #047857; }
-/* Drag-to-resize grip at the bottom of an embedded loom — grow/shrink the panel
-   (and the card with it). Full-width bar so the gesture is obvious. */
-.ccard-loom-resize {
-  flex: 0 0 11px; cursor: ns-resize; background: #eef2f7;
-  border-top: 1px solid #d5dde8; position: relative; touch-action: none;
-  user-select: none;
-}
-.ccard-loom-resize::before {
-  content: ''; position: absolute; left: 50%; top: 50%;
-  width: 34px; height: 3px; margin: -1.5px 0 0 -17px; border-radius: 2px;
-  background: #9aa7b8;
-}
-.ccard-loom-resize:hover { background: #e2e8f2; }
-.ccard-loom-resize:hover::before { background: #6b7a90; }
-.ccard-loom-frame.is-resizing { user-select: none; }
 .ccard {
   display: flex; flex-direction: column; gap: 7px;
   border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;
@@ -4544,6 +4549,12 @@ details.overview-section[open] > summary.overview-label{ margin-bottom:8px; }
   position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
   background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.28); transition:left .18s ease;
 }
+/* Low-priority control: hidden until the rail-bottom corner is hovered (or the
+   toggle itself is keyboard-focused), so it stays out of the studies list's way.
+   The footer keeps its box, so the invisible button is still a hover target. */
+.viv-rail-theme-footer .viv-theme-toggle{ opacity:0; transition:opacity .15s ease; }
+.viv-rail-theme-footer:hover .viv-theme-toggle,
+.viv-theme-toggle:focus-visible{ opacity:1; }
 
 /* ── Dark theme (dark-blue) ──────────────────────────────────────────────
    The whole palette lives in the variables below — tweak the look from one
@@ -5050,3 +5061,15 @@ body.col-resizing .registry-table.reg-table-fill th, body.col-resizing .registry
 }
 :root[data-theme="dark"] .composite-figure-group{ border-bottom-color:var(--border); }
 :root[data-theme="dark"] .composite-figure-group span{ color:#5eead4; }
+
+/* Model tab — formatted composite config ("the model file", e.g. Smoldyn). */
+.model-source{ margin-top:10px; display:flex; flex-direction:column; gap:12px; }
+.model-source-head{ font-size:0.85em; margin-bottom:4px; }
+.model-source-pre{
+  margin:0; padding:12px 14px; border:1px solid var(--border);
+  border-radius:8px; background:var(--surface-2, #f6f8fa);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:12px; line-height:1.5; white-space:pre; overflow-x:auto;
+  color:var(--text, #1f2328); max-height:420px; overflow-y:auto;
+}
+:root[data-theme="dark"] .model-source-pre{ background:#0f141b; color:#d5dae2; }

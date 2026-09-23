@@ -100,15 +100,15 @@
     modal.className = 'viv-gh-modal';
     modal.style.cssText = `
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.45); z-index: 2000;
+      background: var(--overlay); z-index: 2000;
       align-items: center; justify-content: center;
     `;
     modal.innerHTML = `
       <div class="viv-gh-card" style="
-        background: var(--panel, #fff); color: var(--text, #1a1a1a);
+        background: var(--panel, var(--surface)); color: var(--text);
         border-radius: 8px; padding: 24px 28px;
         min-width: 380px; max-width: 520px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+        box-shadow: var(--shadow-2);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       ">
         <h3 style="margin: 0 0 12px 0;">Sign in with GitHub</h3>
@@ -119,24 +119,24 @@
           font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
           font-size: 28px; font-weight: 700; letter-spacing: 4px;
           text-align: center; padding: 14px;
-          background: var(--page, #f7f7f8);
-          border: 1px dashed var(--border, #d0d0d4);
+          background: var(--surface-2);
+          border: 1px dashed var(--border);
           border-radius: 6px; cursor: pointer; user-select: all;
           margin-bottom: 16px;
         " title="Click to copy">······</div>
         <p style="margin: 0 0 16px 0; font-size: 13px;">
-          <a class="viv-gh-link" href="#" target="_blank" rel="noopener" style="color: var(--accent, #2563eb); font-weight: 600;">
+          <a class="viv-gh-link" href="#" target="_blank" rel="noopener" style="color: var(--accent, var(--link)); font-weight: 600;">
             Open github.com/login/device →
           </a>
         </p>
-        <p class="viv-gh-poll-status" style="margin: 0 0 16px 0; font-size: 13px; color: var(--muted, #666);">
+        <p class="viv-gh-poll-status" style="margin: 0 0 16px 0; font-size: 13px; color: var(--muted, var(--text-secondary));">
           Waiting for you to authorize…
         </p>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
           <button type="button" class="viv-gh-cancel" style="
             appearance: none; padding: 8px 16px; border-radius: 6px;
-            border: 1px solid var(--border, #d0d0d4); background: var(--panel, #fff);
-            color: var(--text, #1a1a1a); font-size: 14px; cursor: pointer;
+            border: 1px solid var(--border); background: var(--panel, var(--surface));
+            color: var(--text); font-size: 14px; cursor: pointer;
           ">Cancel</button>
         </div>
       </div>
@@ -158,7 +158,10 @@
     link.href = verifyUrl;
     link.textContent = 'Open ' + payload.verification_uri + ' →';
     modal.querySelector('.viv-gh-poll-status').textContent = 'Waiting for you to authorize…';
-    modal.style.display = 'flex';
+    // Dialog semantics (focus trap, Escape, focus restore) via static/dialog.js;
+    // Escape and focus restore both go through closeModal's cleanup.
+    if (window.vivDialog) window.vivDialog.open(modal, { onClose: stopFlow });
+    else modal.style.display = 'flex';
     // Open the verification URL in a new tab so the user doesn't have to
     // copy/paste. Browsers block popups outside trusted gestures — startFlow
     // *is* a trusted gesture (the chip click), but the await before this
@@ -167,10 +170,15 @@
     try { window.open(verifyUrl, '_blank', 'noopener'); } catch (_e) { /* ignored */ }
   }
 
-  function closeModal() {
-    if (modal) modal.style.display = 'none';
+  function stopFlow() {
     if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
     currentFlowId = null;
+  }
+
+  function closeModal() {
+    if (modal && window.vivDialog && window.vivDialog.isOpen(modal)) window.vivDialog.close(modal);  // runs stopFlow
+    else if (modal) modal.style.display = 'none';
+    stopFlow();
   }
 
   // -----------------------------------------------------------------------
@@ -262,7 +270,7 @@
       const token = (input.value || '').trim();
       if (!token) { if (msg) msg.textContent = 'Paste a token first.'; return; }
       submit.disabled = true;
-      if (msg) { msg.style.color = '#666'; msg.textContent = 'Verifying…'; }
+      if (msg) { msg.style.color = 'var(--text-secondary)'; msg.textContent = 'Verifying…'; }
       let resp, body;
       try {
         resp = await fetch('/api/auth/github/token', {
@@ -272,20 +280,20 @@
         });
         body = await resp.json().catch(() => ({}));
       } catch (err) {
-        if (msg) { msg.style.color = '#b91c1c'; msg.textContent = 'Network error.'; }
+        if (msg) { msg.style.color = 'var(--danger-fg)'; msg.textContent = 'Network error.'; }
         submit.disabled = false;
         return;
       }
       submit.disabled = false;
       if (resp.ok && body.authenticated) {
         input.value = '';
-        if (msg) { msg.style.color = '#15803d'; msg.textContent = 'Signed in as @' + body.login; }
+        if (msg) { msg.style.color = 'var(--success-fg)'; msg.textContent = 'Signed in as @' + body.login; }
         box.style.display = 'none';
         refreshChip();
         if (window._loadGithubOrgs) window._loadGithubOrgs();
       } else {
         if (msg) {
-          msg.style.color = '#b91c1c';
+          msg.style.color = 'var(--danger-fg)';
           msg.textContent = (body.hint || body.detail || body.error || ('HTTP ' + resp.status));
         }
       }

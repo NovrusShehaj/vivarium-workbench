@@ -38,14 +38,14 @@ body.snapshot #snapshot-banner {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  background: #fffbeb;
-  border-bottom: 1px solid #fcd34d;
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
   font-size: 0.88em;
-  color: #92400e;
+  color: var(--warning-fg);
   flex-shrink: 0;
 }
 body.snapshot #snapshot-banner a {
-  color: #b45309;
+  color: var(--warning-fg);
   font-weight: 600;
   text-decoration: underline;
   white-space: nowrap;
@@ -102,7 +102,7 @@ body.readonly .js-authoring {
 /* Remote-only (read-only) client: the workspace status dot is purple (remote),
    not the local green. */
 body.readonly .viv-workspace-switcher-glyph {
-  color: #7c3aed !important;
+  color: var(--accent2) !important;
 }
 
 /* ── Sources add-* modals ────────────────────────────────────────────── */

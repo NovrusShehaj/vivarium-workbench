@@ -89,46 +89,17 @@ def _iter_study_dirs(ws_root: Path):
 # ---------------------------------------------------------------------------
 
 def _remote_study_run_stats(ws_root: Path) -> dict:
-    """``study_slug -> {"count": int, "last_run_ts": float|None}`` for remote runs.
+    """``study_slug -> {"count": int, "last_run_ts": float|None}`` — now always empty.
 
-    A remote (GovCloud) run lives in the Simulations index (its store is an
-    ``s3://`` uri, so it has no local ``runs.db``/``study.yaml`` entry). Without
-    this the study card's ``n_runs`` stays 0 — and its Last-run stays blank —
-    even when the study's runs completed remotely and are study-tagged (via the
-    workspace ``remote_run_study_map``). Gated on that map so only workspaces
-    that opted into remote-run association pay the sms-api fetch.
-
-    Uses the STALE-WHILE-REVALIDATE fetch (``list_remote_simulations_swr``): the
-    sms-api round-trip can take ~minutes over a laggy tunnel, and the study index
-    must not block on it. A cold render returns no remote stats and kicks a
-    background refresh; the counts/last-run populate on a subsequent load once the
-    cache warms. Best-effort — never raises.
+    This counted GovCloud runs that lived only in the retired SMS simulations
+    index (an ``s3://`` store with no local ``runs.db``/``study.yaml`` entry),
+    fetched from sms-api and joined to studies through the workspace's
+    ``remote_run_study_map``. That surface is retired, so a study card's
+    ``n_runs`` and Last-run now come from local runs and published snapshots
+    alone. Kept as an empty-result seam so the card's max/merge logic and its
+    callers are unchanged.
     """
-    try:
-        from vivarium_workbench.lib.remote_simulations import (
-            _load_remote_study_map, list_remote_simulations_swr)
-        if not _load_remote_study_map(ws_root):
-            return {}
-        rows = list_remote_simulations_swr(ws_root)
-    except Exception:
-        return {}
-    stats: dict = {}
-    for r in rows:
-        if not isinstance(r, dict):
-            continue
-        slug = r.get("study_slug")
-        if not slug:
-            continue
-        s = stats.setdefault(slug, {"count": 0, "last_run_ts": None})
-        s["count"] += 1
-        raw = r.get("completed_at") or r.get("started_at")
-        try:
-            ts = float(raw) if raw is not None else None
-        except (TypeError, ValueError):
-            ts = None
-        if ts is not None and (s["last_run_ts"] is None or ts > s["last_run_ts"]):
-            s["last_run_ts"] = ts
-    return stats
+    return {}
 
 
 def _remote_study_run_counts(ws_root: Path) -> dict:

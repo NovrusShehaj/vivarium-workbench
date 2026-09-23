@@ -104,6 +104,19 @@ bash scripts/serve.sh                     # convenience wrapper
 `serve --workspace <workspace-root>`. The dashboard renders the workspace once,
 picks a free port (or `--port`), prints the URL, and serves until Ctrl-C.
 
+Other `serve` options:
+
+- **`--allowed-host NAME`** (repeatable, or `VIVARIUM_WORKBENCH_ALLOWED_HOSTS`)
+  adds a `Host` name the server answers to. On the default loopback bind only
+  loopback names are accepted.
+- **`--enable-extension ID`** (repeatable, or `VIVARIUM_WORKBENCH_EXTENSIONS`)
+  loads an opt-in extension. For example, `assistant` needs the `[assistant]`
+  extra; see [assistant.md](assistant.md).
+
+Per-user settings (the assistant's configuration, conversations and audit log)
+live in `VIVARIUM_WORKBENCH_CONFIG_DIR` / `VIVARIUM_WORKBENCH_DATA_DIR`, which
+default to the XDG directories, never inside the workspace.
+
 ---
 
 ## Local development against a sibling checkout

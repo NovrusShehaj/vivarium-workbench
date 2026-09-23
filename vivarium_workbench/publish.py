@@ -171,6 +171,23 @@ def _apply_base_path(html: str, base_path: str) -> str:
     return re.sub(r'\b(src|href)="(/[^"]+)"', _prefix, html)
 
 
+def _theme_loom_index(index_html: Path) -> None:
+    """Make the published loom viewer follow the workbench theme.
+
+    The live server injects the theme boot + ``tokens.css`` + ``theme.js`` into
+    the loom's ``index.html`` on every request (``api/app.py``
+    ``bigraph_loom_asset``); the bundle's copy gets the same head, pointing at
+    the bundle's ``assets/`` RELATIVELY (``bigraph-loom/`` sits next to it) so it
+    works under any hosting base path.
+    """
+    if not index_html.is_file():
+        return
+    from vivarium_workbench.lib.report import inject_head_snippet, theme_head_snippet
+    html = index_html.read_text(encoding="utf-8")
+    index_html.write_text(
+        inject_head_snippet(html, theme_head_snippet("../assets/")), encoding="utf-8")
+
+
 def _stage_embed_visualizations(spec, ws_root: Path, out_dir: Path,
                                 base_path: str) -> None:
     """Copy a study's ``embed_visualizations`` source files into the bundle and
@@ -1441,6 +1458,7 @@ def _do_build(
         if loom_dst.exists():
             shutil.rmtree(loom_dst)
         shutil.copytree(str(loom_src), str(loom_dst))
+        _theme_loom_index(loom_dst / "index.html")
     except Exception as exc:
         print(f"  warn: loom _dist not found — did you run scripts/build_loom.sh? ({exc})")
 

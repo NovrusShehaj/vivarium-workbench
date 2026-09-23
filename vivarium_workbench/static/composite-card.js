@@ -253,15 +253,15 @@
     var full = _esc(cmd);
     return '<div class="run-cmd-chip" onclick="event.stopPropagation()" ' +
         'style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:4px 6px;' +
-        'background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72em;min-width:0">' +
-      '<span aria-hidden="true" style="color:#94a3b8;flex:none;font-family:ui-monospace,monospace">$</span>' +
+        'background:var(--surface-2);border:1px solid var(--border);border-radius:5px;font-size:0.72em;min-width:0">' +
+      '<span aria-hidden="true" style="color:var(--text-subtle);flex:none;font-family:ui-monospace,monospace">$</span>' +
       '<code title="' + full + '" style="flex:1 1 auto;min-width:0;overflow:hidden;' +
-        'text-overflow:ellipsis;white-space:nowrap;color:#334155;' +
+        'text-overflow:ellipsis;white-space:nowrap;color:var(--text);' +
         'font-family:ui-monospace,SFMono-Regular,Menlo,monospace">' + full + '</code>' +
       '<button type="button" class="run-cmd-copy" data-cmd="' + full + '" ' +
         'onclick="event.stopPropagation();_copyRunCmd(this)" title="Copy command" ' +
-        'style="flex:none;font-size:0.95em;cursor:pointer;border:1px solid #cbd5e1;' +
-        'background:#fff;border-radius:4px;padding:1px 6px;color:#475569">copy</button>' +
+        'style="flex:none;font-size:0.95em;cursor:pointer;border:1px solid var(--border-2);' +
+        'background:var(--surface);border-radius:4px;padding:1px 6px;color:var(--text-secondary)">copy</button>' +
     '</div>';
   }
   window._runCmdChip = _runCmdChip;
@@ -271,8 +271,8 @@
     if (!cmd) return;
     var done = function () {
       var prev = btn.getAttribute('data-label') || 'copy';
-      btn.textContent = 'copied'; btn.style.color = '#047857';
-      setTimeout(function () { btn.textContent = prev; btn.style.color = '#475569'; }, 1200);
+      btn.textContent = 'copied'; btn.style.color = 'var(--success-fg)';
+      setTimeout(function () { btn.textContent = prev; btn.style.color = 'var(--text-secondary)'; }, 1200);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(cmd).then(done, done);
@@ -732,22 +732,22 @@
     if (nproc) metaBits.push(nproc + ' process' + (nproc === 1 ? '' : 'es'));
     if (np) metaBits.push(np + ' param' + (np === 1 ? '' : 's'));
     var meta = metaBits.length
-      ? '<div class="reg-card-meta" style="font-size:11px;color:#6b7280;margin:2px 0 4px">' + metaBits.join(' · ') + '</div>' : '';
+      ? '<div class="reg-card-meta" style="font-size:11px;color:var(--text-subtle);margin:2px 0 4px">' + metaBits.join(' · ') + '</div>' : '';
     var tags = Array.isArray(c.tags) ? c.tags.slice(0, 3) : [];
     var tagHtml = tags.length
       ? '<div class="reg-card-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">' +
-          tags.map(function (t) { return '<span style="font-size:10px;color:#6d28d9;background:#f5f3ff;border:1px solid #e9d5ff;border-radius:4px;padding:1px 6px">' + _esc(t) + '</span>'; }).join('') +
+          tags.map(function (t) { return '<span style="font-size:10px;color:var(--accent2);background:var(--accent2-bg);border:1px solid var(--accent2-border);border-radius:4px;padding:1px 6px">' + _esc(t) + '</span>'; }).join('') +
         '</div>' : '';
     var actions = '<div class="reg-card-actions" style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">' +
       '<button type="button" onclick="event.stopPropagation();_enterMaxcardMode(\'' + idA + '\',\'composite\')" ' +
         'title="Open maximized with the interactive bigraph (Explore) pinned at the top" ' +
-        'style="height:26px;padding:0 11px;font-size:12px;font-weight:600;background:#2563eb;color:#fff;border:1px solid #2563eb;border-radius:5px;cursor:pointer">🔍 Explore</button>' +
+        'style="height:26px;padding:0 11px;font-size:12px;font-weight:600;background:var(--link);color:var(--bg);border:1px solid var(--link);border-radius:5px;cursor:pointer">🔍 Explore</button>' +
       '<button type="button" onclick="event.stopPropagation();_cardPopout(this,\'' + idA + '\',\'composite\')" ' +
         'title="Pop out into its own window" ' +
-        'style="height:26px;padding:0 9px;font-size:12px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:5px;cursor:pointer">⧉ Pop out</button>' +
+        'style="height:26px;padding:0 9px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border-2);border-radius:5px;cursor:pointer">⧉ Pop out</button>' +
       '<button type="button" onclick="event.stopPropagation();_setRegistryZoom(\'full\')" ' +
         'title="Open the full card (Configure · Inputs · Run)" ' +
-        'style="height:26px;padding:0 9px;font-size:12px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:5px;cursor:pointer">Full card</button>' +
+        'style="height:26px;padding:0 9px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border-2);border-radius:5px;cursor:pointer">Full card</button>' +
     '</div>';
     return '<div class="registry-card' + selCls + '" data-address="' + idA + '" data-kind="composite"' +
         ' onclick="_selectRegistryEntry(\'' + idA + '\')" ondblclick="_enterMaxcardMode(\'' + idA + '\',\'composite\')"' +
@@ -786,21 +786,21 @@
         // SPECIFIC Cloud build, not just that the workspace "runs on cloud".
         // Green/cloud styling separates the ready-to-dispatch state from the
         // amber "no build" blocker and the grey Local state.
-        if (b) return { label: '▶ Run → ☁ Cloud · build #' + b.simulator_id, bg: '#e7f6ec', fg: '#1a7f4b',
+        if (b) return { label: '▶ Run → ☁ Cloud · build #' + b.simulator_id, bg: 'var(--success-bg)', fg: 'var(--success-fg)',
           tip: '▶ Run dispatches to the Cloud (GovCloud) against build #' + b.simulator_id +
                (b.commit ? ' (' + String(b.commit).slice(0, 7) + ')' : '') +
                '. It runs the build’s committed code — local edits not in that build won’t apply. ' +
                'The dispatch itself takes ~15-25s (sms-api registers the run over the SSM tunnel); the card tracks it robustly once it lands.' };
-        return { label: '☁ Cloud · no build ⚠', bg: '#fdf0e3', fg: '#a15c12',
+        return { label: '☁ Cloud · no build ⚠', bg: 'var(--warning-bg)', fg: 'var(--warning-fg)',
           tip: 'Cloud is active but no build is selected — a Run is blocked. Pick or build one, or switch to Local.' };
       }
     } catch (e) { /* VivEnv unavailable → fall through to preflight */ }
     var known = !!(pf && pf.target);
     var cloud = known && pf.target === 'deployment';
-    if (!known) return { label: 'Runs: —', bg: '#eef1f4', fg: '#8a97a4', tip: 'Could not determine where a Run will execute.' };
-    if (cloud) return { label: 'Runs: Cloud', bg: '#e6f0fb', fg: '#1e5fa4',
+    if (!known) return { label: 'Runs: —', bg: 'var(--surface-3)', fg: 'var(--text-muted)', tip: 'Could not determine where a Run will execute.' };
+    if (cloud) return { label: 'Runs: Cloud', bg: 'var(--info-bg)', fg: 'var(--link)',
       tip: pf.message || 'This workspace runs on the Cloud (GovCloud) deployment — ▶ Run dispatches remotely.' };
-    return { label: 'Runs: Local', bg: '#eef1f4', fg: '#667085',
+    return { label: 'Runs: Local', bg: 'var(--surface-3)', fg: 'var(--text-secondary)',
       tip: (pf.message || 'This workspace runs locally.') +
         ' Switch the Environment scope to Cloud (with a build selected) to dispatch a Run remotely instead.' };
   }
@@ -863,7 +863,7 @@
     var desc = (c.description || '').trim();
     var sel = (window._registrySelected && window._registrySelected === c.id) ? ' reg-selected' : '';
     var wsPill = c.workspace_local ? '<span class="composite-ws-tag">📦 workspace</span>' : '';
-    var roPill = c.read_only ? '<span class="tag-pill" style="background:#fef2f2;color:#b91c1c;margin-left:6px">read-only</span>' : '';
+    var roPill = c.read_only ? '<span class="tag-pill" style="background:var(--danger-bg);color:var(--danger-fg);margin-left:6px">read-only</span>' : '';
 
     var chip = function (k) { return '<code class="pcard-chip">' + _esc(k) + '</code>'; };
     var cfgChips = nCfg
@@ -906,7 +906,7 @@
             '<span class="loom-name">' + _esc(c.name) + '</span>' + _compositeBadge() + _compositeTierBadge(c) + wsPill + roPill +
             '<span class="pcard-runtarget" data-role="runtarget" title="checking where a Run will execute…" ' +
               'style="display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;' +
-              'background:#eef1f4;color:#8a97a4;vertical-align:middle">Runs: …</span>' +
+              'background:var(--surface-3);color:var(--text-muted);vertical-align:middle">Runs: …</span>' +
             '<code class="loom-addr">' + _esc(addr) + '</code>' +
             // Build-error warning chip (PR #1111 degrade). Hidden until a
             // composite-state fetch reports the shown wiring is stale/degraded
@@ -914,7 +914,7 @@
             // the workbench's status-pill convention; informational, non-blocking.
             '<span class="pcard-build-warn" data-role="build-warn" hidden ' +
               'style="display:none;margin-left:8px;padding:1px 9px;border-radius:10px;' +
-              'font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fde68a;' +
+              'font-size:11px;font-weight:600;background:var(--warning-bg);color:var(--warning-fg);border:1px solid var(--warning-border);' +
               'vertical-align:middle;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>' +
             '<button class="pcard-hdr-collapse" type="button" onclick="event.stopPropagation();_toggleCardHeader(this)" title="Collapse this bar to maximize the view">⌃</button>' +
             _shareCompositeBtn() +

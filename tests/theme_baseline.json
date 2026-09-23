@@ -1,0 +1,82 @@
+{
+  "_comment": "Shrink-only colour-debt counts per UI file; see tests/test_theme_ratchet.py.",
+  "files": {
+    "vivarium_workbench/static/audit.js": {
+      "dark_rules": 0,
+      "hex": 7,
+      "inline_color": 0,
+      "rgb": 0,
+      "style_star": 0
+    },
+    "vivarium_workbench/static/progress-track.css": {
+      "dark_rules": 14,
+      "hex": 10,
+      "inline_color": 0,
+      "rgb": 3,
+      "style_star": 0
+    },
+    "vivarium_workbench/static/session-status.js": {
+      "dark_rules": 0,
+      "hex": 17,
+      "inline_color": 12,
+      "rgb": 1,
+      "style_star": 0
+    },
+    "vivarium_workbench/static/simularium-viewer.html": {
+      "dark_rules": 0,
+      "hex": 8,
+      "inline_color": 0,
+      "rgb": 0,
+      "style_star": 0
+    },
+    "vivarium_workbench/static/snapshot-readonly.css": {
+      "dark_rules": 2,
+      "hex": 2,
+      "inline_color": 0,
+      "rgb": 2,
+      "style_star": 0
+    },
+    "vivarium_workbench/static/study-detail.js": {
+      "dark_rules": 0,
+      "hex": 2,
+      "inline_color": 4,
+      "rgb": 6,
+      "style_star": 0
+    },
+    "vivarium_workbench/static/style.css": {
+      "dark_rules": 331,
+      "hex": 506,
+      "inline_color": 0,
+      "rgb": 61,
+      "style_star": 19
+    },
+    "vivarium_workbench/static/walkthrough.js": {
+      "dark_rules": 0,
+      "hex": 9,
+      "inline_color": 1,
+      "rgb": 3,
+      "style_star": 0
+    },
+    "vivarium_workbench/templates/index.html.j2": {
+      "dark_rules": 130,
+      "hex": 122,
+      "inline_color": 8,
+      "rgb": 45,
+      "style_star": 0
+    },
+    "vivarium_workbench/templates/investigation-report.html": {
+      "dark_rules": 1,
+      "hex": 64,
+      "inline_color": 0,
+      "rgb": 10,
+      "style_star": 0
+    },
+    "vivarium_workbench/templates/study-detail.html": {
+      "dark_rules": 102,
+      "hex": 91,
+      "inline_color": 3,
+      "rgb": 47,
+      "style_star": 0
+    }
+  }
+}

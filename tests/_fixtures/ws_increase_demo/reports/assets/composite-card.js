@@ -90,15 +90,38 @@
   window._compositeTierBadge = _compositeTierBadge;
   window._compositeFigure = _compositeFigure;
 
-  // A card header "pop out" control — opens the whole card (Explore/loom and
-  // all) in its own focused window. The onclick references _popoutCard,
-  // which is Modules-page-only (its ?popcard= handshake lives in
-  // walkthrough.js's own bootstrap) — inert elsewhere.
+  // A card header "pop out" control (⧉ = its own window) — opens the whole card
+  // (Explore/loom and all) in its own focused window. Routed through _cardPopout
+  // so it works on EVERY page, not just Modules.
   function _cardPopoutBtn(address, kind) {
     return '<button class="pcard-popout" type="button" title="Pop out this card into its own window" ' +
-      'onclick="event.stopPropagation();_popoutCard(\'' + _esc(address) + '\',\'' + _esc(kind) + '\')">⤢</button>';
+      'onclick="event.stopPropagation();_cardPopout(this,\'' + _esc(address) + '\',\'' + _esc(kind) + '\')">⧉</button>';
   }
   window._cardPopoutBtn = _cardPopoutBtn;
+
+  // Robust pop-out. On the Modules page walkthrough.js provides the rich
+  // ?popcard= handshake (_popoutCard). On any other page (Study→Model embed, a
+  // loom viewer) that function isn't loaded — and inside an embed IFRAME the
+  // ?popcard= reload targets the wrong document — so fall back to opening the
+  // composite's standalone loom in a new window. Either way, pop-out opens a
+  // window (that's its job); maximize (⛶) fills the pane in place.
+  function _cardPopout(btn, address, kind) {
+    var card = (btn && btn.closest) ? btn.closest('.registry-entry-full, .registry-card') : null;
+    var id = address || (card && card.getAttribute('data-address'));
+    var inIframe = !!(window.parent && window.parent !== window);
+    if (!inIframe && typeof window._popoutCard === 'function') {
+      window._popoutCard(id, kind || 'composite');
+      return;
+    }
+    if (!id) return;
+    var apiUrl = (window.DataSource && window.DataSource.apiUrl)
+      ? window.DataSource.apiUrl.bind(window.DataSource) : function (p) { return p; };
+    var url = apiUrl('/bigraph-loom/index.html') + '?id=' + encodeURIComponent(id);
+    try { url = new URL(url, window.location.href).href; } catch (e) { /* keep relative */ }
+    window.open(url, '_blank',
+      'width=1180,height=940,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes');
+  }
+  window._cardPopout = _cardPopout;
 
   // "⛶" — maximize this card into the content area, in-place. Toggles again /
   // Esc to restore. Self-contained DOM/CSS manipulation — safe on any page.
@@ -129,20 +152,11 @@
   function _toggleCardMaximize(btn) {
     var card = btn.closest('.registry-entry-full');
     if (!card) return;
-    // In an embed IFRAME (Study→Model), maximizing in place can't cleanly fill
-    // the window, and expanding the iframe leaves layout residue on restore.
-    // Instead, open the composite in its OWN full-window loom (standalone) —
-    // truly full-screen, zero disruption to the study page behind it.
-    if (window.parent && window.parent !== window) {
-      var embed = card.querySelector('.ccard-loom-embed');
-      var id = card.getAttribute('data-address') || (embed && embed.getAttribute('data-id'));
-      if (id) {
-        var apiUrl = (window.DataSource && window.DataSource.apiUrl)
-          ? window.DataSource.apiUrl.bind(window.DataSource) : function (p) { return p; };
-        window.open(apiUrl('/bigraph-loom/index.html') + '?id=' + encodeURIComponent(id), '_blank');
-        return;
-      }
-    }
+    // Maximize in place so the card fills the content pane. The card goes
+    // position:fixed (see .pcard-maximized); inside an embed IFRAME (Study→Model)
+    // that's fixed to the iframe's viewport, which IS the pane the user sees, so
+    // it fills the pane there too (_positionMaximizedCard's inIframe branch drops
+    // the rail offset). To pop the composite into its OWN window, use ⧉ pop-out.
     var on = card.classList.toggle('pcard-maximized');
     document.body.classList.toggle('pcard-maximized', on);
     if (on) {
@@ -239,15 +253,15 @@
     var full = _esc(cmd);
     return '<div class="run-cmd-chip" onclick="event.stopPropagation()" ' +
         'style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:4px 6px;' +
-        'background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72em;min-width:0">' +
-      '<span aria-hidden="true" style="color:#94a3b8;flex:none;font-family:ui-monospace,monospace">$</span>' +
+        'background:var(--surface-2);border:1px solid var(--border);border-radius:5px;font-size:0.72em;min-width:0">' +
+      '<span aria-hidden="true" style="color:var(--text-subtle);flex:none;font-family:ui-monospace,monospace">$</span>' +
       '<code title="' + full + '" style="flex:1 1 auto;min-width:0;overflow:hidden;' +
-        'text-overflow:ellipsis;white-space:nowrap;color:#334155;' +
+        'text-overflow:ellipsis;white-space:nowrap;color:var(--text);' +
         'font-family:ui-monospace,SFMono-Regular,Menlo,monospace">' + full + '</code>' +
       '<button type="button" class="run-cmd-copy" data-cmd="' + full + '" ' +
         'onclick="event.stopPropagation();_copyRunCmd(this)" title="Copy command" ' +
-        'style="flex:none;font-size:0.95em;cursor:pointer;border:1px solid #cbd5e1;' +
-        'background:#fff;border-radius:4px;padding:1px 6px;color:#475569">copy</button>' +
+        'style="flex:none;font-size:0.95em;cursor:pointer;border:1px solid var(--border-2);' +
+        'background:var(--surface);border-radius:4px;padding:1px 6px;color:var(--text-secondary)">copy</button>' +
     '</div>';
   }
   window._runCmdChip = _runCmdChip;
@@ -257,8 +271,8 @@
     if (!cmd) return;
     var done = function () {
       var prev = btn.getAttribute('data-label') || 'copy';
-      btn.textContent = 'copied'; btn.style.color = '#047857';
-      setTimeout(function () { btn.textContent = prev; btn.style.color = '#475569'; }, 1200);
+      btn.textContent = 'copied'; btn.style.color = 'var(--success-fg)';
+      setTimeout(function () { btn.textContent = prev; btn.style.color = 'var(--text-secondary)'; }, 1200);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(cmd).then(done, done);
@@ -361,8 +375,19 @@
     var sec = head.closest('.pcard-sec'); if (!sec) return;
     var open = sec.classList.toggle('pcard-sec-open');
     var caret = head.querySelector('.pcard-sec-caret'); if (caret) caret.textContent = open ? '▾' : '▸';
-    if (!open) return;
     var card = head.closest('.registry-entry-full');
+    // Keep the card-level `.pcard-loom-open` flag in sync no matter HOW the
+    // explore (loom) section is toggled — the "run · outputs · graph" bar, a
+    // direct info-panel jump, or "open maximized". Only `_toggleLoomCard` used to
+    // set it, so opening the loom by any other path left the flag off and the
+    // collapsed "▸ run · outputs · graph" strip (hidden via .pcard-loom-open in
+    // CSS) lingered stacked over the already-mounted loom. Restore the header on
+    // close too, so no orphaned max-view state survives collapsing the loom.
+    if (card && sec.querySelector('.ccard-loom-embed')) {
+      card.classList.toggle('pcard-loom-open', open);
+      if (!open) card.classList.remove('pcard-hdr-hidden');
+    }
+    if (!open) return;
     // Process cards lazy-load resolved config/input fields; composites don't.
     // (_loadFullRunFields is walkthrough.js's process-card-only concern — a
     // composite card never reaches this branch, so its absence here is safe.)
@@ -378,17 +403,16 @@
   }
   window._pcardToggleSec = _pcardToggleSec;
 
-  // Collapse/expand a composite card's loom from the HEADER caret (the unified
-  // header is the single toggle — the separate "Explore" accordion strip is
-  // hidden). Reuses _pcardToggleSec so the loom lazy-mounts on first open, then
-  // syncs the header caret + a card-level class for styling.
+  // Open/close a composite card's loom. The single "graph" bar (.pcard-graph-bar)
+  // is the control; once open, the loom's OWN graph grip takes over and this bar
+  // is hidden (CSS, keyed on .pcard-loom-open). Reuses _pcardToggleSec so the loom
+  // lazy-mounts on first open, then syncs a card-level class for styling.
   function _toggleLoomCard(btn) {
     var card = btn.closest('.registry-entry-full'); if (!card) return;
     var sec = card.querySelector('.pcard-sec-explore'); if (!sec) return;
     var head = sec.querySelector('.pcard-sec-head'); if (!head) return;
     _pcardToggleSec(head);
     var open = sec.classList.contains('pcard-sec-open');
-    btn.textContent = open ? '▾ Collapse' : '▶ Explore';
     card.classList.toggle('pcard-loom-open', open);
     // Collapsing the loom also restores the header (no orphaned max-view state).
     if (!open) card.classList.remove('pcard-hdr-hidden');
@@ -402,7 +426,7 @@
     // If the loom isn't open yet, open it first (collapsing the bar over an
     // empty card would be pointless).
     if (!card.classList.contains('pcard-loom-open')) {
-      var exp = card.querySelector('.pcard-explore-btn');
+      var exp = card.querySelector('.pcard-graph-bar');
       if (exp) _toggleLoomCard(exp);
     }
     card.classList.toggle('pcard-hdr-hidden');
@@ -569,6 +593,95 @@
   }
   window._loadCompositeObservables = _loadCompositeObservables;
 
+  // ── Build-error warning chip ──────────────────────────────────────────────
+  // PR #1111 made GET /api/composite-state degrade to a 200 with a `build_error`
+  // object (+ kind: static-fallback/last-good/skeleton, optional stale_overrides)
+  // instead of 400ing when a generator build fails (stale/absent ParCa cache,
+  // env-probe drift, an import error). This renders a small, non-blocking amber
+  // chip near the composite header so the user knows the shown wiring is stale/
+  // degraded. It is informational only — it never blocks the Run button or the
+  // view (the card already renders the best-available wiring).
+  //
+  // Given a composite-state response object, return {text, title} for the chip,
+  // or null when the wiring is healthy (no chip).
+  function _buildErrorChipInfo(d) {
+    if (!d || typeof d !== 'object') return null;
+    var be = (d.build_error && typeof d.build_error === 'object') ? d.build_error : null;
+    var kind = d.kind || '';
+    var unavailable = (kind === 'skeleton' || d.wiring_status === 'unavailable');
+    // Healthy build (kind generator/spec, no build_error) → no chip.
+    if (!be && kind !== 'last-good' && !unavailable && !d.stale_overrides) return null;
+    var detail = be ? String(be.detail || '') : String(d.notice || '');
+    var shortDetail = detail.length > 160 ? detail.slice(0, 160) + '…' : detail;
+    var msg = (be && be.notice) ? be.notice : shortDetail;
+    var label;
+    if (unavailable) {
+      label = 'wiring preview unavailable';
+    } else if (kind === 'last-good') {
+      label = 'showing last-known-good wiring';
+    } else if (be && (be.kind === 'stale-cache' || be.remote_no_cache)) {
+      label = 'wiring may be stale';
+    } else if (kind === 'static-fallback' || be) {
+      label = 'showing default wiring — live build failed';
+    } else {
+      label = 'wiring may be degraded';
+    }
+    var text = '⚠ ' + label;   // ⚠
+    if (msg && msg !== label) text += ' — ' + msg;   // — msg
+    if (d.stale_overrides) {
+      text += ' · Config → Apply didn’t render (showing default wiring)';
+    }
+    return { text: text, title: detail || msg || label };
+  }
+  window._buildErrorChipInfo = _buildErrorChipInfo;
+
+  // Fill (or clear) a card's build-warning chip from a composite-state response.
+  function _renderCompositeBuildWarn(cardEl, d) {
+    if (!cardEl) return;
+    var chip = cardEl.querySelector('[data-role="build-warn"]');
+    if (!chip) return;
+    var info = _buildErrorChipInfo(d);
+    // Toggle style.display too: the chip's inline style sets a display, which
+    // overrides the `hidden` attribute's UA display:none — without this the empty
+    // amber pill lingers visible when the wiring is healthy.
+    if (!info) { chip.hidden = true; chip.style.display = 'none'; chip.textContent = ''; chip.removeAttribute('title'); return; }
+    chip.textContent = info.text;
+    chip.title = info.title || info.text;
+    chip.hidden = false;
+    chip.style.display = 'inline-block';
+  }
+  window._renderCompositeBuildWarn = _renderCompositeBuildWarn;
+
+  // Composite-state URL. `build_error` lives on /api/composite-state — NOT on the
+  // /api/composite-resolve the card payload came from — so the chip needs its own
+  // lookup. Snapshot bundles bake it at <base>/api/composite-state/<id>.json.
+  function _compositeBuildStateUrl(id, overridesJson) {
+    var apiUrl = (window.DataSource && window.DataSource.apiUrl)
+      ? window.DataSource.apiUrl.bind(window.DataSource) : function (p) { return p; };
+    if (document.body.classList.contains('snapshot')) {
+      return apiUrl('/api/composite-state/' + encodeURIComponent(id) + '.json');
+    }
+    return apiUrl('/api/composite-state?ref=' + encodeURIComponent(id)) +
+      (overridesJson ? '&overrides=' + encodeURIComponent(overridesJson) : '');
+  }
+
+  // Lazily fetch composite-state for a mounted card and render the build-warning
+  // chip if the wiring came back degraded. Fire-and-forget: never throws, never
+  // blocks the card/Run — a fetch failure just leaves the chip hidden. The build
+  // is ParCa-heavy so this only runs on demand (loom mount), once per card, and
+  // the backend TTL-caches the same lookup the loom itself makes.
+  function _loadCompositeBuildWarn(cardEl, id, overridesJson) {
+    if (!cardEl || !id || cardEl._buildWarnLoaded) return;
+    cardEl._buildWarnLoaded = true;
+    try {
+      fetch(_compositeBuildStateUrl(id, overridesJson))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d) _renderCompositeBuildWarn(cardEl, d); })
+        .catch(function () { /* informational only — leave the chip hidden */ });
+    } catch (e) { /* never break the card */ }
+  }
+  window._loadCompositeBuildWarn = _loadCompositeBuildWarn;
+
   // ── Composite ProcessCard ────────────────────────────────────────────────
   // A composite IS a process (§ unified idea): same card, same accordion, plus
   // an EXPLORE section (the wide loom bigraph) between Inputs and Run. A
@@ -619,22 +732,22 @@
     if (nproc) metaBits.push(nproc + ' process' + (nproc === 1 ? '' : 'es'));
     if (np) metaBits.push(np + ' param' + (np === 1 ? '' : 's'));
     var meta = metaBits.length
-      ? '<div class="reg-card-meta" style="font-size:11px;color:#6b7280;margin:2px 0 4px">' + metaBits.join(' · ') + '</div>' : '';
+      ? '<div class="reg-card-meta" style="font-size:11px;color:var(--text-subtle);margin:2px 0 4px">' + metaBits.join(' · ') + '</div>' : '';
     var tags = Array.isArray(c.tags) ? c.tags.slice(0, 3) : [];
     var tagHtml = tags.length
       ? '<div class="reg-card-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">' +
-          tags.map(function (t) { return '<span style="font-size:10px;color:#6d28d9;background:#f5f3ff;border:1px solid #e9d5ff;border-radius:4px;padding:1px 6px">' + _esc(t) + '</span>'; }).join('') +
+          tags.map(function (t) { return '<span style="font-size:10px;color:var(--accent2);background:var(--accent2-bg);border:1px solid var(--accent2-border);border-radius:4px;padding:1px 6px">' + _esc(t) + '</span>'; }).join('') +
         '</div>' : '';
     var actions = '<div class="reg-card-actions" style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">' +
       '<button type="button" onclick="event.stopPropagation();_enterMaxcardMode(\'' + idA + '\',\'composite\')" ' +
         'title="Open maximized with the interactive bigraph (Explore) pinned at the top" ' +
-        'style="height:26px;padding:0 11px;font-size:12px;font-weight:600;background:#2563eb;color:#fff;border:1px solid #2563eb;border-radius:5px;cursor:pointer">🔍 Explore</button>' +
-      '<button type="button" onclick="event.stopPropagation();_popoutCard(\'' + idA + '\',\'composite\')" ' +
+        'style="height:26px;padding:0 11px;font-size:12px;font-weight:600;background:var(--link);color:var(--bg);border:1px solid var(--link);border-radius:5px;cursor:pointer">🔍 Explore</button>' +
+      '<button type="button" onclick="event.stopPropagation();_cardPopout(this,\'' + idA + '\',\'composite\')" ' +
         'title="Pop out into its own window" ' +
-        'style="height:26px;padding:0 9px;font-size:12px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:5px;cursor:pointer">⤢ Pop out</button>' +
+        'style="height:26px;padding:0 9px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border-2);border-radius:5px;cursor:pointer">⧉ Pop out</button>' +
       '<button type="button" onclick="event.stopPropagation();_setRegistryZoom(\'full\')" ' +
         'title="Open the full card (Configure · Inputs · Run)" ' +
-        'style="height:26px;padding:0 9px;font-size:12px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:5px;cursor:pointer">Full card</button>' +
+        'style="height:26px;padding:0 9px;font-size:12px;background:var(--surface);color:var(--text);border:1px solid var(--border-2);border-radius:5px;cursor:pointer">Full card</button>' +
     '</div>';
     return '<div class="registry-card' + selCls + '" data-address="' + idA + '" data-kind="composite"' +
         ' onclick="_selectRegistryEntry(\'' + idA + '\')" ondblclick="_enterMaxcardMode(\'' + idA + '\',\'composite\')"' +
@@ -655,13 +768,102 @@
   }
   window._renderCompositeCardGrid = _renderCompositeCardGrid;
 
+  // --- Run-target badge -----------------------------------------------------
+  // Show whether a composite ▶ Run will execute Local or on the Cloud (GovCloud)
+  // deployment. This is resolve_run_target(workspace) — per WORKSPACE, not per card,
+  // and NOT the same as the Local/Cloud *scope* selector (which binds the source).
+  // That distinction is exactly what confuses: scope can say "remote" while a Run
+  // still executes locally. One preflight fetch per composites render fills every
+  // card's badge.
+  function _computeRunTarget(pf) {
+    // The Environment scope (dynamic run-target) wins when Cloud is active — a Run
+    // then dispatches to the selected build. Otherwise the badge reflects the
+    // workspace's resolve_run_target (the preflight).
+    try {
+      if (window.VivEnv && window.VivEnv.isCloud()) {
+        var b = window.VivEnv.runBuild();
+        // Action-oriented affordance: make it obvious that ▶ Run dispatches to a
+        // SPECIFIC Cloud build, not just that the workspace "runs on cloud".
+        // Green/cloud styling separates the ready-to-dispatch state from the
+        // amber "no build" blocker and the grey Local state.
+        if (b) return { label: '▶ Run → ☁ Cloud · build #' + b.simulator_id, bg: 'var(--success-bg)', fg: 'var(--success-fg)',
+          tip: '▶ Run dispatches to the Cloud (GovCloud) against build #' + b.simulator_id +
+               (b.commit ? ' (' + String(b.commit).slice(0, 7) + ')' : '') +
+               '. It runs the build’s committed code — local edits not in that build won’t apply. ' +
+               'The dispatch itself takes ~15-25s (sms-api registers the run over the SSM tunnel); the card tracks it robustly once it lands.' };
+        return { label: '☁ Cloud · no build ⚠', bg: 'var(--warning-bg)', fg: 'var(--warning-fg)',
+          tip: 'Cloud is active but no build is selected — a Run is blocked. Pick or build one, or switch to Local.' };
+      }
+    } catch (e) { /* VivEnv unavailable → fall through to preflight */ }
+    var known = !!(pf && pf.target);
+    var cloud = known && pf.target === 'deployment';
+    if (!known) return { label: 'Runs: —', bg: 'var(--surface-3)', fg: 'var(--text-muted)', tip: 'Could not determine where a Run will execute.' };
+    if (cloud) return { label: 'Runs: Cloud', bg: 'var(--info-bg)', fg: 'var(--link)',
+      tip: pf.message || 'This workspace runs on the Cloud (GovCloud) deployment — ▶ Run dispatches remotely.' };
+    return { label: 'Runs: Local', bg: 'var(--surface-3)', fg: 'var(--text-secondary)',
+      tip: (pf.message || 'This workspace runs locally.') +
+        ' Switch the Environment scope to Cloud (with a build selected) to dispatch a Run remotely instead.' };
+  }
+  // Per-run local/remote switch: the run-target badge is a CLICKABLE chip when
+  // VivEnv is available (live mode) — clicking flips the Environment scope
+  // Local↔Cloud in place, so you switch where a Run executes without leaving the
+  // card for the Source panel's toggle. Snapshot/static mode (no VivEnv) leaves
+  // the badge as a passive label.
+  function _runTargetClickable() {
+    return !!(window.VivEnv && typeof window.VivEnv.setScope === 'function');
+  }
+  function _applyRunTargetBadges(pf) {
+    var badges = document.querySelectorAll('.pcard-runtarget[data-role="runtarget"]');
+    if (!badges.length) return;
+    if (pf !== undefined) window._lastRunTargetPreflight = pf;  // cache for scope-change re-apply
+    var t = _computeRunTarget(pf !== undefined ? pf : window._lastRunTargetPreflight);
+    var clickable = _runTargetClickable();
+    badges.forEach(function (b) {
+      b.textContent = t.label;
+      b.title = t.tip + (clickable ? ' — click to switch Local ⇄ Cloud.' : '');
+      b.style.background = t.bg; b.style.color = t.fg;
+      b.style.cursor = clickable ? 'pointer' : '';
+      b.setAttribute('data-clickable', clickable ? '1' : '0');
+    });
+  }
+  window._applyRunTargetBadges = _applyRunTargetBadges;
+  // Re-reflect the badge live when the Environment scope / selected build changes
+  // (branch-source.js dispatches viv:envchange) — no re-fetch, re-reads VivEnv.
+  window.addEventListener('viv:envchange', function () { _applyRunTargetBadges(); });
+  // One delegated handler for the clickable chip: flip scope to the OTHER target.
+  // Registered once; badges are re-created per render, so delegation (not per-badge
+  // listeners) avoids duplicates/leaks. viv:envchange then re-applies every badge.
+  document.addEventListener('click', function (ev) {
+    var chip = ev.target && ev.target.closest && ev.target.closest('.pcard-runtarget[data-role="runtarget"]');
+    if (!chip || chip.getAttribute('data-clickable') !== '1') return;
+    if (!_runTargetClickable()) return;
+    ev.preventDefault(); ev.stopPropagation();
+    try { window.VivEnv.setScope(window.VivEnv.isCloud() ? 'local' : 'remote'); }
+    catch (e) { /* VivEnv gone → no-op */ }
+  });
+
+  var _runTargetScheduled = false;
+  function _scheduleRunTargetBadges() {
+    if (_runTargetScheduled) return;   // debounce: one fetch per render batch, not per card
+    _runTargetScheduled = true;
+    setTimeout(function () {
+      _runTargetScheduled = false;
+      var BP = window.__BASE_PATH__ || '';
+      fetch(BP + '/api/remote-dispatch-preflight')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; })
+        .then(_applyRunTargetBadges);
+    }, 0);
+  }
+
   function _renderCompositeCardFull(c) {
+    _scheduleRunTargetBadges();
     var params = (c.parameters && typeof c.parameters === 'object') ? c.parameters : {};
     var pKeys = Object.keys(params), nCfg = pKeys.length;
     var desc = (c.description || '').trim();
     var sel = (window._registrySelected && window._registrySelected === c.id) ? ' reg-selected' : '';
     var wsPill = c.workspace_local ? '<span class="composite-ws-tag">📦 workspace</span>' : '';
-    var roPill = c.read_only ? '<span class="tag-pill" style="background:#fef2f2;color:#b91c1c;margin-left:6px">read-only</span>' : '';
+    var roPill = c.read_only ? '<span class="tag-pill" style="background:var(--danger-bg);color:var(--danger-fg);margin-left:6px">read-only</span>' : '';
 
     var chip = function (k) { return '<code class="pcard-chip">' + _esc(k) + '</code>'; };
     var cfgChips = nCfg
@@ -694,22 +896,6 @@
         '<span class="pcard-apply-status muted" data-role="apply-status"></span>' +
       '</div>';
 
-    var topNote = '<p class="muted pcard-toplevel-note">Top-level composite — its interface is the internal wiring (see Explore), not bridge ports.</p>';
-    var runBar = _pcardRunBar(
-      // The ▶ RUN label IS the run button (its whole side of the bar), with the
-      // Steps selector beside it — no separate Run button on the right.
-      c.read_only
-        ? '<span class="pcard-run-go pcard-run-go-disabled" aria-disabled="true">▶ Run</span>' +
-          '<span class="muted pcard-run-note">read-only composite — enable running inside Explore to run in place</span>'
-        : '<button class="pcard-run-go" type="button" onclick="_runComposite(this)">▶ Run</button>' +
-          '<label class="loom-run-field loom-run-interval-field">Steps <input type="number" step="1" min="1" class="pcard-run-time" placeholder="e.g. 10"></label>');
-
-    // Outputs = the launched run's live status → its visualizations. A composite
-    // run is detached; _runComposite stores the run_id and _pollCompositeRun
-    // fills this panel (progress → viz_html on completion).
-    var outputsBody =
-      _compositeOutControls(c) +
-      '<div class="pcard-out-panel" data-role="out-panel">' + _compositeOutIdle() + '</div>';
     var addr = c.module ? (c.module + '.' + c.name) : c.id;
 
     return '<div class="registry-entry registry-entry-full loom-runnable pcard pcard-accordion pcard-composite' + sel +
@@ -717,10 +903,20 @@
       '<div class="loom-card loom-card-stack loom-card-composite">' +
         '<div class="pcard-top">' +
           '<div class="pcard-header pcard-title" onclick="_pinCardTop(this)" ondblclick="event.stopPropagation();_maximizeCardFromHeader(this)" title="Click to pin to top · double-click to maximize">' +
-            '<button class="pcard-explore-btn" type="button" onclick="event.stopPropagation();_toggleLoomCard(this)" title="Open the loom — Configure · graph · run · outputs">▶ Explore</button>' +
             '<span class="loom-name">' + _esc(c.name) + '</span>' + _compositeBadge() + _compositeTierBadge(c) + wsPill + roPill +
+            '<span class="pcard-runtarget" data-role="runtarget" title="checking where a Run will execute…" ' +
+              'style="display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;' +
+              'background:var(--surface-3);color:var(--text-muted);vertical-align:middle">Runs: …</span>' +
             '<code class="loom-addr">' + _esc(addr) + '</code>' +
-            '<button class="pcard-hdr-collapse" type="button" onclick="event.stopPropagation();_toggleCardHeader(this)" title="Collapse this bar to maximize the view">⤢</button>' +
+            // Build-error warning chip (PR #1111 degrade). Hidden until a
+            // composite-state fetch reports the shown wiring is stale/degraded
+            // (_loadCompositeBuildWarn fires when the loom mounts). Amber, matching
+            // the workbench's status-pill convention; informational, non-blocking.
+            '<span class="pcard-build-warn" data-role="build-warn" hidden ' +
+              'style="display:none;margin-left:8px;padding:1px 9px;border-radius:10px;' +
+              'font-size:11px;font-weight:600;background:var(--warning-bg);color:var(--warning-fg);border:1px solid var(--warning-border);' +
+              'vertical-align:middle;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>' +
+            '<button class="pcard-hdr-collapse" type="button" onclick="event.stopPropagation();_toggleCardHeader(this)" title="Collapse this bar to maximize the view">⌃</button>' +
             _shareCompositeBtn() +
             _compositeJsonBtn() +
             _cardMaximizeBtn() +
@@ -744,9 +940,35 @@
           '</div>' +
         '</div>' +
         '<div class="pcard-acc">' +
-          // The card body is now the FULL stacked loom surface — Configure/Inputs,
-          // the bigraph, Run/Step, and Outputs all live inside it. No more card
-          // re-implementations of those sections (which had diverging semantics).
+          // Card-owned Cloud-run status chip. When a Run dispatches to the Cloud
+          // the loom emits explore:remote-dispatching / -dispatched / -failed
+          // messages (see loom-embed.js); the PARENT owns a patient "Dispatching
+          // to Cloud build #N…" → "☁ Cloud run #<simid> · queued → running →
+          // completed" chip here, polling the robust sim-status endpoint the Runs
+          // tab uses — instead of the loom bar's timeout-prone per-run polling.
+          '<div class="pcard-cloud-run" data-role="cloud-run" hidden></div>' +
+          // ONE surface: the card body is just the lazily-mounted loom. The
+          // full-width "graph" bar is the single control (it replaces the old
+          // header Explore/Collapse button AND the duplicated static run/outputs
+          // strip). It looks and sits exactly like the loom's own collapsed graph
+          // grip, so opening is seamless: click to lazy-mount + open the loom
+          // (Configure · bigraph · run · outputs — the loom owns all of it). The
+          // loom is heavy to resolve, so the list stays fast by mounting only on
+          // click; once open, the loom's own graph grip takes over and this bar is
+          // hidden (CSS, keyed on .pcard-loom-open) — one continuous bar.
+          // The single control. Clicking it lazy-mounts the loom — which owns the
+          // run + outputs (and the graph). The loom mounts with its GRAPH COLLAPSED,
+          // so the first thing shown is the compact run + outputs strip (identical
+          // to every other state, since it IS the loom); the same bar then expands
+          // the graph. Once mounted, the loom's own grip takes over and this
+          // card-level bar hides (CSS, keyed on .pcard-loom-open).
+          '<button class="pcard-graph-bar" type="button" onclick="event.stopPropagation();_toggleLoomCard(this)" title="Open the composite — run · outputs · graph">' +
+            '<span class="pcard-graph-bar-handle"></span>' +
+            '<span class="pcard-graph-bar-label">▸ run · outputs · graph</span>' +
+          '</button>' +
+          // The loom — the FULL stacked surface (Configure/Inputs · bigraph ·
+          // Run/Step · Outputs), lazy-mounted on first open. Graph collapsed at
+          // first so run + outputs lead.
           _pcardSection('explore', 'Explore', '<span class="pcard-sec-hint">◆ Configure · run · outputs — click to open</span>', _compositeLoomExplore(c), { wide: true, feature: true }) +
         '</div>' +
       '</div>' +

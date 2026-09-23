@@ -164,8 +164,8 @@ function DockZone(props: {
 
   const anyExpanded = specs.some((p) => !(state.panels[p.id]?.collapsed));
   const border = side === 'left'
-    ? { borderRight: '1px solid #e5e7eb' }
-    : { borderLeft: '1px solid #e5e7eb' };
+    ? { borderRight: '1px solid var(--border, #e5e7eb)' }
+    : { borderLeft: '1px solid var(--border, #e5e7eb)' };
 
   // --- drag-to-resize (only meaningful when at least one panel is expanded) --
   const draggingRef = useRef(false);
@@ -206,7 +206,7 @@ function DockZone(props: {
         className={`loom-dock-zone loom-dock-zone-${side} loom-dock-rail`}
         style={{
           flex: '0 0 auto', display: 'flex', flexDirection: 'column',
-          gap: 6, padding: '8px 3px', background: '#fff', ...border,
+          gap: 6, padding: '8px 3px', background: 'var(--surface, #fff)', ...border,
           fontFamily: 'system-ui, sans-serif',
         }}
       >
@@ -233,7 +233,7 @@ function DockZone(props: {
         flex: '0 0 auto',
         width: anyExpanded ? width : undefined,
         display: 'flex', flexDirection: 'column',
-        background: '#fff', ...border,
+        background: 'var(--surface, #fff)', ...border,
         fontFamily: 'system-ui, sans-serif',
       }}
     >

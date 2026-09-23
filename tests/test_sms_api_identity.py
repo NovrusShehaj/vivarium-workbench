@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from vivarium_workbench.lib import sms_api_client as sac
+from vivarium_workbench.lib import remote_api_client as sac
 
 
 class _Session:
@@ -92,7 +92,7 @@ def test_a_broken_auth_lookup_never_fails_the_request_it_decorates(
 
 def test_the_header_is_present_when_a_person_is_signed_in(monkeypatch: pytest.MonkeyPatch) -> None:
     _with_session(monkeypatch, _Session("octocat", "device_flow"))
-    headers = sac.SmsApiClient()._headers()
+    headers = sac.RemoteApiClient()._headers()
     assert headers[sac.IDENTITY_HEADER] == "octocat@github"
     assert headers["Accept"] == "application/json"
 
@@ -101,13 +101,13 @@ def test_no_header_at_all_when_anonymous(monkeypatch: pytest.MonkeyPatch) -> Non
     """Not an empty value. `X-Auth-Request-Email: ` would make the caller look
     identified-as-nobody rather than unidentified."""
     _with_session(monkeypatch, None)
-    assert sac.IDENTITY_HEADER not in sac.SmsApiClient()._headers()
+    assert sac.IDENTITY_HEADER not in sac.RemoteApiClient()._headers()
 
 
 def test_the_accept_type_is_still_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
     """Downloads ask for gzip/zip; identity must not flatten that."""
     _with_session(monkeypatch, _Session("octocat", "gh_cli"))
-    assert sac.SmsApiClient()._headers("application/gzip")["Accept"] == "application/gzip"
+    assert sac.RemoteApiClient()._headers("application/gzip")["Accept"] == "application/gzip"
 
 
 def test_every_request_in_the_client_goes_through_the_helper() -> None:
@@ -116,7 +116,7 @@ def test_every_request_in_the_client_goes_through_the_helper() -> None:
     import inspect
 
     source = inspect.getsource(sac)
-    body = source.split("class SmsApiClient", 1)[1]
+    body = source.split("class RemoteApiClient", 1)[1]
     assert '"Accept": "application/json"' not in body, "a request bypasses _headers()"
     assert '"Accept": "application/gzip"' not in body, "a request bypasses _headers()"
     assert '"Accept": "application/zip"' not in body, "a request bypasses _headers()"

@@ -50,11 +50,11 @@
   // the hand-set confidence, then the lifecycle status. `Blocked` is its own state —
   // a study that could not run — distinct from `Refuted` (a hypothesis disproven).
   var _STATUS_META = {
-    Accepted:      {color: '#16a34a', icon: '✓', label: 'Accepted'},      // ✓
-    Investigating: {color: '#ca8a04', icon: '◐', label: 'Investigating'}, // ◐
-    Planned:       {color: '#2563eb', icon: '○', label: 'Planned'},       // ○
-    Blocked:       {color: '#64748b', icon: '⊘', label: 'Blocked'},       // ⊘
-    Refuted:       {color: '#dc2626', icon: '✗', label: 'Refuted'},       // ✗
+    Accepted:      {color: 'var(--success-fg)', icon: '✓', label: 'Accepted'},      // ✓
+    Investigating: {color: 'var(--warning-fg)', icon: '◐', label: 'Investigating'}, // ◐
+    Planned:       {color: 'var(--link)', icon: '○', label: 'Planned'},       // ○
+    Blocked:       {color: 'var(--text-muted)', icon: '⊘', label: 'Blocked'},       // ⊘
+    Refuted:       {color: 'var(--danger-fg)', icon: '✗', label: 'Refuted'},       // ✗
   };
   function _studyStatusState(s) {
     s = s || {};
@@ -137,8 +137,8 @@
     var autoBtn = document.getElementById('aig-orient-auto');
     function _mark(btn, active) {
       if (!btn) return;
-      btn.style.background = active ? '#e0e7ff' : 'transparent';
-      btn.style.color = active ? '#3730a3' : '#64748b';
+      btn.style.background = active ? 'var(--active)' : 'transparent';
+      btn.style.color = active ? 'var(--active-fg)' : 'var(--text-muted)';
       btn.style.fontWeight = active ? '700' : '400';
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     }
@@ -151,15 +151,20 @@
   // Generic modal helpers
   // -------------------------------------------------------------------------
 
+  // Dialog semantics (role="dialog", aria-modal, focus trap, Escape, focus
+  // restore) come from static/dialog.js; these keep the id-based API.
   function openModal(id) {
     var el = document.getElementById(id);
-    if (el) el.style.display = "flex";
+    if (!el) return;
+    if (window.vivDialog) window.vivDialog.open(el);
+    else el.style.display = "flex";
   }
 
   function closeModal(id) {
     var el = document.getElementById(id);
     if (el) {
-      el.style.display = "none";
+      if (window.vivDialog) window.vivDialog.close(el);
+      else el.style.display = "none";
       // Clear inline errors.
       var errEl = el.querySelector(".form-error");
       if (errEl) errEl.textContent = "";
@@ -169,7 +174,8 @@
   // Close modals when clicking the overlay background.
   document.addEventListener("click", function (e) {
     if (e.target && e.target.classList.contains("modal-overlay")) {
-      e.target.style.display = "none";
+      if (e.target.id) closeModal(e.target.id);
+      else e.target.style.display = "none";
     }
   });
 
@@ -311,13 +317,13 @@
     placeholder.id = placeholderId;
     placeholder.style.cssText =
       'width:100%;height:' + (iframe.style.height || '640px') + ';' +
-      'border:1px dashed #93c5fd;background:#eff6ff;border-radius:4px;' +
+      'border:1px dashed var(--info-border);background:var(--info-bg);border-radius:4px;' +
       'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-      'gap:10px;color:#1e3a8a;font-size:0.95em;';
+      'gap:10px;color:var(--info-fg);font-size:0.95em;';
     var msg = message || 'Wiring is open in a separate window.';
     placeholder.innerHTML =
       '<div>↗ ' + msg + '</div>' +
-      '<div style="font-size:0.85em;color:#4b5563">Close the popup or click below to return it here.</div>' +
+      '<div style="font-size:0.85em;color:var(--text-secondary)">Close the popup or click below to return it here.</div>' +
       '<button class="btn-mini" id="' + placeholderId + '-restore">Bring back here</button>';
     iframe.insertAdjacentElement('afterend', placeholder);
     var restoreBtn = document.getElementById(placeholderId + '-restore');
@@ -841,6 +847,9 @@
     if (pageId === 'audit' && typeof window._loadAudit === 'function') {
       _loadAudit();
     }
+    if (pageId === 'settings' && window.vivSettings && typeof window.vivSettings.render === 'function') {
+      window.vivSettings.render();
+    }
   }
 
   function _initMenuNav() {
@@ -851,8 +860,8 @@
     if (focus) {
       var _snapshot = document.body.classList.contains('snapshot');
       var validPages = _snapshot
-        ? ['workspace-inputs', 'simulation-setup', 'modules', 'market', 'investigations', 'simulations', 'visualizations', 'audit', 'composite-explore', 'github', 'about']
-        : ['workspace-inputs', 'simulation-setup', 'visualizations', 'modules', 'market', 'investigations', 'studies', 'simulations', 'audit', 'composite-explore', 'github', 'about'];
+        ? ['workspace-inputs', 'simulation-setup', 'modules', 'market', 'investigations', 'simulations', 'visualizations', 'audit', 'composite-explore', 'github', 'about', 'settings']
+        : ['workspace-inputs', 'simulation-setup', 'visualizations', 'modules', 'market', 'investigations', 'studies', 'simulations', 'audit', 'composite-explore', 'github', 'about', 'settings'];
       if (validPages.indexOf(focus) >= 0) {
         document.body.classList.add('focus-mode', 'focus-' + focus);
         _switchPage(focus);
@@ -883,8 +892,8 @@
         var h = (window.location.hash || '').replace(/^#/, '');
         var _snap = document.body.classList.contains('snapshot');
         var validPages = _snap
-          ? ['workspace-inputs', 'modules', 'market', 'simulation-setup', 'investigations', 'simulations', 'visualizations', 'audit', 'composite-explore', 'github', 'about']
-          : ['workspace-inputs', 'modules', 'market', 'simulation-setup', 'visualizations', 'investigations', 'studies', 'simulations', 'audit', 'composite-explore', 'github', 'about'];
+          ? ['workspace-inputs', 'modules', 'market', 'simulation-setup', 'investigations', 'simulations', 'visualizations', 'audit', 'composite-explore', 'github', 'about', 'settings']
+          : ['workspace-inputs', 'modules', 'market', 'simulation-setup', 'visualizations', 'investigations', 'studies', 'simulations', 'audit', 'composite-explore', 'github', 'about', 'settings'];
         _switchPage(validPages.indexOf(h) >= 0 ? h : 'workspace-inputs');
       }
       window.addEventListener('hashchange', fromHash);
@@ -976,7 +985,7 @@
         _renderInputs(el, data);
       })
       .catch(function (err) {
-        el.innerHTML = '<p style="color:#c00">Could not load inputs: ' +
+        el.innerHTML = '<p style="color:var(--danger-fg)">Could not load inputs: ' +
           _esc(String(err)) +
           ' <button class="action-btn" onclick="_loadInputs()">Retry</button></p>';
       });
@@ -1058,7 +1067,7 @@
     var key = ref.key || ref.bib_key || '';
 
     if (ref._unmatched) {
-      return '<div style="border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px">' +
+      return '<div style="border:1px solid var(--border);border-radius:6px;padding:8px 10px">' +
         '<code>' + _esc(key || _inputsRefLabel(ref)) + '</code> ' +
         '<small class="muted">(no bib entry)</small></div>';
     }
@@ -1094,12 +1103,12 @@
     if (bibtex) {
       var bibId = 'bibtex-' + (key || Math.random().toString(36).slice(2));
       bibBlock = '<details style="margin-top:6px">' +
-        '<summary style="cursor:pointer;font-size:0.82em;color:#475569">BibTeX</summary>' +
+        '<summary style="cursor:pointer;font-size:0.82em;color:var(--text-secondary)">BibTeX</summary>' +
         // Wrap instead of scroll: a BibTeX entry's `title = {…}` line runs
         // 200-400px past the panel, and overflow:auto turned every reference
         // into its own horizontal scrollbar. Wrapping costs a line and removes
         // the scrollbar entirely.
-        '<pre id="' + _esc(bibId) + '" style="background:#f8fafc;border:1px solid #e2e8f0;' +
+        '<pre id="' + _esc(bibId) + '" style="background:var(--surface-2);border:1px solid var(--border);' +
         'border-radius:4px;padding:8px;font-size:0.78em;margin:6px 0;' +
         'white-space:pre-wrap;overflow-wrap:anywhere">' +
         _esc(bibtex) + '</pre>' +
@@ -1113,7 +1122,7 @@
       ? '<div class="muted" style="font-size:0.85em;margin-top:2px;font-style:italic">' + _esc(ref.note) + '</div>'
       : '';
 
-    return '<div style="border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px">' +
+    return '<div style="border:1px solid var(--border);border-radius:6px;padding:8px 10px">' +
       '<div>' + titleHtml + actions + '</div>' + meta + noteHtml + bibBlock + '</div>';
   }
 
@@ -1256,8 +1265,8 @@
   // ── Drag-and-drop source upload ──────────────────────────────────────────
   function _inputsDzHi(z, on) {
     if (!z) return;
-    z.style.background = on ? '#eef2ff' : '#f8fafc';
-    z.style.borderColor = on ? '#818cf8' : '#cbd5e1';
+    z.style.background = on ? 'var(--active)' : 'var(--surface-2)';
+    z.style.borderColor = on ? 'var(--active-indicator)' : 'var(--border-2)';
   }
   function _inputsDragOver(e) {
     e.preventDefault(); e.stopPropagation();
@@ -1334,9 +1343,9 @@
           return '<option value="' + _esc(slug) + '"' + sel + '>' + _esc(label) + '</option>';
         }).join('');
       html += '<div style="margin:4px 0 12px;display:flex;align-items:center;gap:6px">' +
-        '<label style="font-size:0.85em;color:#475569">Load sources into:</label>' +
+        '<label style="font-size:0.85em;color:var(--text-secondary)">Load sources into:</label>' +
         '<select onchange="_inputsSelectInvestigation(this.value)" ' +
-        'style="font-size:0.9em;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px">' +
+        'style="font-size:0.9em;padding:3px 6px;border:1px solid var(--border-2);border-radius:4px">' +
         opts + '</select></div>';
     }
 
@@ -1355,10 +1364,10 @@
       // from the filename (the "+ Add" buttons below remain for manual naming).
       html += '<div id="inputs-dropzone" ' +
         'ondragover="_inputsDragOver(event)" ondragleave="_inputsDragLeave(event)" ondrop="_inputsDrop(event)" ' +
-        'style="border:2px dashed #cbd5e1;border-radius:8px;padding:16px 14px;text-align:center;' +
-        'color:#64748b;font-size:0.9em;margin:10px 0 6px;background:#f8fafc;transition:background .12s,border-color .12s">' +
-        '<div style="font-weight:600;color:#475569">⬆ Drag datasets or expert docs here to upload</div>' +
-        '<div style="font-size:0.78em;color:#94a3b8;margin-top:3px">' +
+        'style="border:2px dashed var(--border-2);border-radius:8px;padding:16px 14px;text-align:center;' +
+        'color:var(--text-muted);font-size:0.9em;margin:10px 0 6px;background:var(--surface-2);transition:background .12s,border-color .12s">' +
+        '<div style="font-weight:600;color:var(--text-secondary)">⬆ Drag datasets or expert docs here to upload</div>' +
+        '<div style="font-size:0.78em;color:var(--text-subtle);margin-top:3px">' +
           'PDFs → references · .md / .txt / .docx → expert docs · everything else → datasets' +
         '</div></div>';
       html += '<h4 style="margin:12px 0 4px">Datasets ' +
@@ -1442,7 +1451,7 @@
     h += '<input type="text" id="ds-filter" placeholder="Filter by key…" ' +
       'oninput="_filterDataSources(this.value)" ' +
       'style="width:100%;box-sizing:border-box;padding:6px 8px;margin:4px 0 8px;' +
-      'border:1px solid #d1d5db;border-radius:6px;font-size:0.85em">';
+      'border:1px solid var(--border-2);border-radius:6px;font-size:0.85em">';
     h += '<div id="ds-list"></div>';
     host.innerHTML = h;
     _filterDataSources('');
@@ -1472,14 +1481,14 @@
       var items = groups[cat];
       html += '<details ' + (q ? 'open' : '') + ' style="margin-bottom:6px">';
       html += '<summary style="cursor:pointer;font-weight:600;font-size:0.85em;' +
-        'padding:4px 0;color:#374151">' + _esc(cat) +
+        'padding:4px 0;color:var(--text)">' + _esc(cat) +
         ' <span class="muted" style="font-weight:normal">(' + items.length + ')</span></summary>';
       html += '<div style="margin:2px 0 6px 8px">';
       items.forEach(function(s) {
-        var badgeColor = s.kind === 'override' ? '#9333ea' : '#6b7280';
-        var badgeBg = s.kind === 'override' ? '#f3e8ff' : '#f3f4f6';
+        var badgeColor = s.kind === 'override' ? 'var(--accent2)' : 'var(--text-subtle)';
+        var badgeBg = s.kind === 'override' ? 'var(--accent2-bg)' : 'var(--surface-3)';
         html += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;' +
-          'border-bottom:1px solid #f3f4f6;font-size:0.82em">';
+          'border-bottom:1px solid var(--border-faint);font-size:0.82em">';
         html += '<code style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" ' +
           'title="' + _esc(s.key) + '">' + _esc(s.key) + '</code>';
         html += '<span style="flex:none;font-size:0.72em;font-weight:700;padding:1px 6px;' +
@@ -1648,7 +1657,7 @@
 
     // ── Analyses group ───────────────────────────────────────────────────────
     html += '<div class="analyses-group" style="margin-bottom:20px">' +
-      '<h4 style="margin:0 0 8px;font-size:0.95em;text-transform:uppercase;letter-spacing:0.06em;color:#374151">Analyses' +
+      '<h4 style="margin:0 0 8px;font-size:0.95em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text)">Analyses' +
       ' <span class="count-badge" style="font-size:0.8em">' + analyses.length + '</span></h4>';
     if (analyses.length === 0) {
       html += '<p class="empty-state muted" style="margin:0">No Analysis classes found. v2ecoli must be installed in this workspace\'s environment.</p>';
@@ -1659,7 +1668,7 @@
 
     // ── Visualizations group ─────────────────────────────────────────────────
     html += '<div class="analyses-group">' +
-      '<h4 style="margin:0 0 8px;font-size:0.95em;text-transform:uppercase;letter-spacing:0.06em;color:#374151">Visualizations' +
+      '<h4 style="margin:0 0 8px;font-size:0.95em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text)">Visualizations' +
       ' <span class="count-badge" style="font-size:0.8em">' + vizzes.length + '</span></h4>';
     if (vizzes.length === 0) {
       html += '<p class="empty-state muted" style="margin:0">No Visualization classes found. Install a pbg-* package that provides one (Catalog tab &rarr; Available modules).</p>';
@@ -1711,7 +1720,7 @@
       (meta.length ? '<div class="muted" style="font-size:0.82em;margin:2px 0 6px">' + meta.join(' &middot; ') + '</div>' : '') +
       '<p class="muted" style="font-size:0.85em;line-height:1.45;margin:2px 0 8px">' + desc + '</p>' +
       '<iframe class="viz-embed" src="' + _esc(src) + '" loading="lazy" ' +
-        'style="width:100%;height:460px;border:1px solid #2a313c;border-radius:6px;background:#0e1116"></iframe>' +
+        'style="width:100%;height:460px;border:1px solid var(--border);border-radius:6px;background:#0e1116"></iframe>' +
     '</div>';
   }
 
@@ -1740,7 +1749,7 @@
       (meta.length ? '<div class="muted" style="font-size:0.82em;margin:2px 0 6px">' + meta.join(' &middot; ') + '</div>' : '') +
       '<p class="muted" style="font-size:0.85em;line-height:1.45;margin:2px 0 8px">' + desc + '</p>' +
       '<iframe class="viz-embed" src="' + _esc(src) + '" loading="lazy" ' +
-        'style="width:100%;height:520px;border:1px solid #2a313c;border-radius:6px;background:#fff"></iframe>' +
+        'style="width:100%;height:520px;border:1px solid var(--border);border-radius:6px;background:var(--surface)"></iframe>' +
     '</div>';
   }
 
@@ -1973,7 +1982,7 @@
         if (countEl) countEl.textContent = '(' + tools.length + ')';
       })
       .catch(function(err) {
-        container.innerHTML = '<p class="empty-state" style="color:#991b1b">Error loading analysis tools: ' + _esc(String(err)) + '</p>';
+        container.innerHTML = '<p class="empty-state" style="color:var(--danger-fg)">Error loading analysis tools: ' + _esc(String(err)) + '</p>';
       });
   }
   window._loadAnalysesPage = _loadAnalysesPage;
@@ -2186,38 +2195,32 @@
   }
   window._setCardCols = _setCardCols;
 
-  // ── Light / dark theme toggle ──────────────────────────────────────────
-  // The theme is applied to <html data-theme> before first paint by a small
-  // inline script in <head> (no flash); this drives the toggle + persistence.
+  // ── Theme ──────────────────────────────────────────────────────────────
+  // static/theme.js owns the theme: the pre-paint boot resolves the stored
+  // preference (system/light/dark) onto <html data-theme>, and window.vivTheme
+  // persists, follows the OS, and syncs other documents. window._setTheme /
+  // window._toggleTheme are defined there. This block only keeps the
+  // theme-specific images (the rail + About logos) in step with it.
   function _syncThemeLogo() {
-    var img = document.querySelector('.viv-rail-logo');
-    if (!img || !img.dataset) return;
-    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    var next = dark ? img.dataset.darkSrc : img.dataset.lightSrc;
-    if (next && img.getAttribute('src') !== next) img.src = next;
+    if (window.vivTheme && typeof window.vivTheme.syncThemedImages === 'function') {
+      window.vivTheme.syncThemedImages();
+    }
   }
-  function _setTheme(t) {
-    document.documentElement.setAttribute('data-theme', t);
-    try { localStorage.setItem('viv.theme', t); } catch (e) { /* private mode */ }
-    var b = document.getElementById('viv-theme-toggle');
-    if (b) b.setAttribute('aria-checked', t === 'dark' ? 'true' : 'false');
-    _syncThemeLogo();
+  // Plotly draws with literal colours, so live graphs are re-laid-out with the
+  // theme's chart tokens (transparent backgrounds, text/grid/axis colours).
+  function _syncPlotlyTheme() {
+    if (!window.vivTheme || typeof window.vivTheme.applyToPlotly !== 'function') return;
+    document.querySelectorAll('.js-plotly-plot').forEach(function (gd) {
+      window.vivTheme.applyToPlotly(gd);
+    });
   }
-  function _toggleTheme() {
-    var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    _setTheme(cur === 'dark' ? 'light' : 'dark');
+  window._syncPlotlyTheme = _syncPlotlyTheme;
+  if (window.vivTheme && typeof window.vivTheme.subscribe === 'function') {
+    window.vivTheme.subscribe(_syncThemeLogo);
+    window.vivTheme.subscribe(_syncPlotlyTheme);
   }
-  window._toggleTheme = _toggleTheme;
-  window._setTheme = _setTheme;
-  (function () {
-    var sync = function () {
-      var b = document.getElementById('viv-theme-toggle');
-      if (b) b.setAttribute('aria-checked', document.documentElement.getAttribute('data-theme') === 'dark' ? 'true' : 'false');
-      _syncThemeLogo();
-    };
-    if (document.readyState !== 'loading') sync();
-    else document.addEventListener('DOMContentLoaded', sync);
-  })();
+  if (document.readyState !== 'loading') _syncThemeLogo();
+  else document.addEventListener('DOMContentLoaded', _syncThemeLogo);
 
   function _syncRegistryToolbar() {
     // Scoped to [data-zoom] — .reg-zoom-btn is shared with the Investigations/
@@ -2451,7 +2454,7 @@
     var sourceAttr = p.source ? ' data-source="' + _esc(p.source) + '"' : '';
     var esc = _esc, addr = _esc(p.address || '');
     var defaultBadge = p.is_workspace_default
-      ? ' <span class="count-badge" style="background:#1f7a36;color:#fff;font-size:0.66em;padding:1px 5px;border-radius:3px;vertical-align:middle">DEFAULT</span>'
+      ? ' <span class="count-badge" style="background:var(--success-fg);color:var(--bg);font-size:0.66em;padding:1px 5px;border-radius:3px;vertical-align:middle">DEFAULT</span>'
       : '';
     var desc = (p.description || '').trim();
     var short = desc ? desc.split('\n')[0] : '';
@@ -3827,7 +3830,7 @@
             '<span class="imported-repo-kind-label">' + _esc(KIND_LABEL[k] || k) +
             ' (' + names.length + ')</span> ' +
             names.map(function(n) {
-              return '<span class="tag-pill" style="background:#eef2ff;color:#3730a3">' + _esc(n) + '</span>';
+              return '<span class="tag-pill" style="background:var(--active);color:var(--active-fg)">' + _esc(n) + '</span>';
             }).join(' ') +
             '</div>';
         }).join('');
@@ -3835,14 +3838,14 @@
         body = '<p class="muted" style="font-size:0.85em;margin:6px 0 0">No registered classes discovered (package may be install-gated).</p>';
       }
       var refBadge = imp.ref
-        ? ' <span class="tag-pill" style="background:#f1f5f9;color:#475569">@' + _esc(imp.ref) + '</span>'
+        ? ' <span class="tag-pill" style="background:var(--surface-3);color:var(--text-secondary)">@' + _esc(imp.ref) + '</span>'
         : '';
       var title = imp.source
         ? '<a href="' + _esc(imp.source) + '" target="_blank" rel="noopener">' + _esc(imp.name) + '</a>'
         : _esc(imp.name);
       return '<div class="module-card module-card-workspace">' +
         '<div class="module-card-header"><strong>' + title + '</strong>' + refBadge +
-        ' <span class="tag-pill" style="background:#dcfce7;color:#166534">' + classes.length + ' classes</span></div>' +
+        ' <span class="tag-pill" style="background:var(--success-bg);color:var(--success-fg)">' + classes.length + ' classes</span></div>' +
         (imp.description ? '<p class="module-desc">' + _esc(imp.description) + '</p>' : '') +
         body +
         '</div>';
@@ -3891,8 +3894,8 @@
       // separate it from — a single group needs no header.
       if (_hasEnv) {
         html += '<div class="reg-section-header" style="margin:2px 0 8px;font-size:0.82em;' +
-          'font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#475569">' +
-          'Declared in this workspace <span style="color:#9ca3af;font-weight:600">' + primary.length + '</span></div>';
+          'font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-secondary)">' +
+          'Declared in this workspace <span style="color:var(--text-subtle);font-weight:600">' + primary.length + '</span></div>';
       }
       html += '<div class="' + cardsCls + '">' + primary.map(_renderRegistryEntry).join('') + '</div>';
     } else {
@@ -3907,14 +3910,14 @@
     if (_hasEnv) {
       html +=
         '<div class="registry-env-section" style="margin-top:18px;padding-top:12px;' +
-        'border-top:1px solid var(--border,#e5e7eb)">' +
+        'border-top:1px solid var(--border,var(--border))">' +
         '<div class="reg-section-header" style="margin:0 0 8px;font-size:0.82em;font-weight:700;' +
-        'text-transform:uppercase;letter-spacing:0.04em;color:#475569">' +
-        'Available in environment <span style="color:#9ca3af;font-weight:600">' + envOnly.length + '</span>' +
-        '<span style="font-weight:500;text-transform:none;letter-spacing:0;color:#9ca3af;font-size:0.92em">' +
+        'text-transform:uppercase;letter-spacing:0.04em;color:var(--text-secondary)">' +
+        'Available in environment <span style="color:var(--text-subtle);font-weight:600">' + envOnly.length + '</span>' +
+        '<span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-subtle);font-size:0.92em">' +
         ' — installed but not declared in this workspace’s <code>imports:</code></span></div>' +
         '<div class="' + cardsCls + '">' + envOnly.map(_renderRegistryEntry).join('') + '</div>' +
-        '<p style="font-size:0.8em;color:#9ca3af;margin:8px 0 0">Run <code>/pbg-install &lt;pkg&gt;</code> to add a package to this workspace\'s imports.</p>' +
+        '<p style="font-size:0.8em;color:var(--text-subtle);margin:8px 0 0">Run <code>/pbg-install &lt;pkg&gt;</code> to add a package to this workspace\'s imports.</p>' +
         '</div>';
     }
 
@@ -3941,7 +3944,7 @@
       return '<div class="registry-entry">' +
         '<strong>' + _esc(c.name) + '</strong><br>' +
         '<small><code>' + _esc(c.address) + '</code></small>' +
-        (c.doc ? '<br><small style="color:#666">' + _esc(c.doc) + '</small>' : '') +
+        (c.doc ? '<br><small style="color:var(--text-secondary)">' + _esc(c.doc) + '</small>' : '') +
       '</div>';
     }).join('');
   }
@@ -4034,7 +4037,7 @@
       return '<div class="registry-entry">' +
         '<strong>' + _esc(t.name) + '</strong><br>' +
         (t.schema_preview
-          ? '<small style="color:#666">' + _esc(t.schema_preview) + '</small>'
+          ? '<small style="color:var(--text-secondary)">' + _esc(t.schema_preview) + '</small>'
           : '') +
       '</div>';
     }).join('');
@@ -4168,7 +4171,7 @@
       .then(function(data) {
         if (status) {
           if (data.error) {
-            status.innerHTML = '<span style="color:#991b1b">⚠ ' + data.error + '</span>';
+            status.innerHTML = '<span style="color:var(--danger-fg)">⚠ ' + data.error + '</span>';
           } else {
             status.textContent = '';
           }
@@ -4293,7 +4296,7 @@
         if (typeof _loadComposites === 'function') _loadComposites();
       })
       .catch(function(err) {
-        if (status) status.innerHTML = '<span style="color:#991b1b">Network error: ' + err + '</span>';
+        if (status) status.innerHTML = '<span style="color:var(--danger-fg)">Network error: ' + err + '</span>';
       });
   }
 
@@ -4946,12 +4949,12 @@
       // The workspace's own package isn't uninstallable — it's the workspace.
       // Render with a "first-party" pill and no Uninstall button.
       if (m.kind === 'workspace') {
-        return '<tr style="background:#f8fafc">' +
-          '<td><code>' + name + '</code><br><small style="color:#6b7280">' + pkg + '</small></td>' +
+        return '<tr style="background:var(--surface-2)">' +
+          '<td><code>' + name + '</code><br><small style="color:var(--text-subtle)">' + pkg + '</small></td>' +
           '<td><code>' + source + '</code> @ <code>' + ref + '</code></td>' +
           '<td><code>' + path + '</code></td>' +
           '<td><span class="status-pill installed" title="The workspace\'s own first-party package. Always present; cannot be uninstalled.">first-party</span></td>' +
-          '<td><span style="color:#6b7280;font-size:0.85em">workspace package</span></td>' +
+          '<td><span style="color:var(--text-subtle);font-size:0.85em">workspace package</span></td>' +
           '</tr>';
       }
 
@@ -4964,11 +4967,11 @@
         sysDepsBtn = ' <button class="action-btn action-btn--secondary" onclick="_checkSystemDepsForInstalled(\'' + name + '\')">Check system deps</button>';
       }
       return '<tr>' +
-        '<td><code>' + name + '</code><br><small style="color:#6b7280">' + pkg + '</small></td>' +
+        '<td><code>' + name + '</code><br><small style="color:var(--text-subtle)">' + pkg + '</small></td>' +
         '<td><code>' + source + '</code> @ <code>' + ref + '</code></td>' +
         '<td><code>' + path + '</code></td>' +
         '<td><span class="status-pill installed">installed</span></td>' +
-        '<td>' + (sysDepsBtn.trim() || '<span style="color:#9ca3af;font-size:0.85em">—</span>') + '</td>' +
+        '<td>' + (sysDepsBtn.trim() || '<span style="color:var(--text-subtle);font-size:0.85em">—</span>') + '</td>' +
         '</tr>';
     }).join('');
 
@@ -4985,7 +4988,7 @@
     if (!warningEl) return;
     var drifted = (modules || []).filter(function(m) { return m.installed && m.out_of_sync; });
     if (!drifted.length) { warningEl.style.display = 'none'; return; }
-    warningEl.style.cssText = 'display:block;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:10px;margin-top:12px;font-size:0.9em;color:#92400e';
+    warningEl.style.cssText = 'display:block;background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:4px;padding:10px;margin-top:12px;font-size:0.9em;color:var(--warning-fg)';
     warningEl.innerHTML =
       '<strong>⚠ Modules out of sync:</strong> ' +
       drifted.map(function(m) {
@@ -5103,7 +5106,7 @@
       })
       .catch(function(err) {
         var grid = document.getElementById('catalog-modules-grid');
-        if (grid) grid.innerHTML = '<p class="empty-state" style="color:#c00">Catalog load failed: ' + _esc(String(err)) + '</p>';
+        if (grid) grid.innerHTML = '<p class="empty-state" style="color:var(--danger-fg)">Catalog load failed: ' + _esc(String(err)) + '</p>';
       });
   }
   window._loadCatalog = _loadCatalog;
@@ -5528,11 +5531,11 @@
   // A status → color for the little study dots in an investigation's detail.
   function _mkStatusColor(st) {
     st = String(st || '').toLowerCase();
-    if (/complete|ran|pass|done/.test(st)) return '#22c55e';
-    if (/run|progress/.test(st)) return '#3b82f6';
-    if (/fail|error/.test(st)) return '#ef4444';
-    if (/inconclusive|partial/.test(st)) return '#f59e0b';
-    return '#cbd5e1';   // planned / unknown
+    if (/complete|ran|pass|done/.test(st)) return 'var(--success-fg)';
+    if (/run|progress/.test(st)) return 'var(--link)';
+    if (/fail|error/.test(st)) return 'var(--danger-fg)';
+    if (/inconclusive|partial/.test(st)) return 'var(--warning-fg)';
+    return 'var(--text-disabled)';   // planned / unknown
   }
 
   // An investigation's member studies, joined against the loaded study bucket so
@@ -6152,20 +6155,20 @@
 
     // Build per-check sections.
     var sections = missing.map(function(c) {
-      var statusIcon = '<span style="color:#c00;font-weight:bold;">FAIL</span>';
+      var statusIcon = '<span style="color:var(--danger-fg);font-weight:bold;">FAIL</span>';
       var header =
         '<div style="margin-top:10px;"><strong><code>' + _esc(c.name) + '</code></strong> ' +
         statusIcon + '</div>' +
         (c.description ? '<div class="muted" style="font-size:0.9em;margin:2px 0;">' + _esc(c.description) + '</div>' : '');
       var reason = c.reason
-        ? '<div style="font-family:monospace;font-size:0.85em;background:#fef3c7;border-left:3px solid #fcd34d;padding:6px 8px;margin:4px 0;">' +
+        ? '<div style="font-family:monospace;font-size:0.85em;background:var(--warning-bg);border-left:3px solid var(--warning-border);padding:6px 8px;margin:4px 0;">' +
             _esc(c.reason) +
           '</div>'
         : '';
       var installBlock = '';
       if (c.install && (c.install.commands || []).length) {
         var cmds = c.install.commands.map(function(cmd) {
-          return '<pre style="margin:2px 0;padding:6px 8px;background:#f3f4f6;border-radius:3px;font-size:0.85em;overflow-x:auto;">' +
+          return '<pre style="margin:2px 0;padding:6px 8px;background:var(--surface-3);border-radius:3px;font-size:0.85em;overflow-x:auto;">' +
             '$ ' + _esc(cmd) + '</pre>';
         }).join('');
         var mgr = c.install.manager ? ' (' + _esc(c.install.manager) + ')' : '';
@@ -6203,7 +6206,7 @@
           'Review the install commands below before continuing.' +
         '</p>' +
         '<div id="sysdeps-checks-body">' + sections + '</div>' +
-        '<div id="sysdeps-error" class="form-error" style="color:#c00;min-height:1em;margin-top:8px;"></div>' +
+        '<div id="sysdeps-error" class="form-error" style="color:var(--danger-fg);min-height:1em;margin-top:8px;"></div>' +
         '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">' +
           installBtn +
           '<button type="button" class="btn-mini" id="sysdeps-skip-btn">Skip checks &amp; install anyway</button>' +
@@ -6349,7 +6352,7 @@
         '<p class="muted" style="margin:4px 0 10px;">This removes the package from the workspace venv, ' +
           'pyproject.toml, and workspace.yaml imports, and commits the change on the active branch.</p>' +
         '<div class="uninstall-impact-body">' + removedSection + refSection + '</div>' +
-        '<div id="uninstall-error" class="form-error" style="color:#c00;min-height:1em;margin-top:8px;"></div>' +
+        '<div id="uninstall-error" class="form-error" style="color:var(--danger-fg);min-height:1em;margin-top:8px;"></div>' +
         '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">' +
           '<button type="button" class="action-btn danger" id="uninstall-confirm-btn">Uninstall ' + _esc(name) + '</button>' +
           '<button type="button" class="btn-mini" onclick="_closeUninstallModal()">Cancel</button>' +
@@ -6483,7 +6486,7 @@
     if (!anchor) return;
     var div = document.createElement('div');
     div.id = 'ws-dirty-panel';
-    div.style.cssText = 'background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:8px;margin:6px 0;font-size:0.85em';
+    div.style.cssText = 'background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:4px;padding:8px;margin:6px 0;font-size:0.85em';
     var rows = d.files.map(function(f){
       return '<div><code>' + _esc(f.status) + '</code> ' + _esc(f.path) + '</div>';
     }).join('');
@@ -6621,10 +6624,37 @@
   }
   window._submitCreatePR = _submitCreatePR;
 
+  // In-app suggestion providers. An opt-in extension may register one
+  // (window.vivSuggest.register({id, label, available(), suggest(kind) ->
+  // Promise<{suggestion, rationale?}>})); the Suggest buttons then use it
+  // directly instead of the request-file + /pbg-suggest round trip below.
+  window.vivSuggest = window.vivSuggest || { providers: [], register: function (p) { this.providers.push(p); } };
+
+  function _inAppSuggester() {
+    var list = (window.vivSuggest && window.vivSuggest.providers) || [];
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (p && typeof p.suggest === 'function' && (typeof p.available !== 'function' || p.available())) return p;
+    }
+    return null;
+  }
+
   // Generic Suggest button: writes a request, polls for response, fills the input.
   function _suggestInto(btn, kind, fieldName) {
     var form = btn.closest('form');
     var input = form.elements[fieldName];
+    var inApp = _inAppSuggester();
+    if (inApp) {
+      btn.disabled = true;
+      btn.textContent = "…";
+      inApp.suggest(kind).then(function (r) {
+        if (r && r.suggestion) input.value = r.suggestion;
+        if (r && r.rationale) input.title = r.rationale;
+      }).catch(function (e) {
+        alert("Suggestion failed (" + (inApp.label || 'in-app') + "): " + ((e && e.message) || 'unknown'));
+      }).then(function () { btn.disabled = false; btn.textContent = "Suggest"; });
+      return;
+    }
     btn.disabled = true;
     btn.textContent = "…";
     apiFetch('POST', '/api/suggest', {kind: kind})
@@ -6698,8 +6728,8 @@
         var rc = data.returncode;
         if (out) {
           out.textContent = text || "(no output)";
-          out.style.background = rc === 0 ? "#f0fff0" : "#fff0f0";
-          out.style.borderColor = rc === 0 ? "#4caf50" : "#f44336";
+          out.style.background = rc === 0 ? "var(--success-bg)" : "var(--danger-bg)";
+          out.style.borderColor = rc === 0 ? "var(--success-fg)" : "var(--danger-fg)";
         }
       })
       .catch(function (err) {
@@ -6780,7 +6810,7 @@
         var hashEl = zone.querySelector(".file-hash");
         if (infoEl) infoEl.textContent = file.name + " (" + sizeKb + " KB)";
         if (hashEl) hashEl.textContent = "sha256: " + hashHex;
-        zone.style.borderColor = "#3a8";
+        zone.style.borderColor = "var(--accent)";
         zone.querySelector && (zone.querySelectorAll(".drop-hint").forEach(function(h) { h.style.display = "none"; }));
       });
     };
@@ -6982,7 +7012,7 @@
     if (!host) return;
     if (!investigations.length) {
       host.innerHTML =
-        '<p class="viv-rail-empty" style="font-size:0.85em;color:#9ca3af;padding:4px 12px">' +
+        '<p class="viv-rail-empty" style="font-size:0.85em;color:var(--text-subtle);padding:4px 12px">' +
         'No studies yet' +
         '</p>';
       return;
@@ -7001,7 +7031,7 @@
       }
       if (!match) {
         host.innerHTML =
-          '<p class="viv-rail-empty" style="font-size:0.85em;color:#9ca3af;padding:4px 12px">' +
+          '<p class="viv-rail-empty" style="font-size:0.85em;color:var(--text-subtle);padding:4px 12px">' +
           'Loading study…' +
           '</p>';
         return;
@@ -7466,7 +7496,7 @@
       })
       .catch(function(err) {
         var body = document.getElementById('ce-history-body');
-        if (body) body.innerHTML = '<p style="color:#c00">Failed to load history: ' + _esc(String(err)) + '</p>';
+        if (body) body.innerHTML = '<p style="color:var(--danger-fg)">Failed to load history: ' + _esc(String(err)) + '</p>';
         window._ceHistoryLoaded = false;
         window._ceHistoryFetching = false;
       });
@@ -7594,14 +7624,17 @@
                     name: run.meta.label || run.run_id.slice(-12),
                     line: { color: run.color, width: 2 } };
         });
-        Plotly.newPlot('ce-cmp-' + _esc(k), traces, {
+        var plotted = Plotly.newPlot('ce-cmp-' + _esc(k), traces, {
           title: { text: k, font: { size: 13 } },
           margin: { l: 55, r: 15, t: 35, b: 40 },
           showlegend: false,
         }, { responsive: true, displayModeBar: false });
+        if (window.vivTheme && plotted && typeof plotted.then === 'function') {
+          plotted.then(function (gd) { window.vivTheme.applyToPlotly(gd); });
+        }
       });
     }).catch(function(err) {
-      body.innerHTML = '<span style="color:#c00">Failed to fetch runs: ' + _esc(String(err)) + '</span>';
+      body.innerHTML = '<span style="color:var(--danger-fg)">Failed to fetch runs: ' + _esc(String(err)) + '</span>';
     });
   }
   window._ceRenderCompare = _ceRenderCompare;
@@ -7624,7 +7657,7 @@
       })
       .catch(function(err) {
         var tree = document.getElementById('ce-state-tree');
-        if (tree) tree.innerHTML = '<span style="color:#c00">Failed to fetch run: ' + _esc(String(err)) + '</span>';
+        if (tree) tree.innerHTML = '<span style="color:var(--danger-fg)">Failed to fetch run: ' + _esc(String(err)) + '</span>';
       });
   }
   window._ceLoadState = _ceLoadState;
@@ -7673,7 +7706,7 @@
       if (depth >= 5) return '<span class="ce-jt-bracket">[…' + obj.length + ' items]</span>';
       var id = 'ce-jt-' + Math.random().toString(36).slice(2, 9);
       var html = '<span class="ce-jt-toggle" onclick="_ceToggleJt(\'' + id + '\')">&blacktriangledown;</span>';
-      html += '<span class="ce-jt-bracket">[</span><span style="color:#94a3b8;font-size:0.85em"> ' + obj.length + ' items</span>';
+      html += '<span class="ce-jt-bracket">[</span><span style="color:var(--text-subtle);font-size:0.85em"> ' + obj.length + ' items</span>';
       html += '<div id="' + id + '" style="margin-left:1.2em">';
       obj.forEach(function(v, i) {
         html += '<div>' + _ceRenderJSON(v, depth + 1) + (i < obj.length - 1 ? ',' : '') + '</div>';
@@ -7790,7 +7823,7 @@
           // Honest degrade: the ref doesn't resolve to a registered composite.
           // Don't render a bare "error composite" node — explain it plainly.
           document.getElementById('ce-loading').innerHTML =
-            '<div style="color:#92400e;background:#fffbeb;border:1px solid #f59e0b;' +
+            '<div style="color:var(--warning-fg);background:var(--warning-bg);border:1px solid var(--warning-fg);' +
             'border-radius:6px;padding:10px 14px">⚠ Composite not found in the ' +
             'registry: <code>' + _esc(data.ref || id) + '</code>. This study may not ' +
             'declare a real composite — check the study’s baseline composite ref.</div>';
@@ -7798,7 +7831,7 @@
         }
         if (data.error) {
           document.getElementById('ce-loading').innerHTML =
-            '<span style="color:#c00">Error: ' + _esc(data.error) + '</span>';
+            '<span style="color:var(--danger-fg)">Error: ' + _esc(data.error) + '</span>';
           return;
         }
         if (data.wiring_status === 'unavailable' || data.state == null) {
@@ -7808,7 +7841,7 @@
           // state.  The Configure & Run panel is handled separately so the user
           // can still trigger a build run.
           document.getElementById('ce-loading').innerHTML =
-            '<div style="color:#92400e;background:#fffbeb;border:1px solid #f59e0b;' +
+            '<div style="color:var(--warning-fg);background:var(--warning-bg);border:1px solid var(--warning-fg);' +
             'border-radius:6px;padding:10px 14px">ℹ️ ' +
             _esc(data.notice || 'Wiring diagram unavailable for this composite.') +
             '</div>';
@@ -7865,25 +7898,25 @@
           ? 'Wiring snapshot not available for this composite in the read-only view.'
           : 'Network error: ' + _esc(String(err));
         document.getElementById('ce-loading').innerHTML =
-          '<span style="color:#c00">' + msg + '</span>';
+          '<span style="color:var(--danger-fg)">' + msg + '</span>';
       });
   }
 
   function _legacyLoadCompositeSvg(ref) {
     var el = document.getElementById('composite-explore-svg-legacy');
     if (!el) return;
-    el.innerHTML = '<p style="color:#888">Loading SVG…</p>';
+    el.innerHTML = '<p style="color:var(--text-muted)">Loading SVG…</p>';
     apiFetch('GET', '/api/composite-resolve?id=' + encodeURIComponent(ref))
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.svg) {
           el.innerHTML = data.svg;
         } else {
-          el.innerHTML = '<p style="color:#666">No SVG returned from legacy render.</p>';
+          el.innerHTML = '<p style="color:var(--text-secondary)">No SVG returned from legacy render.</p>';
         }
       })
       .catch(function() {
-        el.innerHTML = '<p style="color:#666">Legacy SVG render unavailable.</p>';
+        el.innerHTML = '<p style="color:var(--text-secondary)">Legacy SVG render unavailable.</p>';
       });
   }
 
@@ -8060,7 +8093,7 @@
               ? body.error
               : ('HTTP ' + code);
             resultsEl.innerHTML =
-              '<div style="color:#c00;"><strong>Could not start run:</strong> ' +
+              '<div style="color:var(--danger-fg);"><strong>Could not start run:</strong> ' +
               _esc(errMsg) + '</div>';
             return;
           }
@@ -8087,7 +8120,7 @@
         })
         .catch(function(err) {
           resultsEl.innerHTML =
-            '<div style="color:#c00;"><strong>Network error:</strong> ' +
+            '<div style="color:var(--danger-fg);"><strong>Network error:</strong> ' +
             _esc(String(err)) + '</div>';
         });
     }, function () { resultsEl.innerHTML = '<p class="empty-state">Cancelled.</p>'; });
@@ -8235,7 +8268,7 @@
         // Reset the memo so the next navigation to Studies retries.
         window._investigationsLoaded = false;
         var grid = document.getElementById('investigations-grid');
-        if (grid) grid.innerHTML = '<p class="empty-state" style="color:#c00">' +
+        if (grid) grid.innerHTML = '<p class="empty-state" style="color:var(--danger-fg)">' +
             'Failed to load studies: ' + _esc(String(err)) +
             ' <button class="btn-mini" onclick="window._investigationsLoaded=false;_loadInvestigations()">Retry</button></p>';
       });
@@ -8292,7 +8325,7 @@
         }
       })
       .catch(function(err) {
-        if (list) list.innerHTML = '<p class="empty-state" style="color:#b91c1c">' +
+        if (list) list.innerHTML = '<p class="empty-state" style="color:var(--danger-fg)">' +
           'Failed to load investigations: ' + _esc(String(err)) + '</p>';
       });
   }
@@ -8406,13 +8439,13 @@
       // executing right now) vs "in_progress" (partly done, nothing running)
       // were the confusing pair.
       var STATUS_META = {
-        planning:    {label:'Planned',     bg:'#f1f5f9', fg:'#475569', bd:'#cbd5e1', tip:'Not started — every study is still planned.'},
-        in_progress: {label:'In progress', bg:'#fef9c3', fg:'#854d0e', bd:'#fde047', tip:'Partly done — some studies have results, but none are running right now.'},
-        running:     {label:'Running now', bg:'#dbeafe', fg:'#1e40af', bd:'#93c5fd', tip:'A study is executing right now.'},
-        complete:    {label:'Complete',    bg:'#dcfce7', fg:'#166534', bd:'#86efac', tip:'All studies are done.'},
-        failed:      {label:'Failed',      bg:'#fee2e2', fg:'#991b1b', bd:'#fca5a5', tip:'A study failed or is invalid — needs attention.'}
+        planning:    {label:'Planned',     bg:'var(--surface-3)', fg:'var(--text-secondary)', bd:'var(--border-2)', tip:'Not started — every study is still planned.'},
+        in_progress: {label:'In progress', bg:'var(--warning-bg)', fg:'var(--warning-fg)', bd:'var(--warning-border)', tip:'Partly done — some studies have results, but none are running right now.'},
+        running:     {label:'Running now', bg:'var(--info-bg)', fg:'var(--info-fg)', bd:'var(--info-border)', tip:'A study is executing right now.'},
+        complete:    {label:'Complete',    bg:'var(--success-bg)', fg:'var(--success-fg)', bd:'var(--success-border)', tip:'All studies are done.'},
+        failed:      {label:'Failed',      bg:'var(--danger-bg)', fg:'var(--danger-fg)', bd:'var(--danger-border)', tip:'A study failed or is invalid — needs attention.'}
       };
-      var meta = STATUS_META[effStatus] || {label: effStatus, bg:'#f1f5f9', fg:'#475569', bd:'#cbd5e1', tip:'status: ' + effStatus};
+      var meta = STATUS_META[effStatus] || {label: effStatus, bg:'var(--surface-3)', fg:'var(--text-secondary)', bd:'var(--border-2)', tip:'status: ' + effStatus};
       var statusTip = meta.tip + (authStatus && authStatus !== effStatus ? '  ·  author intent: ' + authStatus : '');
       // "Current branch" is NOT a status — it means this investigation is your
       // current git checkout (what you're working on). Render it as a distinct
@@ -8420,12 +8453,12 @@
       // green "Complete" status it used to mimic.
       var pillBase = 'font-size:0.72em;border-radius:9999px;padding:1px 9px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;';
       var currentPill = iset.current
-        ? '<span class="iset-here-chip" title="You are working on this investigation — it is the current git branch." style="' + pillBase + 'background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;font-weight:600">⎇ current branch</span>'
+        ? '<span class="iset-here-chip" title="You are working on this investigation — it is the current git branch." style="' + pillBase + 'background:var(--active);color:var(--active-fg);border:1px solid var(--active-indicator);font-weight:600">⎇ current branch</span>'
         : '';
       var statusPill = closed
-        ? '<span class="status-pill" style="' + pillBase + 'background:#e5e7eb;color:#4b5563;border:1px solid #d1d5db">Closed</span>'
+        ? '<span class="status-pill" style="' + pillBase + 'background:var(--border);color:var(--text-secondary);border:1px solid var(--border-2)">Closed</span>'
         : '<span class="status-pill" style="' + pillBase + 'background:' + meta.bg + ';color:' + meta.fg + ';border:1px solid ' + meta.bd + '" title="' + _esc(statusTip) + '">' + _esc(meta.label) + '</span>';
-      var cardStyle = 'background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;cursor:pointer;transition:box-shadow 0.1s,border-color 0.1s;' +
+      var cardStyle = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;transition:box-shadow 0.1s,border-color 0.1s;' +
         (closed ? 'opacity:0.6;' : '');
       var filterStatus = (closed ? 'closed' : effStatus);
 
@@ -8448,7 +8481,7 @@
         return '<span style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap">' +
           '<span style="width:8px;height:8px;border-radius:50%;background:' + e.color + '"></span>' +
           e.n + ' ' + _esc(lab) + '</span>';
-      }).join('<span style="color:#cbd5e1">·</span>');
+      }).join('<span style="color:var(--text-disabled)">·</span>');
 
       // Expandable study list (revealed by clicking the studies count): each row
       // pulls the study's objective text + the consistent action set — downloads
@@ -8460,7 +8493,7 @@
         var title = (s && s.title) ? String(s.title) : '';
         var obj = (s && (s.objective || s.description)) ? String(s.objective || s.description) : '';
         var objShort = obj ? (obj.length > 150 ? obj.slice(0, 150).replace(/\s+\S*$/, '') + '…' : obj) : '';
-        var lnk = 'font-size:0.82em;color:#3b82f6;text-decoration:none;white-space:nowrap;cursor:pointer';
+        var lnk = 'font-size:0.82em;color:var(--link);text-decoration:none;white-space:nowrap;cursor:pointer';
         // Card rows carry the DOWNLOADS only (↓ figures / ↓ notebook). The
         // run/reproduce launch actions live on the study tab's header
         // (▶ Run current spec / ↻ Reproduce), not here — so a card stays a
@@ -8471,25 +8504,25 @@
           '<a href="#" style="' + lnk + '" title="Download this study\'s own runnable notebook (composite + parameters + figures)" ' +
             'onclick="window._vivStudyNotebookFromCard(event,\'' + _esc(slug) + '\',\'' + _esc(iset.name) + '\');return false;">↓ notebook</a>';
         return '<div class="iset-study-row" style="padding:6px;border-radius:5px" ' +
-          'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
+          'onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">' +
           '<div style="display:flex;align-items:center;gap:8px">' +
             '<span style="width:7px;height:7px;border-radius:50%;background:' + m.color + '"></span>' +
             '<a href="/studies/' + encodeURIComponent(slug) + '" onclick="event.stopPropagation()" style="text-decoration:none">' +
-              '<code style="font-size:0.92em;color:#475569">' + _esc(slug) + '</code></a>' +
-            (title ? '<span style="font-size:0.86em;color:#334155">' + _esc(title) + '</span>' : '') +
-            '<span style="margin-left:auto;color:#94a3b8;font-size:0.82em">' + _esc(m.label) + '</span>' +
+              '<code style="font-size:0.92em;color:var(--text-secondary)">' + _esc(slug) + '</code></a>' +
+            (title ? '<span style="font-size:0.86em;color:var(--text)">' + _esc(title) + '</span>' : '') +
+            '<span style="margin-left:auto;color:var(--text-subtle);font-size:0.82em">' + _esc(m.label) + '</span>' +
           '</div>' +
-          (objShort ? '<div style="font-size:0.8em;color:#64748b;margin:2px 0 0 15px;line-height:1.35">' + _esc(objShort) + '</div>' : '') +
+          (objShort ? '<div style="font-size:0.8em;color:var(--text-muted);margin:2px 0 0 15px;line-height:1.35">' + _esc(objShort) + '</div>' : '') +
           '<div style="display:flex;gap:14px;margin:4px 0 0 15px">' + acts + '</div>' +
         '</div>';
       }).join('');
 
       var qFull = iset.question ? String(iset.question).split('\n')[0] : '';
       var qLine = iset.question
-        ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:#334155"><span style="color:#94a3b8;font-weight:600">Q</span> ' + _esc(full ? qFull : qFull.slice(0, 200)) + '</p>'
-        : (desc ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:#475569">' + _esc(desc) + (!full && iset.description.length > 240 ? '…' : '') + '</p>' : '');
+        ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:var(--text)"><span style="color:var(--text-subtle);font-weight:600">Q</span> ' + _esc(full ? qFull : qFull.slice(0, 200)) + '</p>'
+        : (desc ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:var(--text-secondary)">' + _esc(desc) + (!full && iset.description.length > 240 ? '…' : '') + '</p>' : '');
       var lifeChip = iset.lifecycle && iset.lifecycle !== 'active'
-        ? '<span style="font-size:0.72em;color:#64748b;background:#f1f5f9;border-radius:9999px;padding:1px 8px">' + _esc(iset.lifecycle) + '</span>' : '';
+        ? '<span style="font-size:0.72em;color:var(--text-muted);background:var(--surface-3);border-radius:9999px;padding:1px 8px">' + _esc(iset.lifecycle) + '</span>' : '';
 
       return '<div class="investigation-set-card' + (full ? ' iset-card-full' : '') + (iset.read_only ? ' federated-readonly' : '') + '" onclick="_showInvestigationWorkspace(\'' + _esc(iset.name) + '\')" ondblclick="_isetZoomIn()" ' +
              'title="' + _esc(iset.name) + '" ' +
@@ -8504,22 +8537,22 @@
           _originBadge(iset.origin_repo) +
         '</div>' +
         qLine +
-        (breakdown ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.82em;color:#64748b;margin:0 0 8px">' + breakdown + (lifeChip ? '<span style="margin-left:auto">' + lifeChip + '</span>' : '') + '</div>' : '') +
-        '<div style="display:flex;align-items:center;gap:12px;font-size:0.85em;color:#64748b">' +
+        (breakdown ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.82em;color:var(--text-muted);margin:0 0 8px">' + breakdown + (lifeChip ? '<span style="margin-left:auto">' + lifeChip + '</span>' : '') + '</div>' : '') +
+        '<div style="display:flex;align-items:center;gap:12px;font-size:0.85em;color:var(--text-muted)">' +
           '<span class="iset-studies-toggle" role="button" tabindex="0" ' +
             'onclick="event.stopPropagation();var d=this.closest(\'.investigation-set-card\').querySelector(\'.iset-studies-detail\');var open=d.style.display===\'none\';d.style.display=open?\'block\':\'none\';this.querySelector(\'.iset-chev\').textContent=open?\'▾\':\'▸\'" ' +
-            'style="flex:1;cursor:pointer;user-select:none"><strong>' + iset.n_studies + '</strong> stud' + (iset.n_studies === 1 ? 'y' : 'ies') + ' <span class="iset-chev" style="color:#94a3b8">' + (full ? '▾' : '▸') + '</span></span>' +
+            'style="flex:1;cursor:pointer;user-select:none"><strong>' + iset.n_studies + '</strong> stud' + (iset.n_studies === 1 ? 'y' : 'ies') + ' <span class="iset-chev" style="color:var(--text-subtle)">' + (full ? '▾' : '▸') + '</span></span>' +
           '<a href="#" title="Download the rendered HTML report for this investigation" ' +
             'onclick="window._vivReportFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
-            'style="color:#3b82f6;text-decoration:none;white-space:nowrap">↓ report</a>' +
+            'style="color:var(--link);text-decoration:none;white-space:nowrap">↓ report</a>' +
           '<a href="#" title="Download the runnable notebook for this investigation" ' +
             'onclick="window._vivNotebookFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
-            'style="color:#3b82f6;text-decoration:none;white-space:nowrap">↓ notebook</a>' +
+            'style="color:var(--link);text-decoration:none;white-space:nowrap">↓ notebook</a>' +
           (iset.n_figures ? '<a href="#" title="Download all figures for this investigation (studies figures + post-study composites), as a zip" ' +
             'onclick="window._vivFiguresFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
-            'style="color:#3b82f6;text-decoration:none;white-space:nowrap">↓ figures</a>' : '') +
+            'style="color:var(--link);text-decoration:none;white-space:nowrap">↓ figures</a>' : '') +
         '</div>' +
-        '<div class="iset-studies-detail" style="display:' + (full ? 'block' : 'none') + ';margin-top:8px;border-top:1px solid #f1f5f9;padding-top:6px">' + (studyRows || '<span class="muted" style="font-size:0.85em">No studies.</span>') + '</div>' +
+        '<div class="iset-studies-detail" style="display:' + (full ? 'block' : 'none') + ';margin-top:8px;border-top:1px solid var(--border-faint);padding-top:6px">' + (studyRows || '<span class="muted" style="font-size:0.85em">No studies.</span>') + '</div>' +
         // "Run this investigation in your terminal" chip (like the composite/process card).
         _runCmdChip(iset.run_command || ('vwb run investigation ' + iset.name)) +
       '</div>';
@@ -8530,8 +8563,8 @@
     function _groupHtml(label, items) {
       if (!items.length) return '';
       return '<div class="iset-group" data-group-label="' + label + '">' +
-        '<h3 class="iset-group-head" style="font-size:0.9em;color:#475569;font-weight:700;margin:10px 0 2px;text-transform:uppercase;letter-spacing:0.04em">' +
-          label + ' <span class="iset-group-count" style="color:#94a3b8;font-weight:600">(' + items.length + ')</span></h3>' +
+        '<h3 class="iset-group-head" style="font-size:0.9em;color:var(--text-secondary);font-weight:700;margin:10px 0 2px;text-transform:uppercase;letter-spacing:0.04em">' +
+          label + ' <span class="iset-group-count" style="color:var(--text-subtle);font-weight:600">(' + items.length + ')</span></h3>' +
         '<div class="investigations-grid" style="' + GRID + '">' +
           items.map(function (iset) { return _isetCardHtml(iset, _isetFull); }).join('') +
         '</div>' +
@@ -8705,11 +8738,11 @@
       var on = slug === st.active;
       return '<span class="ws-study-tab" data-ws-tab="' + _esc(slug) + '" ' +
         'style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;cursor:pointer;' +
-        'border-bottom:2px solid ' + (on ? '#3b82f6' : 'transparent') + ';' +
-        'color:' + (on ? '#0f172a' : '#64748b') + ';font-weight:' + (on ? '600' : '400') + ';margin-bottom:-1px">' +
+        'border-bottom:2px solid ' + (on ? 'var(--link)' : 'transparent') + ';' +
+        'color:' + (on ? 'var(--heading)' : 'var(--text-muted)') + ';font-weight:' + (on ? '600' : '400') + ';margin-bottom:-1px">' +
         '<span onclick="_wsOpenStudyTab(\'' + _esc(slug) + '\')">' + _esc(slug) + '</span>' +
         '<span onclick="event.stopPropagation();_wsCloseStudyTab(\'' + _esc(slug) + '\')" ' +
-        'title="close" style="color:#94a3b8;font-weight:700">×</span></span>';
+        'title="close" style="color:var(--text-subtle);font-weight:700">×</span></span>';
     }).join('');
   }
   window._wsRenderStudyTabs = _wsRenderStudyTabs;
@@ -8995,9 +9028,9 @@
     var qText = String(q).split('\n')[0];
     var nRuns = (s.n_runs !== undefined) ? s.n_runs
               : (s.n_simulations !== undefined ? s.n_simulations : 0);
-    var cardStyle = 'background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;cursor:pointer;transition:box-shadow 0.1s,border-color 0.1s;';
+    var cardStyle = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;transition:box-shadow 0.1s,border-color 0.1s;';
     var partOf = (s.investigations && s.investigations.length)
-      ? '<div style="font-size:0.78em;color:#94a3b8;margin:0 0 6px">part of: ' + _esc(s.investigations.join(', ')) + '</div>'
+      ? '<div style="font-size:0.78em;color:var(--text-subtle);margin:0 0 6px">part of: ' + _esc(s.investigations.join(', ')) + '</div>'
       : '';
     return '<div class="investigation-set-card' + (full ? ' iset-card-full' : '') + (s.read_only ? ' federated-readonly' : '') + '" onclick="_openStudyEmbeddedNewTab(\'' + _esc(s.name) + '\')" ondblclick="_isetZoomIn()" ' +
            'title="' + _esc(s.name) + '" ' +
@@ -9008,15 +9041,15 @@
       '<div style="display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap;margin-bottom:6px;">' +
         '<strong style="font-size:1.02em;flex:1 1 100%">' + _esc(s.title || s.name) + '</strong>' +
         '<span style="font-size:0.72em;border-radius:9999px;padding:1px 9px;white-space:nowrap;' +
-          'background:' + m.color + '22;color:' + m.color + ';border:1px solid ' + m.color + '55">' + _esc(m.label) + '</span>' +
+          'background:color-mix(in srgb, ' + m.color + ' 13%, transparent);color:' + m.color + ';border:1px solid color-mix(in srgb, ' + m.color + ' 33%, transparent)">' + _esc(m.label) + '</span>' +
         _originBadge(s.origin_repo) +
       '</div>' +
-      (inv ? '<div style="font-size:0.78em;color:#94a3b8;margin:0 0 6px"><span style="color:#cbd5e1">▪</span> ' + _esc(inv) + '</div>' : '') +
+      (inv ? '<div style="font-size:0.78em;color:var(--text-subtle);margin:0 0 6px"><span style="color:var(--text-disabled)">▪</span> ' + _esc(inv) + '</div>' : '') +
       partOf +
-      (q ? '<p style="margin:0 0 8px 0;font-size:0.9em;color:#334155"><span style="color:#94a3b8;font-weight:600">Q</span> ' + _esc(full ? qText : qText.slice(0, 180)) + '</p>' : '') +
-      '<div style="display:flex;align-items:center;gap:12px;font-size:0.85em;color:#64748b">' +
+      (q ? '<p style="margin:0 0 8px 0;font-size:0.9em;color:var(--text)"><span style="color:var(--text-subtle);font-weight:600">Q</span> ' + _esc(full ? qText : qText.slice(0, 180)) + '</p>' : '') +
+      '<div style="display:flex;align-items:center;gap:12px;font-size:0.85em;color:var(--text-muted)">' +
         '<span style="flex:1"><strong>' + nRuns + '</strong> run' + (nRuns === 1 ? '' : 's') + '</span>' +
-        '<span style="color:#3b82f6">open ↗</span>' +
+        '<span style="color:var(--link)">open ↗</span>' +
       '</div>' +
       // "Run this study in your terminal" chip (like the composite/process card).
       _runCmdChip(s.run_command || ('vwb run study ' + s.name)) +
@@ -9057,8 +9090,8 @@
     list.innerHTML = order.map(function (inv) {
       var items = groups[inv].slice().sort(cmp);
       return '<div class="iset-group" data-study-group="' + _esc(inv) + '">' +
-        '<h3 class="iset-group-head" style="font-size:0.9em;color:#475569;font-weight:700;margin:10px 0 2px;text-transform:uppercase;letter-spacing:0.04em">' +
-        _esc(titleFor(inv)) + ' <span style="color:#94a3b8;font-weight:600">(' + items.length + ')</span></h3>' +
+        '<h3 class="iset-group-head" style="font-size:0.9em;color:var(--text-secondary);font-weight:700;margin:10px 0 2px;text-transform:uppercase;letter-spacing:0.04em">' +
+        _esc(titleFor(inv)) + ' <span style="color:var(--text-subtle);font-weight:600">(' + items.length + ')</span></h3>' +
         '<div class="investigations-grid" style="' + GRID + '">' +
         items.map(function (s) { return _studyBrowseCardHtml(s, full); }).join('') + '</div></div>';
     }).join('') +
@@ -9074,7 +9107,7 @@
     return (it && (it.title || it.name)) || inv;
   }
   function _fmtStudyDate(iso) {
-    if (!iso) return '<span style="color:#cbd5e1">—</span>';
+    if (!iso) return '<span style="color:var(--text-disabled)">—</span>';
     return _esc(String(iso).slice(0, 10));   // YYYY-MM-DD
   }
 
@@ -9107,8 +9140,8 @@
       var arrow = sort.col === c[0] ? (sort.dir > 0 ? ' ▲' : ' ▼') : '';
       var alignR = (c[0] === 'runs') ? 'text-align:right;' : 'text-align:left;';
       return '<th onclick="_setStudyTableSort(\'' + c[0] + '\')" style="' + alignR +
-        'position:sticky;top:0;background:#f8fafc;padding:7px 10px;cursor:pointer;font-size:0.78em;' +
-        'text-transform:uppercase;letter-spacing:0.03em;color:#475569;border-bottom:1px solid #e5e7eb;white-space:nowrap">' +
+        'position:sticky;top:0;background:var(--surface-2);padding:7px 10px;cursor:pointer;font-size:0.78em;' +
+        'text-transform:uppercase;letter-spacing:0.03em;color:var(--text-secondary);border-bottom:1px solid var(--border);white-space:nowrap">' +
         _esc(c[1]) + arrow + '</th>';
     }).join('');
     var rows = studies.map(function (s) {
@@ -9119,19 +9152,19 @@
       var runs = runsOf(s);
       var rowText = (String(s.title || s.name) + ' ' + inv + ' ' + invTitle + ' ' + status + ' ' + (s.phase || '')).toLowerCase();
       return '<tr data-row-text="' + _esc(rowText) + '" onclick="_openStudyEmbeddedNewTab(\'' + _esc(s.name) + '\')" ' +
-        'style="cursor:pointer;border-bottom:1px solid #f1f5f9" ' +
-        'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
-        '<td style="padding:7px 10px;font-weight:600;color:#1e293b">' + _esc(s.title || s.name) + '</td>' +
-        '<td style="padding:7px 10px;color:#64748b">' + _esc(invTitle) + '</td>' +
+        'style="cursor:pointer;border-bottom:1px solid var(--border-faint)" ' +
+        'onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">' +
+        '<td style="padding:7px 10px;font-weight:600;color:var(--heading)">' + _esc(s.title || s.name) + '</td>' +
+        '<td style="padding:7px 10px;color:var(--text-muted)">' + _esc(invTitle) + '</td>' +
         '<td style="padding:7px 10px;white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + m.color + ';margin-right:5px"></span>' + _esc(m.label) + '</td>' +
-        '<td style="padding:7px 10px;color:#64748b">' + _esc(s.phase || '—') + '</td>' +
-        '<td style="padding:7px 10px;text-align:right;color:' + (runs ? '#1e293b' : '#cbd5e1') + '">' + runs + '</td>' +
-        '<td style="padding:7px 10px;color:#64748b;white-space:nowrap">' + _fmtStudyDate(s.last_run) + '</td>' +
-        '<td style="padding:7px 10px;color:#94a3b8;font-family:ui-monospace,monospace;font-size:0.85em">' + _esc(s.composite || '—') + '</td>' +
+        '<td style="padding:7px 10px;color:var(--text-muted)">' + _esc(s.phase || '—') + '</td>' +
+        '<td style="padding:7px 10px;text-align:right;color:' + (runs ? 'var(--heading)' : 'var(--text-disabled)') + '">' + runs + '</td>' +
+        '<td style="padding:7px 10px;color:var(--text-muted);white-space:nowrap">' + _fmtStudyDate(s.last_run) + '</td>' +
+        '<td style="padding:7px 10px;color:var(--text-subtle);font-family:ui-monospace,monospace;font-size:0.85em">' + _esc(s.composite || '—') + '</td>' +
         '</tr>';
     }).join('');
     list.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.9em;' +
-      'background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">' +
+      'background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
       '<thead><tr>' + th + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
     _filterInvestigations();
   }
@@ -9149,11 +9182,11 @@
   // report/notebook links mirror the card actions (_vivReportFromCard /
   // _vivNotebookFromCard already stopPropagation internally).
   var _ISET_TABLE_STATUS_META = {
-    planning:    {label:'Planned',     bg:'#f1f5f9', fg:'#475569', bd:'#cbd5e1'},
-    in_progress: {label:'In progress', bg:'#fef9c3', fg:'#854d0e', bd:'#fde047'},
-    running:     {label:'Running now', bg:'#dbeafe', fg:'#1e40af', bd:'#93c5fd'},
-    complete:    {label:'Complete',    bg:'#dcfce7', fg:'#166534', bd:'#86efac'},
-    failed:      {label:'Failed',      bg:'#fee2e2', fg:'#991b1b', bd:'#fca5a5'}
+    planning:    {label:'Planned',     bg:'var(--surface-3)', fg:'var(--text-secondary)', bd:'var(--border-2)'},
+    in_progress: {label:'In progress', bg:'var(--warning-bg)', fg:'var(--warning-fg)', bd:'var(--warning-border)'},
+    running:     {label:'Running now', bg:'var(--info-bg)', fg:'var(--info-fg)', bd:'var(--info-border)'},
+    complete:    {label:'Complete',    bg:'var(--success-bg)', fg:'var(--success-fg)', bd:'var(--success-border)'},
+    failed:      {label:'Failed',      bg:'var(--danger-bg)', fg:'var(--danger-fg)', bd:'var(--danger-border)'}
   };
   function _renderInvestigationTable(isets, mountEl) {
     var items = (isets || []).slice();
@@ -9163,42 +9196,42 @@
     }
     var th = [['Name', 'left'], ['Status', 'left'], ['Studies', 'right'], ['Question', 'left'], ['Links', 'left']]
       .map(function (c) {
-        return '<th style="text-align:' + c[1] + ';position:sticky;top:0;background:#f8fafc;padding:7px 10px;' +
-          'font-size:0.78em;text-transform:uppercase;letter-spacing:0.03em;color:#475569;' +
-          'border-bottom:1px solid #e5e7eb;white-space:nowrap">' + c[0] + '</th>';
+        return '<th style="text-align:' + c[1] + ';position:sticky;top:0;background:var(--surface-2);padding:7px 10px;' +
+          'font-size:0.78em;text-transform:uppercase;letter-spacing:0.03em;color:var(--text-secondary);' +
+          'border-bottom:1px solid var(--border);white-space:nowrap">' + c[0] + '</th>';
       }).join('');
     var rows = items.map(function (iset) {
       var closed = (iset.status === 'archived' || iset.status === 'closed');
       var effStatus = iset.effective_status || iset.status || 'planning';
-      var meta = _ISET_TABLE_STATUS_META[effStatus] || {label: effStatus, bg:'#f1f5f9', fg:'#475569', bd:'#cbd5e1'};
+      var meta = _ISET_TABLE_STATUS_META[effStatus] || {label: effStatus, bg:'var(--surface-3)', fg:'var(--text-secondary)', bd:'var(--border-2)'};
       var pillBase = 'font-size:0.72em;border-radius:9999px;padding:1px 9px;white-space:nowrap;';
       var statusPill = closed
-        ? '<span class="status-pill" style="' + pillBase + 'background:#e5e7eb;color:#4b5563;border:1px solid #d1d5db">Closed</span>'
+        ? '<span class="status-pill" style="' + pillBase + 'background:var(--border);color:var(--text-secondary);border:1px solid var(--border-2)">Closed</span>'
         : '<span class="status-pill" style="' + pillBase + 'background:' + meta.bg + ';color:' + meta.fg + ';border:1px solid ' + meta.bd + '">' + _esc(meta.label) + '</span>';
       var q = iset.question ? String(iset.question).split('\n')[0].slice(0, 140) : '';
       var rowText = (String(iset.title || iset.name) + ' ' + effStatus + ' ' + q).toLowerCase();
       return '<tr data-row-text="' + _esc(rowText) + '" onclick="_showInvestigationWorkspace(\'' + _esc(iset.name) + '\')" ' +
-        'style="cursor:pointer;border-bottom:1px solid #f1f5f9' + (closed ? ';opacity:0.6' : '') + '" ' +
-        'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
-        '<td style="padding:7px 10px;font-weight:600;color:#1e293b">' + _esc(iset.title || iset.name) + '</td>' +
+        'style="cursor:pointer;border-bottom:1px solid var(--border-faint)' + (closed ? ';opacity:0.6' : '') + '" ' +
+        'onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">' +
+        '<td style="padding:7px 10px;font-weight:600;color:var(--heading)">' + _esc(iset.title || iset.name) + '</td>' +
         '<td style="padding:7px 10px;white-space:nowrap">' + statusPill + '</td>' +
-        '<td style="padding:7px 10px;text-align:right;color:' + (iset.n_studies ? '#1e293b' : '#cbd5e1') + '">' + (iset.n_studies || 0) + '</td>' +
-        '<td style="padding:7px 10px;color:#64748b">' + (q ? _esc(q) : '<span style="color:#cbd5e1">—</span>') + '</td>' +
+        '<td style="padding:7px 10px;text-align:right;color:' + (iset.n_studies ? 'var(--heading)' : 'var(--text-disabled)') + '">' + (iset.n_studies || 0) + '</td>' +
+        '<td style="padding:7px 10px;color:var(--text-muted)">' + (q ? _esc(q) : '<span style="color:var(--text-disabled)">—</span>') + '</td>' +
         '<td style="padding:7px 10px;white-space:nowrap;font-size:0.85em">' +
           '<a href="#" title="Download the rendered HTML report for this investigation" ' +
             'onclick="window._vivReportFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
-            'style="color:#3b82f6;text-decoration:none;margin-right:10px">↓ report</a>' +
+            'style="color:var(--link);text-decoration:none;margin-right:10px">↓ report</a>' +
           '<a href="#" title="Download the runnable notebook for this investigation" ' +
             'onclick="window._vivNotebookFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
-            'style="color:#3b82f6;text-decoration:none">↓ notebook</a>' +
+            'style="color:var(--link);text-decoration:none">↓ notebook</a>' +
           (iset.n_figures ? '<a href="#" title="Download all figures for this investigation (studies figures + post-study composites), as a zip" ' +
             'onclick="window._vivFiguresFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
-            'style="color:#3b82f6;text-decoration:none;margin-left:10px">↓ figures</a>' : '') +
+            'style="color:var(--link);text-decoration:none;margin-left:10px">↓ figures</a>' : '') +
         '</td>' +
         '</tr>';
     }).join('');
     mountEl.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.9em;' +
-      'background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">' +
+      'background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
       '<thead><tr>' + th + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
   window._renderInvestigationTable = _renderInvestigationTable;
@@ -9279,7 +9312,7 @@
         if (btn) {
           btn.disabled = false;
           btn.textContent = orig;
-          btn.style.color = '#b91c1c';
+          btn.style.color = 'var(--danger-fg)';
           btn.title = 'Failed: ' + String(err);
         }
       });
@@ -9808,9 +9841,9 @@
   // the panel empty.
   function _naSeverityStyle(sev) {
     var s = (sev || '').toString().toLowerCase();
-    if (s === 'high')   return { dot: '#dc2626', bg: '#fef2f2', bd: '#dc2626', col: '#991b1b' };
-    if (s === 'medium') return { dot: '#f59e0b', bg: '#fffbeb', bd: '#f59e0b', col: '#92400e' };
-    return { dot: '#3b82f6', bg: '#eff6ff', bd: '#3b82f6', col: '#1e40af' };  // low / default
+    if (s === 'high')   return { dot: 'var(--danger-fg)', bg: 'var(--danger-bg)', bd: 'var(--danger-fg)', col: 'var(--danger-fg)' };
+    if (s === 'medium') return { dot: 'var(--warning-fg)', bg: 'var(--warning-bg)', bd: 'var(--warning-fg)', col: 'var(--warning-fg)' };
+    return { dot: 'var(--link)', bg: 'var(--info-bg)', bd: 'var(--link)', col: 'var(--info-fg)' };  // low / default
   }
   function _renderInvNeedsAttention(name) {
     var container = document.getElementById('investigation-needs-attention');
@@ -9827,7 +9860,7 @@
         // Quiet "nothing needs attention" state — not an empty dropdown.
         container.innerHTML =
           '<div class="needs-attention-banner" style="margin:10px 0 14px 0;padding:10px 14px;'
-          + 'background:#f0fdf4;border:1px solid #16a34a;border-left-width:5px;border-radius:6px;color:#166534">'
+          + 'background:var(--success-bg);border:1px solid var(--success-fg);border-left-width:5px;border-radius:6px;color:var(--success-fg)">'
           + '<strong>✓ Nothing needs attention</strong> ' + lbl + '</div>';
         return;
       }
@@ -9888,8 +9921,8 @@
         + ';border:1px solid ' + sev.bd + ';border-left-width:5px;border-radius:6px;color:' + sev.col + '">'
         + '<summary style="padding:10px 14px;cursor:pointer;list-style:none;outline:none">'
         + '<strong>' + head + '</strong>'
-        + '<span class="na-toggle-hint" style="opacity:.6;font-style:italic;font-size:0.85em;margin-left:8px">— click to expand</span>'
-        + (breakdown ? '<div class="muted" style="font-size:0.82em;margin-top:5px">' + breakdown + '</div>' : '')
+        + '<span class="na-toggle-hint" style="font-style:italic;font-weight:400;font-size:0.85em;margin-left:8px">— click to expand</span>'
+        + (breakdown ? '<div style="font-size:0.82em;font-weight:400;margin-top:5px">' + breakdown + '</div>' : '')
         + '</summary>'
         + explain
         + '<ul style="margin:4px 0 12px 0;padding:0 14px 0 18px;list-style:none;font-size:0.92em">'
@@ -9925,13 +9958,13 @@
         if (items.length) {
           itemsHtml = '<details class="inv-run-error-detail" style="margin-top:8px"><summary style="cursor:pointer;font-size:0.85em">Per-item reasons (' + items.length + ')</summary>'
             + '<table style="width:100%;font-size:0.83em;margin-top:6px;border-collapse:collapse">'
-            + '<thead><tr><th style="text-align:left;padding:4px 8px;background:#f3f4f6">Study</th><th style="text-align:left;padding:4px 8px;background:#f3f4f6">Variant</th><th style="text-align:left;padding:4px 8px;background:#f3f4f6">Status</th><th style="text-align:left;padding:4px 8px;background:#f3f4f6">Reason</th></tr></thead><tbody>'
+            + '<thead><tr><th style="text-align:left;padding:4px 8px;background:var(--surface-3)">Study</th><th style="text-align:left;padding:4px 8px;background:var(--surface-3)">Variant</th><th style="text-align:left;padding:4px 8px;background:var(--surface-3)">Status</th><th style="text-align:left;padding:4px 8px;background:var(--surface-3)">Reason</th></tr></thead><tbody>'
             + items.map(function(it) {
                 return '<tr>'
-                  + '<td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">' + _h(it.study || '?') + '</td>'
-                  + '<td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">' + _h(it.variant || '?') + '</td>'
-                  + '<td style="padding:4px 8px;border-bottom:1px solid #e5e7eb"><span class="status-pill ' + _h(it.status || '?') + '" style="font-size:0.78em">' + _h(it.status || '?') + '</span></td>'
-                  + '<td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">' + _h(it.error || '—') + '</td>'
+                  + '<td style="padding:4px 8px;border-bottom:1px solid var(--border)">' + _h(it.study || '?') + '</td>'
+                  + '<td style="padding:4px 8px;border-bottom:1px solid var(--border)">' + _h(it.variant || '?') + '</td>'
+                  + '<td style="padding:4px 8px;border-bottom:1px solid var(--border)"><span class="status-pill ' + _h(it.status || '?') + '" style="font-size:0.78em">' + _h(it.status || '?') + '</span></td>'
+                  + '<td style="padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text-subtle)">' + _h(it.error || '—') + '</td>'
                   + '</tr>';
               }).join('')
             + '</tbody></table></details>';
@@ -10144,11 +10177,11 @@
   }
   // W13 — edge-relation vocabulary → stroke styling + legend label.
   var _DAG_REL_STYLE = {
-    'leads-to':             { color: '#94a3b8', dash: null,  label: 'leads to' },
-    'model-input':          { color: '#2563eb', dash: null,  label: 'model input' },
-    'evidence':             { color: '#0d9488', dash: '5 3', label: 'evidence' },
-    'calibrates-threshold': { color: '#ca8a04', dash: '2 3', label: 'calibrates threshold' },
-    'refutes-alternative':  { color: '#dc2626', dash: '5 3', label: 'refutes alternative' },
+    'leads-to':             { color: 'var(--text-subtle)', dash: null,  label: 'leads to' },
+    'model-input':          { color: 'var(--link)', dash: null,  label: 'model input' },
+    'evidence':             { color: 'var(--accent-text)', dash: '5 3', label: 'evidence' },
+    'calibrates-threshold': { color: 'var(--warning-fg)', dash: '2 3', label: 'calibrates threshold' },
+    'refutes-alternative':  { color: 'var(--danger-fg)', dash: '5 3', label: 'refutes alternative' },
   };
   function _dagRelStyle(rel) {
     // Map legacy aliases onto the canonical vocabulary.
@@ -10178,8 +10211,8 @@
     var st = _dagTriggerBySlug[slug];
     if (!st) return '';
     var cached = !!st.cached;
-    var bg = cached ? '#dcfce7' : '#f1f5f9';
-    var fg = cached ? '#166534' : '#475569';
+    var bg = cached ? 'var(--success-bg)' : 'var(--surface-3)';
+    var fg = cached ? 'var(--success-fg)' : 'var(--text-secondary)';
     var label = cached ? '● cached' : '○ compute';
     var tip = cached
       ? 'Output artifact is in the store — this study is pulled, not recomputed'
@@ -10205,7 +10238,7 @@
   // no ▶ run here: the small card stays uncluttered; running lives on the full
   // study tab.
   function _dagDownloadControlsHtml(slug) {
-    var lnk = 'font-size:0.66em;color:#3b82f6;text-decoration:none;white-space:nowrap';
+    var lnk = 'font-size:0.66em;color:var(--link);text-decoration:none;white-space:nowrap';
     // Show "↓ figures" only when the study actually has downloadable figures.
     // The per-study status (from /api/investigation-trigger-status) carries
     // has_figures; hide the link ONLY on an explicit false so that when the
@@ -10461,7 +10494,7 @@
       node.style.cssText =
         'position:absolute;left:' + x + 'px;top:0px;' +
         'width:' + CARD_W + 'px;' +
-        'background:#fff;border:1px solid #e5e7eb;border-top:3px solid ' + ss.color + ';' +
+        'background:var(--surface);border:1px solid var(--border);border-top:3px solid ' + ss.color + ';' +
         'border-radius:8px;padding:10px 12px;cursor:pointer;box-sizing:border-box;' +
         'box-shadow:0 1px 2px rgba(0,0,0,0.05);transition:box-shadow 0.1s,border-color 0.1s;';
 
@@ -10470,7 +10503,7 @@
         followUpsChip =
           '<button class="dag-followups-btn" ' +
           'onclick="event.stopPropagation(); _openDagFollowupsPopover(\'' + _esc(s.name) + '\', this)" ' +
-          'style="margin-top:8px;font-size:0.68em;padding:2px 7px;border:1px solid #10b981;background:#d1fae5;color:#065f46;border-radius:9999px;cursor:pointer">' +
+          'style="margin-top:8px;font-size:0.68em;padding:2px 7px;border:1px solid var(--success-fg);background:var(--success-bg);color:var(--success-fg);border-radius:9999px;cursor:pointer">' +
           '▸ ' + followUps.length + ' follow-up' + (followUps.length === 1 ? '' : 's') +
           '</button>';
       }
@@ -10485,22 +10518,22 @@
             'style="font-size:0.62em;font-weight:700;color:' + ss.color + ';white-space:nowrap;cursor:pointer;text-decoration:underline dotted;flex:none">' +
             _esc(confidence) + '</span>' +
         '</div>' +
-        '<strong style="display:block;font-size:0.85em;line-height:1.3;color:#1e293b">' + _esc(prettyTitle) + '</strong>' +
+        '<strong style="display:block;font-size:0.85em;line-height:1.3;color:var(--heading)">' + _esc(prettyTitle) + '</strong>' +
         (_opts.asks && asks
-          ? '<div style="font-size:0.72em;margin-top:7px;line-height:1.35;color:#64748b;' + _clamp(2) + '">' +
-              '<span style="font-weight:600;color:#475569">Asks:</span> ' + _esc(asks) + '</div>'
+          ? '<div style="font-size:0.72em;margin-top:7px;line-height:1.35;color:var(--text-muted);' + _clamp(2) + '">' +
+              '<span style="font-weight:600;color:var(--text-secondary)">Asks:</span> ' + _esc(asks) + '</div>'
           : '') +
         (_opts.finds
-          ? '<div style="font-size:0.72em;margin-top:5px;line-height:1.35;color:#64748b;' + _clamp(5) + '">' +
-              '<span style="font-weight:600;color:#475569">Finds:</span> ' +
-              (claim ? _esc(claim) : '<em style="color:#94a3b8">pending evidence</em>') +
+          ? '<div style="font-size:0.72em;margin-top:5px;line-height:1.35;color:var(--text-muted);' + _clamp(5) + '">' +
+              '<span style="font-weight:600;color:var(--text-secondary)">Finds:</span> ' +
+              (claim ? _esc(claim) : '<em style="color:var(--text-subtle)">pending evidence</em>') +
             '</div>'
           : '') +
         (_opts.finds && moreN
           ? '<div title="' + _esc(findings.slice(1).map(function (f) {
                 return '• ' + ((f.summary || f.statement || f.id || '').replace(/\s+/g, ' ').trim());
               }).join('\n')) + '" ' +
-            'style="font-size:0.72em;margin-top:2px;color:#94a3b8;cursor:help">+' + moreN +
+            'style="font-size:0.72em;margin-top:2px;color:var(--text-subtle);cursor:help">+' + moreN +
             ' more finding' + (moreN === 1 ? '' : 's') + '</div>'
           : '') +
         (_opts.followups ? followUpsChip : '') +
@@ -10624,7 +10657,7 @@
     edgesSvg.innerHTML =
       '<defs><marker id="dag-arrowhead" viewBox="0 0 10 10" refX="9" refY="5" ' +
       'markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
-      '<path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker></defs>';
+      '<path d="M 0 0 L 10 5 L 0 10 z" style="fill:var(--text-subtle)"/></marker></defs>';
     studies.forEach(function(s) {
       dagEdgesFor(s).forEach(function(p) {
         var pn = p.study;
@@ -10661,7 +10694,7 @@
         var path = document.createElementNS(svgNS, 'path');
         path.setAttribute('d', path_d);
         path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', st.color);
+        path.style.stroke = st.color;
         path.setAttribute('stroke-width', '1.5');
         path.setAttribute('marker-end', 'url(#dag-arrowhead)');
         if (st.dash) path.setAttribute('stroke-dasharray', st.dash);
@@ -10685,7 +10718,7 @@
           label.setAttribute('text-anchor', 'middle');
         }
         label.setAttribute('font-size', '10');
-        label.setAttribute('fill', st.color);
+        label.style.fill = st.color;
         label.textContent = labelText;
         edgesSvg.appendChild(label);
       });
@@ -10709,7 +10742,7 @@
           '<span>' + label + '</span></span>';
       };
       legendHost.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;' +
-        'font-size:0.74em;color:#64748b;padding:8px 4px 0;border-top:1px solid #f1f5f9;margin-top:8px';
+        'font-size:0.74em;color:var(--text-muted);padding:8px 4px 0;border-top:1px solid var(--border-faint);margin-top:8px';
       // W13 — edge-relation legend swatches (colored solid/dashed lines).
       var _edgeLg = function(rel) {
         var st = _dagRelStyle(rel);
@@ -10719,12 +10752,12 @@
           '<span>' + st.label + '</span></span>';
       };
       legendHost.innerHTML =
-        '<span style="font-weight:600;color:#475569;margin-right:10px">Confidence:</span>' +
-        _lg('#16a34a', '✓', 'Accepted') + _lg('#ca8a04', '◐', 'Investigating') +
-        _lg('#64748b', '⊘', 'Blocked') +
-        _lg('#2563eb', '○', 'Planned') + _lg('#dc2626', '✗', 'Refuted') +
+        '<span style="font-weight:600;color:var(--text-secondary);margin-right:10px">Confidence:</span>' +
+        _lg('var(--success-fg)', '✓', 'Accepted') + _lg('var(--warning-fg)', '◐', 'Investigating') +
+        _lg('var(--text-muted)', '⊘', 'Blocked') +
+        _lg('var(--link)', '○', 'Planned') + _lg('var(--danger-fg)', '✗', 'Refuted') +
         '<span style="flex-basis:100%;height:0"></span>' +
-        '<span style="font-weight:600;color:#475569;margin:6px 10px 0 0">Edges:</span>' +
+        '<span style="font-weight:600;color:var(--text-secondary);margin:6px 10px 0 0">Edges:</span>' +
         '<span style="margin-top:6px">' +
           _edgeLg('leads-to') + _edgeLg('model-input') + _edgeLg('evidence') +
           _edgeLg('calibrates-threshold') + _edgeLg('refutes-alternative') +
@@ -10839,16 +10872,16 @@
     var rect = anchorBtn.getBoundingClientRect();
     pop.style.cssText =
       'position:fixed;top:' + (rect.bottom + 6) + 'px;left:' + Math.max(8, rect.left - 80) + 'px;' +
-      'width:520px;max-height:60vh;overflow-y:auto;background:#fff;border:1px solid #d1d5db;' +
+      'width:520px;max-height:60vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border-2);' +
       'border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:1000;padding:14px;';
 
     var header =
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
         '<strong>' + _esc(studyName) + ' — follow-ups</strong>' +
         '<button onclick="document.getElementById(\'dag-followups-popover\').remove()" ' +
-        'style="background:transparent;border:0;font-size:1.3em;cursor:pointer;color:#64748b">×</button>' +
+        'style="background:transparent;border:0;font-size:1.3em;cursor:pointer;color:var(--text-muted)">×</button>' +
       '</div>' +
-      '<p style="font-size:0.85em;color:#64748b;margin:0 0 10px 0">Click <em>Seed →</em> to spawn a new child study from any entry. The new study inherits this one as a pipeline_gate prerequisite.</p>';
+      '<p style="font-size:0.85em;color:var(--text-muted);margin:0 0 10px 0">Click <em>Seed →</em> to spawn a new child study from any entry. The new study inherits this one as a pipeline_gate prerequisite.</p>';
 
     var rows = followUps.map(function(f, idx) {
       // Normalize across the two shapes: legacy follow_up_studies use
@@ -10856,12 +10889,12 @@
       // proposed_experiment/expected_information_gain.
       var kind = f.kind || f.study_type || 'other';
       var kindColors = {
-        infrastructure_fix: {bg: '#fef2f2', fg: '#991b1b', border: '#dc2626'},
-        calibration_task:   {bg: '#fefce8', fg: '#92400e', border: '#f59e0b'},
-        expert_question:    {bg: '#faf5ff', fg: '#6b21a8', border: '#a855f7'},
-        existing:           {bg: '#eff6ff', fg: '#1e40af', border: '#3b82f6'},
-        new:                {bg: '#f0fdf4', fg: '#065f46', border: '#10b981'},
-        other:              {bg: '#f8fafc', fg: '#475569', border: '#94a3b8'},
+        infrastructure_fix: {bg: 'var(--danger-bg)', fg: 'var(--danger-fg)', border: 'var(--danger-fg)'},
+        calibration_task:   {bg: 'var(--warning-bg)', fg: 'var(--warning-fg)', border: 'var(--warning-fg)'},
+        expert_question:    {bg: 'var(--accent2-bg)', fg: 'var(--accent2)', border: 'var(--accent2)'},
+        existing:           {bg: 'var(--info-bg)', fg: 'var(--info-fg)', border: 'var(--link)'},
+        new:                {bg: 'var(--success-bg)', fg: 'var(--success-fg)', border: 'var(--success-fg)'},
+        other:              {bg: 'var(--surface-2)', fg: 'var(--text-secondary)', border: 'var(--border-control)'},
       };
       var kc = kindColors[kind] || kindColors.other;
       var canSeed = kind !== 'existing';
@@ -10870,25 +10903,25 @@
         : '_seedFollowupAndOpen(\'' + _esc(studyName) + '\', ' + idx + ')';
       var seedBtn = canSeed
         ? '<button onclick="event.stopPropagation(); ' + seedCall + '" ' +
-          'style="font-size:0.8em;padding:3px 10px;border:1px solid ' + kc.border + ';background:#fff;color:' + kc.fg +
+          'style="font-size:0.8em;padding:3px 10px;border:1px solid ' + kc.border + ';background:var(--surface);color:' + kc.fg +
           ';border-radius:4px;cursor:pointer;white-space:nowrap">Seed →</button>'
-        : '<span style="font-size:0.78em;color:#64748b;font-style:italic">(existing study)</span>';
+        : '<span style="font-size:0.78em;color:var(--text-muted);font-style:italic">(existing study)</span>';
       var statusBadge = f.status
-        ? '<span style="font-size:0.7em;padding:1px 6px;border-radius:9999px;background:#fef3c7;color:#92400e;margin-left:6px">' + _esc(f.status) + '</span>'
+        ? '<span style="font-size:0.7em;padding:1px 6px;border-radius:9999px;background:var(--warning-bg);color:var(--warning-fg);margin-left:6px">' + _esc(f.status) + '</span>'
         : '';
       var effortText = f.effort || f.expected_information_gain;
       var effortBadge = effortText
-        ? '<span style="font-size:0.7em;padding:1px 6px;border-radius:9999px;background:#e0e7ff;color:#3730a3;margin-left:6px;font-family:monospace">' + _esc(effortText) + '</span>'
+        ? '<span style="font-size:0.7em;padding:1px 6px;border-radius:9999px;background:var(--active);color:var(--active-fg);margin-left:6px;font-family:monospace">' + _esc(effortText) + '</span>'
         : '';
       var whyText = f.why || f.proposed_experiment || '';
       var why = whyText
-        ? '<div style="font-size:0.83em;color:#475569;margin-top:4px;line-height:1.4">' + _esc(whyText.slice(0, 280)) + (whyText.length > 280 ? '…' : '') + '</div>'
+        ? '<div style="font-size:0.83em;color:var(--text-secondary);margin-top:4px;line-height:1.4">' + _esc(whyText.slice(0, 280)) + (whyText.length > 280 ? '…' : '') + '</div>'
         : '';
       return '<div style="padding:10px 12px;border:1px solid ' + kc.border + ';border-left:4px solid ' + kc.border +
              ';border-radius:4px;background:' + kc.bg + ';margin-bottom:8px">' +
                '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">' +
                  '<div style="flex:1;min-width:0">' +
-                   '<span style="font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:#fff;color:' + kc.fg + '">' + _esc(kind) + '</span>' +
+                   '<span style="font-size:0.7em;text-transform:uppercase;letter-spacing:0.05em;padding:1px 8px;border-radius:9999px;background:var(--surface);color:' + kc.fg + '">' + _esc(kind) + '</span>' +
                    effortBadge + statusBadge +
                    '<div style="font-weight:600;margin-top:4px;font-size:0.93em">' + _esc(f.title || '(untitled)') + '</div>' +
                    why +
@@ -10973,18 +11006,18 @@
 
   function _drawerStudyHtml(s) {
     var q = (s.question || '').replace(/\s+/g, ' ').trim();
-    return '<div style="font-weight:700;color:#0f172a">' + _esc(s.title || s.name) + '</div>' +
-      '<div style="font-size:0.78em;color:#64748b;margin:2px 0 8px">' + _esc(s.effective_status || s.status || '') + '</div>' +
-      (q ? '<div style="margin:6px 0"><span style="font-weight:600;color:#475569">Asks: </span>' + _esc(q) + '</div>' : '') +
+    return '<div style="font-weight:700;color:var(--heading)">' + _esc(s.title || s.name) + '</div>' +
+      '<div style="font-size:0.78em;color:var(--text-muted);margin:2px 0 8px">' + _esc(s.effective_status || s.status || '') + '</div>' +
+      (q ? '<div style="margin:6px 0"><span style="font-weight:600;color:var(--text-secondary)">Asks: </span>' + _esc(q) + '</div>' : '') +
       '<button class="drawer-open-study" data-study="' + _esc(s.name) + '" style="margin-top:10px;cursor:pointer">Open full study →</button>';
   }
 
   function _drawerBlock(label, node, extra) {
     if (!node) return '';
-    return '<div style="margin:9px 0;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px">' +
-      '<div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">' +
+    return '<div style="margin:9px 0;padding:8px 10px;border:1px solid var(--border);border-radius:8px">' +
+      '<div style="font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">' +
       label + (node.lifecycle_state ? ' · ' + _esc(node.lifecycle_state) : '') + (extra || '') + '</div>' +
-      '<div style="margin-top:3px;color:#1e293b">' + _esc(node.statement || node.label || '') + '</div></div>';
+      '<div style="margin-top:3px;color:var(--heading)">' + _esc(node.statement || node.label || '') + '</div></div>';
   }
 
   function _drawerClaimHtml(claim, study) {
@@ -10993,13 +11026,13 @@
     var prov = claim.source
       ? 'Derived from ' + _esc(study ? study.name : '') + ' · ' + _esc(claim.source)
       : 'Authored' + (study ? ' in ' + _esc(study.name) : '');
-    return '<div style="font-weight:700;color:#0f172a;line-height:1.3">' + _esc(claim.claimText) + '</div>' +
-      '<div style="font-size:0.8em;color:#64748b;margin:2px 0 8px">' + _esc(claim.status) + '</div>' +
+    return '<div style="font-weight:700;color:var(--heading);line-height:1.3">' + _esc(claim.claimText) + '</div>' +
+      '<div style="font-size:0.8em;color:var(--text-muted);margin:2px 0 8px">' + _esc(claim.status) + '</div>' +
       _drawerBlock('● Finding', P.finding) +
       _drawerBlock('◆ Evidence', P.evidence) +
       dec +
       _drawerBlock('★ Conclusion', P.conclusion) +
-      '<div style="margin-top:10px;font-size:0.74em;color:#94a3b8">' + prov + '</div>' +
+      '<div style="margin-top:10px;font-size:0.74em;color:var(--text-subtle)">' + prov + '</div>' +
       (study ? '<button class="drawer-open-study" data-study="' + _esc(study.name) + '" style="margin-top:10px;cursor:pointer">Open full study →</button>' : '');
   }
 
@@ -11276,14 +11309,14 @@
     var f = c && c.freshness;
     if (!f) return '';
     var label, color, bg;
-    if (f === 'fresh')        { label = '✓ latest run'; color = '#065f46'; bg = '#d1fae5'; }
+    if (f === 'fresh')        { label = '✓ latest run'; color = 'var(--success-fg)'; bg = 'var(--success-bg)'; }
     else if (f === 'stale')   {
       var src = (c.meta && (c.meta.source_run_id || c.meta.run_id)) || c.source_run_id;
       label = '⚠ stale' + (src ? ' (' + _h(src) + ')' : '');
-      color = '#92400e'; bg = '#fef3c7';
+      color = 'var(--warning-fg)'; bg = 'var(--warning-bg)';
     }
-    else if (f === 'untracked')  { label = '❓ untracked';   color = '#475569'; bg = '#f1f5f9'; }
-    else if (f === 'unrendered') { label = '◌ not rendered'; color = '#475569'; bg = '#f1f5f9'; }
+    else if (f === 'untracked')  { label = '❓ untracked';   color = 'var(--text-secondary)'; bg = 'var(--surface-3)'; }
+    else if (f === 'unrendered') { label = '◌ not rendered'; color = 'var(--text-secondary)'; bg = 'var(--surface-3)'; }
     else return '';
     return '<span class="chart-freshness-badge" style="display:inline-block;'
       + 'margin-left:8px;padding:1px 7px;border-radius:10px;font-size:11px;'
@@ -11378,8 +11411,8 @@
   // (deterministic skeptic-feedback). Returns '' when no payload (older server /
   // fetch failure) so the report degrades gracefully.
   var _TRACK_COLORS = {
-    PASS: ['#dcfce7', '#166534'], PARTIAL: ['#fef3c7', '#92400e'],
-    FAIL: ['#fee2e2', '#991b1b'], GAP: ['#f1f5f9', '#475569'], PENDING: ['#f1f5f9', '#475569']
+    PASS: ['var(--success-bg)', 'var(--success-fg)'], PARTIAL: ['var(--warning-bg)', 'var(--warning-fg)'],
+    FAIL: ['var(--danger-bg)', 'var(--danger-fg)'], GAP: ['var(--surface-3)', 'var(--text-secondary)'], PENDING: ['var(--surface-3)', 'var(--text-secondary)']
   };
   // ── Shared run/outcome helpers (bug-fix: pills + decision read the run that
   // actually CARRIES outcomes, not blindly runs[last]) ───────────────────────
@@ -11470,13 +11503,13 @@
   // `_evidential_weight` via the report-data path) so the SPA just renders it —
   // no JS recompute, no drift. Degrades to nothing when the field is absent.
   var _WEIGHT_CHIP_COLORS = {
-    strong:   ['#dcfce7', '#166534'],
-    moderate: ['#fef9c3', '#854d0e'],
-    weak:     ['#fee2e2', '#991b1b']
+    strong:   ['var(--success-bg)', 'var(--success-fg)'],
+    moderate: ['var(--warning-bg)', 'var(--warning-fg)'],
+    weak:     ['var(--danger-bg)', 'var(--danger-fg)']
   };
   function _findingWeightChip(w) {
     if (!w || !w.weight) return '';
-    var c = _WEIGHT_CHIP_COLORS[w.weight] || ['#f1f5f9', '#475569'];
+    var c = _WEIGHT_CHIP_COLORS[w.weight] || ['var(--surface-3)', 'var(--text-secondary)'];
     var label = _h(w.weight) + (typeof w.n_supporting === 'number' ? ' · ' + w.n_supporting + '/5' : '');
     var title = '';
     if (w.dims) {
@@ -11494,26 +11527,26 @@
   // (server-computed by pbg_superpowers.study_verdict.lifecycle_floor). Enums
   // match the cross-repo contract + lib/single_study_report.py. Degrade to ''.
   var _CLAIM_SCOPE_COLORS = {
-    'local-implementation': ['#f1f5f9', '#475569'],
-    mechanism:   ['#dbeafe', '#1e40af'],
-    behavioral:  ['#dcfce7', '#166534'],
-    theoretical: ['#ede9fe', '#6d28d9'],
-    generality:  ['#fef9c3', '#854d0e']
+    'local-implementation': ['var(--surface-3)', 'var(--text-secondary)'],
+    mechanism:   ['var(--info-bg)', 'var(--info-fg)'],
+    behavioral:  ['var(--success-bg)', 'var(--success-fg)'],
+    theoretical: ['var(--accent2-bg)', 'var(--accent2)'],
+    generality:  ['var(--warning-bg)', 'var(--warning-fg)']
   };
   function _claimScopeChip(f) {
     if (!f || typeof f !== 'object') return '';
     var cs = f.claim_scope;
     if (typeof cs !== 'string' || !cs.trim()) return '';
     var v = cs.trim();
-    var c = _CLAIM_SCOPE_COLORS[v] || ['#fef9c3', '#854d0e'];
+    var c = _CLAIM_SCOPE_COLORS[v] || ['var(--warning-bg)', 'var(--warning-fg)'];
     return '<span class="claim-scope" title="claim scope (critique #21)" style="display:inline-block;'
       + 'padding:1px 8px;border-radius:9999px;background:' + c[0] + ';color:' + c[1] + ';'
       + 'font-weight:600;font-size:0.72em;margin-left:6px;vertical-align:middle">scope: ' + _h(v) + '</span>';
   }
   var _GENERALITY_LEVEL_COLORS = {
-    instance_specific: ['#fee2e2', '#991b1b'],
-    mechanism:         ['#fef9c3', '#854d0e'],
-    framework:         ['#dcfce7', '#166534']
+    instance_specific: ['var(--danger-bg)', 'var(--danger-fg)'],
+    mechanism:         ['var(--warning-bg)', 'var(--warning-fg)'],
+    framework:         ['var(--success-bg)', 'var(--success-fg)']
   };
   function _generalityChip(f) {
     if (!f || typeof f !== 'object') return '';
@@ -11524,7 +11557,7 @@
     if (typeof axes === 'string') axes = [axes];
     axes = axes.filter(Boolean).map(String);
     if (!level && !axes.length) return '';
-    var c = _GENERALITY_LEVEL_COLORS[level] || ['#f1f5f9', '#475569'];
+    var c = _GENERALITY_LEVEL_COLORS[level] || ['var(--surface-3)', 'var(--text-secondary)'];
     var label = 'generality' + (level ? ': ' + level : '');
     if (axes.length) label += ' · ' + axes.length + ' ax' + (axes.length !== 1 ? 'es' : 'is');
     var title = 'generality (critique #22) — axes tested: ' + (axes.join(', ') || 'none');
@@ -11533,13 +11566,13 @@
       + 'font-weight:600;font-size:0.72em;margin-left:6px;vertical-align:middle">' + _h(label) + '</span>';
   }
   var _LIFECYCLE_COLORS = {
-    observation:              ['#f1f5f9', '#475569'],
-    'candidate-explanation':  ['#e0e7ff', '#3730a3'],
-    'tested-vs-alternatives': ['#dbeafe', '#1e40af'],
-    'provisional-claim':      ['#fef9c3', '#854d0e'],
-    generalized:              ['#dcfce7', '#166534'],
-    retired:                  ['#fee2e2', '#991b1b'],
-    superseded:               ['#fee2e2', '#991b1b']
+    observation:              ['var(--surface-3)', 'var(--text-secondary)'],
+    'candidate-explanation':  ['var(--active)', 'var(--active-fg)'],
+    'tested-vs-alternatives': ['var(--info-bg)', 'var(--info-fg)'],
+    'provisional-claim':      ['var(--warning-bg)', 'var(--warning-fg)'],
+    generalized:              ['var(--success-bg)', 'var(--success-fg)'],
+    retired:                  ['var(--danger-bg)', 'var(--danger-fg)'],
+    superseded:               ['var(--danger-bg)', 'var(--danger-fg)']
   };
   function _lifecycleChip(f) {
     if (!f || typeof f !== 'object') return '';
@@ -11549,7 +11582,7 @@
       ? f._lifecycle_floor.trim() : null;
     var state = authored || floor;
     if (!state) return '';
-    var c = _LIFECYCLE_COLORS[state] || ['#f1f5f9', '#475569'];
+    var c = _LIFECYCLE_COLORS[state] || ['var(--surface-3)', 'var(--text-secondary)'];
     var derived = !authored && !!floor;
     var label = state + (derived ? ' · floor' : '');
     var title = 'lifecycle state (critique #25)' + (derived ? ' — derived floor (no authored state)' : '');
@@ -11564,12 +11597,12 @@
   // pass_if band. DISTINCT from cites/calibration_anchor. Enum matches the
   // cross-repo contract. Degrades to '' when no provenance is declared.
   var _THRESHOLD_PROV_COLORS = {
-    theory:      ['#dbeafe', '#1e40af'],
-    calibration: ['#dcfce7', '#166534'],
-    literature:  ['#e0e7ff', '#3730a3'],
-    expert:      ['#fef9c3', '#854d0e'],
-    exploratory: ['#f1f5f9', '#475569'],
-    post_hoc:    ['#fee2e2', '#991b1b']
+    theory:      ['var(--info-bg)', 'var(--info-fg)'],
+    calibration: ['var(--success-bg)', 'var(--success-fg)'],
+    literature:  ['var(--active)', 'var(--active-fg)'],
+    expert:      ['var(--warning-bg)', 'var(--warning-fg)'],
+    exploratory: ['var(--surface-3)', 'var(--text-secondary)'],
+    post_hoc:    ['var(--danger-bg)', 'var(--danger-fg)']
   };
   function _thresholdProvenanceChip(passIf) {
     if (!passIf || typeof passIf !== 'object') return '';
@@ -11578,7 +11611,7 @@
     var kind = prov.kind;
     if (typeof kind !== 'string' || !kind.trim()) return '';
     var v = kind.trim();
-    var c = _THRESHOLD_PROV_COLORS[v] || ['#fef9c3', '#854d0e'];
+    var c = _THRESHOLD_PROV_COLORS[v] || ['var(--warning-bg)', 'var(--warning-fg)'];
     var note = (typeof prov.note === 'string') ? prov.note.trim() : '';
     var title = 'threshold provenance (critique #9)' + (note ? ' — ' + note : '');
     return '<span class="threshold-provenance" title="' + _h(title) + '" style="display:inline-block;'
@@ -11607,15 +11640,15 @@
     ];
     var rows = tracks.map(function(t) {
       var tr = cv[t[0]]; var res = tr.result;
-      var col = _TRACK_COLORS[res] || ['#f1f5f9', '#475569'];
+      var col = _TRACK_COLORS[res] || ['var(--surface-3)', 'var(--text-secondary)'];
       var basisHtml = tr.basis
-        ? '<div style="color:#475569;font-size:0.9em;margin-top:2px">' + _multiline(tr.basis) + '</div>' : '';
-      return '<div style="padding:8px 0;border-top:1px solid #f1f5f9">'
+        ? '<div style="color:var(--text-secondary);font-size:0.9em;margin-top:2px">' + _multiline(tr.basis) + '</div>' : '';
+      return '<div style="padding:8px 0;border-top:1px solid var(--border-faint)">'
         + '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">'
-        + '<span style="display:inline-block;min-width:11em;font-weight:600;color:#1e293b">' + _h(t[1]) + '</span>'
+        + '<span style="display:inline-block;min-width:11em;font-weight:600;color:var(--heading)">' + _h(t[1]) + '</span>'
         + '<span style="display:inline-block;padding:2px 10px;border-radius:9999px;background:' + col[0]
         + ';color:' + col[1] + ';font-weight:700;font-size:0.85em">' + _h(res) + '</span>'
-        + '<span style="color:#94a3b8;font-size:0.82em">' + _h(t[2]) + ' · computed</span>'
+        + '<span style="color:var(--text-subtle);font-size:0.82em">' + _h(t[2]) + ' · computed</span>'
         + '</div>' + basisHtml + '</div>';
     }).join('');
     return '<div class="conclusion-verdicts" id="study-' + slug + '-verdicts">'
@@ -11650,8 +11683,8 @@
       var lis = items.map(function(i) {
         return '<li>' + _multiline(typeof i === 'string' ? i : (i.text || JSON.stringify(i))) + '</li>';
       }).join('');
-      return '<div style="margin:10px 0"><strong style="color:#1e293b">' + _h(pair[0]) + '</strong>'
-        + '<ul style="margin:4px 0 0;padding-left:20px;color:#334155">' + lis + '</ul></div>';
+      return '<div style="margin:10px 0"><strong style="color:var(--heading)">' + _h(pair[0]) + '</strong>'
+        + '<ul style="margin:4px 0 0;padding-left:20px;color:var(--text)">' + lis + '</ul></div>';
     }).join('');
     if (!blocks) return '';
     return '<div class="conclusion-synthesis" id="study-' + slug + '-synthesis">'
@@ -11668,10 +11701,10 @@
     if (controls.length) {
       var rows = controls.map(function(c) {
         var res = String(c.result == null ? '' : c.result).toUpperCase();
-        var col = _TRACK_COLORS[res] || ['#f1f5f9', '#475569'];
+        var col = _TRACK_COLORS[res] || ['var(--surface-3)', 'var(--text-secondary)'];
         var resHtml = res ? '<span style="padding:1px 8px;border-radius:9999px;background:' + col[0]
           + ';color:' + col[1] + ';font-weight:600;font-size:0.82em">' + _h(res) + '</span>' : '';
-        return '<tr style="border-top:1px solid #f1f5f9;font-size:0.9em">'
+        return '<tr style="border-top:1px solid var(--border-faint);font-size:0.9em">'
           + '<td style="padding:4px 8px">' + _h(c.name || '') + '</td>'
           + '<td style="padding:4px 8px">' + _h(c.kind || '') + '</td>'
           + '<td style="padding:4px 8px">' + _h(c.hypothesis || '') + '</td>'
@@ -11680,9 +11713,9 @@
           + '<td style="padding:4px 8px">' + resHtml + '</td></tr>';
       }).join('');
       bits += '<div id="study-' + slug + '-controls" style="margin:10px 0">'
-        + '<strong style="color:#1e293b">Controls</strong>'
+        + '<strong style="color:var(--heading)">Controls</strong>'
         + '<table style="border-collapse:collapse;width:100%;margin-top:4px">'
-        + '<tr style="text-align:left;color:#475569;font-size:0.82em">'
+        + '<tr style="text-align:left;color:var(--text-secondary);font-size:0.82em">'
         + '<th style="padding:4px 8px">Name</th><th style="padding:4px 8px">Kind</th>'
         + '<th style="padding:4px 8px">Hypothesis</th><th style="padding:4px 8px">Expected</th>'
         + '<th style="padding:4px 8px">Observed</th><th style="padding:4px 8px">Result</th></tr>'
@@ -11690,8 +11723,8 @@
     }
     if (fals) {
       bits += '<div id="study-' + slug + '-falsifiability" style="margin:10px 0;padding:8px 12px;'
-        + 'background:#f8fafc;border-left:4px solid #64748b;border-radius:4px">'
-        + '<strong style="color:#1e293b">Falsifiability:</strong> ' + _multiline(String(fals)) + '</div>';
+        + 'background:var(--surface-2);border-left:4px solid var(--text-muted);border-radius:4px">'
+        + '<strong style="color:var(--heading)">Falsifiability:</strong> ' + _multiline(String(fals)) + '</div>';
     }
     return bits;
   }
@@ -11701,7 +11734,7 @@
   // invariant_check, ablations, model_representation). Mirror the server-side
   // renderers in single_study_report.py. Each degrades to '' when absent.
   function _chipList(items, bg, fg) {
-    bg = bg || '#f1f5f9'; fg = fg || '#0f172a';
+    bg = bg || 'var(--surface-3)'; fg = fg || 'var(--heading)';
     return (items || []).filter(function(i) { return i != null && i !== ''; })
       .map(function(i) {
         return '<span style="display:inline-block;padding:2px 9px;border-radius:9999px;background:'
@@ -11718,32 +11751,32 @@
     var added = cc.component_added;
     if (typeof added === 'string') added = [added];
     if (added && added.length) {
-      rows.push('<div style="margin:8px 0"><strong style="color:#1e293b">Component added</strong> '
-        + _chipList(added, '#e0e7ff', '#3730a3') + '</div>');
+      rows.push('<div style="margin:8px 0"><strong style="color:var(--heading)">Component added</strong> '
+        + _chipList(added, 'var(--active)', 'var(--active-fg)') + '</div>');
     }
     var deficit = cc.deficit_addressed;
     if (deficit && typeof deficit === 'object') {
       var note = deficit.note || '';
       var gaps = deficit.closure_gap_item; if (typeof gaps === 'string') gaps = [gaps];
       var gapHtml = (gaps && gaps.length)
-        ? ' <span style="color:#475569;font-size:0.85em">closes:</span> ' + _chipList(gaps, '#fee2e2', '#991b1b')
+        ? ' <span style="color:var(--text-secondary);font-size:0.85em">closes:</span> ' + _chipList(gaps, 'var(--danger-bg)', 'var(--danger-fg)')
         : '';
       if (note || gapHtml) {
-        rows.push('<div style="margin:8px 0"><strong style="color:#1e293b">Deficit addressed</strong> '
+        rows.push('<div style="margin:8px 0"><strong style="color:var(--heading)">Deficit addressed</strong> '
           + (note ? _multiline(String(note)) : '') + gapHtml + '</div>');
       }
     } else if (typeof deficit === 'string' && deficit) {
-      rows.push('<div style="margin:8px 0"><strong style="color:#1e293b">Deficit addressed</strong> '
+      rows.push('<div style="margin:8px 0"><strong style="color:var(--heading)">Deficit addressed</strong> '
         + _multiline(deficit) + '</div>');
     }
     var nb = cc.new_behavior; if (typeof nb === 'string') nb = [nb];
     if (nb && nb.length) {
       var nbHtml = nb.filter(Boolean).map(function(t) {
         return '<a href="#study-' + _h(slug) + '" style="display:inline-block;padding:2px 9px;'
-          + 'border-radius:9999px;background:#dcfce7;color:#166534;margin:2px;font-size:0.82em;'
+          + 'border-radius:9999px;background:var(--success-bg);color:var(--success-fg);margin:2px;font-size:0.82em;'
           + 'text-decoration:none">' + _h(String(t)) + '</a>';
       }).join('');
-      rows.push('<div style="margin:8px 0"><strong style="color:#1e293b">New behavior</strong> ' + nbHtml + '</div>');
+      rows.push('<div style="margin:8px 0"><strong style="color:var(--heading)">New behavior</strong> ' + nbHtml + '</div>');
     }
     var inv = cc.invariants_required || [];
     var invBits = inv.map(function(iv) {
@@ -11758,13 +11791,13 @@
       return iv ? '<li><code>' + _h(String(iv)) + '</code></li>' : '';
     }).filter(Boolean).join('');
     if (invBits) {
-      rows.push('<div style="margin:8px 0"><strong style="color:#1e293b">Invariants required</strong>'
-        + '<ul style="margin:4px 0 0;padding-left:20px;color:#334155;font-size:0.92em">' + invBits + '</ul></div>');
+      rows.push('<div style="margin:8px 0"><strong style="color:var(--heading)">Invariants required</strong>'
+        + '<ul style="margin:4px 0 0;padding-left:20px;color:var(--text);font-size:0.92em">' + invBits + '</ul></div>');
     }
     var ex = cc.alternatives_excluded; if (typeof ex === 'string') ex = [ex];
     if (ex && ex.length) {
-      rows.push('<div style="margin:8px 0"><strong style="color:#1e293b">Alternatives excluded</strong> '
-        + _chipList(ex, '#fef9c3', '#854d0e') + '</div>');
+      rows.push('<div style="margin:8px 0"><strong style="color:var(--heading)">Alternatives excluded</strong> '
+        + _chipList(ex, 'var(--warning-bg)', 'var(--warning-fg)') + '</div>');
     }
     if (!rows.length) return '';
     return '<div class="composition-commitment" id="study-' + slug + '-commitment">'
@@ -11777,8 +11810,8 @@
 
   // C-INVAR — "Invariant checks" sub-section (invalidated/weakened first).
   var _INVAR_STATUS_COLORS = {
-    invalidated: ['#fee2e2', '#991b1b'], weakened: ['#fef9c3', '#854d0e'],
-    preserved: ['#dcfce7', '#166534'], strengthened: ['#dbeafe', '#1e40af']
+    invalidated: ['var(--danger-bg)', 'var(--danger-fg)'], weakened: ['var(--warning-bg)', 'var(--warning-fg)'],
+    preserved: ['var(--success-bg)', 'var(--success-fg)'], strengthened: ['var(--info-bg)', 'var(--info-fg)']
   };
   var _INVAR_STATUS_RANK = {invalidated: 0, weakened: 1, preserved: 2, strengthened: 3};
   function _invariantChecksHtml(s, slug) {
@@ -11791,10 +11824,10 @@
     });
     var rows = checks.map(function(c) {
       var st = String(c.status || '').toLowerCase();
-      var col = _INVAR_STATUS_COLORS[st] || ['#f1f5f9', '#475569'];
+      var col = _INVAR_STATUS_COLORS[st] || ['var(--surface-3)', 'var(--text-secondary)'];
       var chip = '<span style="padding:1px 8px;border-radius:9999px;background:' + col[0] + ';color:'
         + col[1] + ';font-weight:600;font-size:0.82em">' + _h(st || '—') + '</span>';
-      return '<tr style="border-top:1px solid #f1f5f9;font-size:0.9em">'
+      return '<tr style="border-top:1px solid var(--border-faint);font-size:0.9em">'
         + '<td style="padding:4px 8px"><code>' + _h(c.study || '') + '</code></td>'
         + '<td style="padding:4px 8px">' + _h(c.test || '') + '</td>'
         + '<td style="padding:4px 8px">' + _h(c.prior == null ? '' : c.prior) + '</td>'
@@ -11806,7 +11839,7 @@
       + '<p class="muted small" style="margin:0 0 8px 0">Earlier guarantees re-checked in the current '
       + 'code state — prior vs current value and whether each was preserved. Invalidated / weakened first.</p>'
       + '<table style="border-collapse:collapse;width:100%">'
-      + '<tr style="text-align:left;color:#475569;font-size:0.82em">'
+      + '<tr style="text-align:left;color:var(--text-secondary);font-size:0.82em">'
       + '<th style="padding:4px 8px">Study</th><th style="padding:4px 8px">Test</th>'
       + '<th style="padding:4px 8px">Prior</th><th style="padding:4px 8px">Now</th>'
       + '<th style="padding:4px 8px">Status</th></tr>' + rows + '</table></div>';
@@ -11817,8 +11850,8 @@
     var abl = (s.ablations || []).filter(function(a) { return a && typeof a === 'object'; });
     if (!abl.length) return '';
     var roleColors = {
-      necessary: ['#fee2e2', '#991b1b'], modulatory: ['#fef9c3', '#854d0e'],
-      redundant: ['#f1f5f9', '#475569']
+      necessary: ['var(--danger-bg)', 'var(--danger-fg)'], modulatory: ['var(--warning-bg)', 'var(--warning-fg)'],
+      redundant: ['var(--surface-3)', 'var(--text-secondary)']
     };
     var rows = abl.map(function(a) {
       var target = a.target;
@@ -11826,12 +11859,12 @@
       var procTarget = _h(String(a.process == null ? '' : a.process))
         + (target ? ' <code style="font-size:0.82em">' + _h(String(target)) + '</code>' : '');
       var role = String(a.role || '').toLowerCase();
-      var col = roleColors[role] || ['#f1f5f9', '#475569'];
+      var col = roleColors[role] || ['var(--surface-3)', 'var(--text-secondary)'];
       var roleHtml = '<span style="padding:1px 8px;border-radius:9999px;background:' + col[0]
         + ';color:' + col[1] + ';font-weight:600;font-size:0.82em">' + _h(role || '—') + '</span>';
       var nec = a.causally_necessary;
       var necHtml = nec === true ? '✓' : (nec === false ? '✗' : '—');
-      return '<tr style="border-top:1px solid #f1f5f9;font-size:0.9em">'
+      return '<tr style="border-top:1px solid var(--border-faint);font-size:0.9em">'
         + '<td style="padding:4px 8px">' + procTarget + '</td>'
         + '<td style="padding:4px 8px"><code>' + _h(a.mode || '') + '</code></td>'
         + '<td style="padding:4px 8px">' + _h(a.behavior_test || '') + '</td>'
@@ -11845,7 +11878,7 @@
       + 'each component removed or perturbed, whether a behavior test flipped, and so whether it is '
       + 'causally necessary (vs redundant or merely modulatory).</p>'
       + '<table style="border-collapse:collapse;width:100%">'
-      + '<tr style="text-align:left;color:#475569;font-size:0.82em">'
+      + '<tr style="text-align:left;color:var(--text-secondary);font-size:0.82em">'
       + '<th style="padding:4px 8px">Process / target</th><th style="padding:4px 8px">Mode</th>'
       + '<th style="padding:4px 8px">Behavior test</th><th style="padding:4px 8px">Baseline → ablated</th>'
       + '<th style="padding:4px 8px">Role</th><th style="padding:4px 8px">Necessary</th></tr>'
@@ -11857,8 +11890,8 @@
   // so it survives the static read-only bundle; here we surface the representation
   // labels + closure status, which need no composite fetch.)
   var _REPR_ROLE_COLORS = {
-    'inside': ['#f1f5f9', '#475569'], 'boundary-crossing': ['#dbeafe', '#1e40af'],
-    'derived': ['#ede9fe', '#6d28d9'], 'self-produced': ['#dcfce7', '#166534']
+    'inside': ['var(--surface-3)', 'var(--text-secondary)'], 'boundary-crossing': ['var(--info-bg)', 'var(--info-fg)'],
+    'derived': ['var(--accent2-bg)', 'var(--accent2)'], 'self-produced': ['var(--success-bg)', 'var(--success-fg)']
   };
   function _representationHtml(s, slug) {
     var mr = s.model_representation;
@@ -11879,19 +11912,19 @@
     var gapSet = {}; (gap || []).forEach(function(g) { gapSet[String(g)] = 1; });
     var rows = Object.keys(storeRole).sort().map(function(store) {
       var role = storeRole[store];
-      var col = _REPR_ROLE_COLORS[role] || ['#f1f5f9', '#475569'];
-      var gapBadge = gapSet[store] ? ' <span style="padding:0 6px;border-radius:9999px;background:#fee2e2;'
-        + 'color:#991b1b;font-size:0.72em">unclosed gap</span>' : '';
-      return '<tr style="border-top:1px solid #f1f5f9;font-size:0.9em">'
+      var col = _REPR_ROLE_COLORS[role] || ['var(--surface-3)', 'var(--text-secondary)'];
+      var gapBadge = gapSet[store] ? ' <span style="padding:0 6px;border-radius:9999px;background:var(--danger-bg);'
+        + 'color:var(--danger-fg);font-size:0.72em">unclosed gap</span>' : '';
+      return '<tr style="border-top:1px solid var(--border-faint);font-size:0.9em">'
         + '<td style="padding:4px 8px"><code>' + _h(store) + '</code>' + gapBadge + '</td>'
         + '<td style="padding:4px 8px"><span style="padding:1px 8px;border-radius:9999px;background:'
         + col[0] + ';color:' + col[1] + ';font-weight:600;font-size:0.82em">' + _h(role) + '</span></td></tr>';
     }).join('');
     function closureChip(label, closed) {
       var bg, fg, txt;
-      if (closed === true) { bg = '#dcfce7'; fg = '#166534'; txt = 'CLOSED'; }
-      else if (closed === false) { bg = '#fee2e2'; fg = '#991b1b'; txt = 'OPEN'; }
-      else { bg = '#f1f5f9'; fg = '#475569'; txt = '—'; }
+      if (closed === true) { bg = 'var(--success-bg)'; fg = 'var(--success-fg)'; txt = 'CLOSED'; }
+      else if (closed === false) { bg = 'var(--danger-bg)'; fg = 'var(--danger-fg)'; txt = 'OPEN'; }
+      else { bg = 'var(--surface-3)'; fg = 'var(--text-secondary)'; txt = '—'; }
       return '<span style="margin-right:12px">' + _h(label) + ': <span style="padding:1px 8px;'
         + 'border-radius:9999px;background:' + bg + ';color:' + fg + ';font-weight:700;font-size:0.82em">'
         + txt + '</span></span>';
@@ -11901,7 +11934,7 @@
       + closureChip('Interface closure', mr.interface_closed)
       + closureChip('Semantic closure', semantic.semantically_closed) + '</div>';
     var tableHtml = rows ? ('<table style="border-collapse:collapse;width:100%;margin-top:4px">'
-      + '<tr style="text-align:left;color:#475569;font-size:0.82em">'
+      + '<tr style="text-align:left;color:var(--text-secondary);font-size:0.82em">'
       + '<th style="padding:4px 8px">Store</th><th style="padding:4px 8px">Representation</th></tr>'
       + rows + '</table>') : '';
     if (!rows && mr.interface_closed == null && semantic.semantically_closed == null) return '';
@@ -11921,7 +11954,7 @@
     var v = obj.trim().toLowerCase();
     if (!_OBJ_OF_EVAL[v]) return '';
     return ' <span class="badge" title="object of evaluation (critique #1) — what '
-      + 'this investigation primarily evaluates" style="background:#e0e7ff;color:#3730a3;'
+      + 'this investigation primarily evaluates" style="background:var(--active);color:var(--active-fg);'
       + 'font-weight:600">evaluates: ' + _h(v) + '</span>';
   }
 
@@ -11949,23 +11982,23 @@
       var cnt = (typeof m.count === 'number' && typeof m.total === 'number')
         ? (m.count + ' / ' + m.total) : '';
       var w = (frac == null) ? 0 : Math.max(0, Math.min(100, Math.round(frac * 100)));
-      var barColor = w >= 67 ? '#16a34a' : (w >= 34 ? '#d97706' : '#dc2626');
+      var barColor = w >= 67 ? 'var(--success-fg)' : (w >= 34 ? 'var(--warning-fg)' : 'var(--danger-fg)');
       return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;'
-        + 'border-top:1px solid #f1f5f9">'
-        + '<span style="flex:0 0 16em;color:#1e293b;font-weight:600">' + _h(humanize(k)) + '</span>'
+        + 'border-top:1px solid var(--border-faint)">'
+        + '<span style="flex:0 0 16em;color:var(--heading);font-weight:600">' + _h(humanize(k)) + '</span>'
         + '<span style="flex:1;display:flex;align-items:center;gap:8px">'
-        +   '<span style="flex:1;height:8px;background:#f1f5f9;border-radius:9999px;overflow:hidden">'
+        +   '<span style="flex:1;height:8px;background:var(--surface-3);border-radius:9999px;overflow:hidden">'
         +     '<span style="display:block;height:100%;width:' + w + '%;background:' + barColor + '"></span>'
         +   '</span>'
-        +   '<span style="flex:0 0 3.5em;text-align:right;font-weight:700;color:#1e293b">' + _h(pct) + '</span>'
-        +   (cnt ? '<span style="flex:0 0 5em;text-align:right;color:#64748b;font-size:0.85em">' + _h(cnt) + '</span>' : '')
+        +   '<span style="flex:0 0 3.5em;text-align:right;font-weight:700;color:var(--heading)">' + _h(pct) + '</span>'
+        +   (cnt ? '<span style="flex:0 0 5em;text-align:right;color:var(--text-muted);font-size:0.85em">' + _h(cnt) + '</span>' : '')
         + '</span>'
         + '</div>';
     }).join('');
     return '<details class="report-fold" id="framework-scorecard"><summary>📊 Framework scorecard'
       + ' <span class="rf-prev">framework-self metrics (n=' + nInv + ' investigation'
       + (nInv === 1 ? '' : 's') + ')</span></summary>'
-      + '<p style="color:#475569;font-size:0.92em">Framework-self metrics aggregated across '
+      + '<p style="color:var(--text-secondary);font-size:0.92em">Framework-self metrics aggregated across '
       + 'every study and investigation in the workspace — how consistently the framework itself '
       + 'applies its own rigor practices (discriminating controls, emergent-mechanism labelling, '
       + 'threshold provenance, replication, verdict divergence, falsification exposure). Computed '
@@ -11984,23 +12017,23 @@
     var hyps = (hypotheses || []).filter(function(h) { return h && typeof h === 'object'; });
     if (!hyps.length) return '';
     var STATUS_COLORS = {
-      open:      ['#f1f5f9', '#475569'],
-      supported: ['#dcfce7', '#166534'],
-      weakened:  ['#fef9c3', '#854d0e'],
-      excluded:  ['#fee2e2', '#991b1b']
+      open:      ['var(--surface-3)', 'var(--text-secondary)'],
+      supported: ['var(--success-bg)', 'var(--success-fg)'],
+      weakened:  ['var(--warning-bg)', 'var(--warning-fg)'],
+      excluded:  ['var(--danger-bg)', 'var(--danger-fg)']
     };
     var DELTA = {
-      supports: ['▲', '#16a34a', 'supports'],
-      weakens:  ['▼', '#d97706', 'weakens'],
-      excludes: ['⊘', '#dc2626', 'excludes']
+      supports: ['▲', 'var(--success-fg)', 'supports'],
+      weakens:  ['▼', 'var(--warning-fg)', 'weakens'],
+      excludes: ['⊘', 'var(--danger-fg)', 'excludes']
     };
     var cards = hyps.map(function(h) {
       var status = (typeof h.status === 'string' && h.status.trim()) ? h.status.trim() : 'open';
-      var sc = STATUS_COLORS[status] || ['#f1f5f9', '#475569'];
+      var sc = STATUS_COLORS[status] || ['var(--surface-3)', 'var(--text-secondary)'];
       var preds = (h.predictions || []).filter(function(p) { return p && typeof p === 'object'; });
       var predHtml = preds.length
         ? '<div style="margin-top:4px"><span class="muted small">predicts:</span>'
-          + '<ul style="margin:2px 0 0;padding-left:20px;color:#334155;font-size:0.9em">'
+          + '<ul style="margin:2px 0 0;padding-left:20px;color:var(--text);font-size:0.9em">'
           + preds.map(function(p) {
               return '<li><code>' + _h(String(p.observable || '')) + '</code> '
                 + (p.expected != null ? '<strong>' + _h(String(p.expected)) + '</strong>' : '') + '</li>';
@@ -12012,11 +12045,11 @@
         var tally = {supports: 0, weakens: 0, excludes: 0};
         var steps = log.map(function(e) {
           var key = String(e.delta || '').toLowerCase();
-          var d = DELTA[key] || ['·', '#94a3b8', String(e.delta || '')];
+          var d = DELTA[key] || ['·', 'var(--text-subtle)', String(e.delta || '')];
           if (tally[key] != null) tally[key]++;
           var tip = (e.study ? e.study + ': ' : '') + (e.observation || '') + ' (' + d[2] + ')';
           return '<span title="' + _h(tip) + '" style="color:' + d[1] + ';font-weight:700;margin-right:6px">'
-            + d[0] + (e.study ? '<span style="color:#64748b;font-weight:400;font-size:0.82em"> '
+            + d[0] + (e.study ? '<span style="color:var(--text-muted);font-weight:400;font-size:0.82em"> '
             + _h(String(e.study)) + '</span>' : '') + '</span>';
         }).join('');
         trajHtml = '<div style="margin-top:6px"><span class="muted small">support trajectory:</span> '
@@ -12026,10 +12059,10 @@
       } else {
         trajHtml = '<div class="muted small" style="margin-top:6px">no study evidence linked yet</div>';
       }
-      return '<div style="padding:10px 0;border-top:1px solid #f1f5f9">'
+      return '<div style="padding:10px 0;border-top:1px solid var(--border-faint)">'
         + '<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">'
         +   (h.id ? '<code style="font-size:0.82em">' + _h(String(h.id)) + '</code>' : '')
-        +   '<strong style="color:#1e293b">' + _h(String(h.statement || '(untitled hypothesis)')) + '</strong>'
+        +   '<strong style="color:var(--heading)">' + _h(String(h.statement || '(untitled hypothesis)')) + '</strong>'
         +   '<span style="padding:1px 8px;border-radius:9999px;background:' + sc[0] + ';color:' + sc[1]
         +     ';font-weight:600;font-size:0.78em">' + _h(status) + '</span>'
         + '</div>' + predHtml + trajHtml + '</div>';
@@ -12037,7 +12070,7 @@
     return '<details class="report-fold" id="competing-hypotheses"><summary>⚖️ Competing hypotheses'
       + ' <span class="rf-prev">' + hyps.length + ' hypothes' + (hyps.length === 1 ? 'is' : 'es')
       + ' under test</span></summary>'
-      + '<p style="color:#475569;font-size:0.92em">The rival explanations this investigation '
+      + '<p style="color:var(--text-secondary);font-size:0.92em">The rival explanations this investigation '
       + 'discriminates. Each carries its authored predictions and a <strong>computed</strong> support '
       + 'trajectory — ▲ supports / ▼ weakens / ⊘ excludes — folded from member studies\' findings + '
       + 'alternate_hypotheses by pbg_superpowers.hypotheses.rollup_support.</p>'
@@ -12047,24 +12080,24 @@
   function _rigorSectionHtml(rigor, specs) {
     if (!rigor || !((rigor.dimensions && rigor.dimensions.length) ||
                     (rigor.per_study && Object.keys(rigor.per_study).length))) return '';
-    var color = {ok: '#16a34a', warn: '#d97706', gap: '#dc2626'};
+    var color = {ok: 'var(--success-fg)', warn: 'var(--warning-fg)', gap: 'var(--danger-fg)'};
     var glyph = {ok: '✓', warn: '⚠', gap: '✗'};
     function dimRows(dims) {
       return (dims || []).map(function(d) {
-        var c = color[d.severity] || '#64748b';
+        var c = color[d.severity] || 'var(--text-muted)';
         var cm = (d.comments && d.comments.length)
-          ? ' <span style="color:#94a3b8;font-size:0.82em">' + _esc(d.comments.join(' ')) + '</span>' : '';
-        return '<div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid #f1f5f9">' +
+          ? ' <span style="color:var(--text-subtle);font-size:0.82em">' + _esc(d.comments.join(' ')) + '</span>' : '';
+        return '<div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--border-faint)">' +
           '<span style="color:' + c + ';font-weight:700;min-width:1.2em">' + (glyph[d.severity] || '•') + '</span>' +
-          '<div><strong style="color:#1e293b">' + _esc(d.label || '') + '</strong>' + cm +
-          '<div style="color:#475569;font-size:0.9em;margin-top:1px">' + _esc(d.detail || '') + '</div></div></div>';
+          '<div><strong style="color:var(--heading)">' + _esc(d.label || '') + '</strong>' + cm +
+          '<div style="color:var(--text-secondary);font-size:0.9em;margin-top:1px">' + _esc(d.detail || '') + '</div></div></div>';
       }).join('');
     }
     var html = '<details class="report-fold" id="rigor"><summary>🔬 Evidence &amp; rigor — '
       + 'how well the method defends its claims'
       + (rigor.summary ? ' <span class="rf-prev">' + _esc(rigor.summary) + '</span>' : '')
       + '</summary>'
-      + '<p style="color:#475569;font-size:0.92em">Deterministic feedback on how well the '
+      + '<p style="color:var(--text-secondary);font-size:0.92em">Deterministic feedback on how well the '
       + '<strong>method</strong> defends its claims against a skeptical reader — a method-level '
       + 'judgement, distinct from the per-study model verdicts above. Computed from declared '
       + 'fields, not judged. Gaps are an invitation to add negative controls, replicate across '
@@ -12083,7 +12116,7 @@
         var detail = specsBySlug[slug] ? _controlsFalsifiabilityHtml(specsBySlug[slug], slug) : '';
         // Each member study folds into its own nested dropdown.
         html += '<details class="report-fold" style="margin:8px 0"><summary>' + _esc(slug)
-          + ' <span style="font-weight:400;color:#64748b;font-size:0.88em">— ' + _esc(sc.summary || '') + '</span></summary>'
+          + ' <span style="font-weight:400;color:var(--text-muted);font-size:0.88em">— ' + _esc(sc.summary || '') + '</span></summary>'
           + dimRows(sc.dimensions) + detail + '</details>';
       });
     }
@@ -12174,7 +12207,7 @@
     var leaf = document.querySelector(sel);
     if (!leaf) return;
     leaf.classList.add('rail-study-active');
-    leaf.style.background = '#eef2ff';
+    leaf.style.background = 'var(--active)';
     // If its investigation group is collapsed, expand it so the leaf is visible.
     var grp = leaf.closest('[data-rail-group], .viv-rail-investigations-group');
     if (grp && grp.classList.contains('collapsed') &&
@@ -12229,7 +12262,7 @@
     var color = _sm.color;
     var indent = opts.indent ? '28px' : '12px';
     var fontSize = opts.indent ? '0.85em' : '0.86em';
-    var nameColor = opts.indent ? '#64748b' : '#374151';
+    var nameColor = opts.indent ? 'var(--text-secondary)' : 'var(--text)';   // AA on the active group's tint
     var pinned = _isStudyPinned(s.name);
     var tip = _esc(s.name) + ' — ' + _esc(status) + (s.blocked ? ' (blocked)' : '');
     var pinBtn = '<span class="viv-rail-pin' + (pinned ? ' pinned' : '') + '" role="button" tabindex="0" ' +
@@ -12255,7 +12288,7 @@
     if (!Array.isArray(window._investigations) || !window._investigations.length) {
       // No studies in memory yet → fall back to the legacy render until they arrive.
       if (typeof _renderRailInvestigationsLegacy === 'function') return _renderRailInvestigationsLegacy();
-      host.innerHTML = '<p class="viv-rail-empty" style="font-size:0.85em;color:#9ca3af;padding:4px 12px">Loading…</p>';
+      host.innerHTML = '<p class="viv-rail-empty" style="font-size:0.85em;color:var(--text-subtle);padding:4px 12px">Loading…</p>';
       if (typeof _loadInvestigations === 'function') _loadInvestigations();
       return;
     }
@@ -12343,7 +12376,7 @@
         + '<div class="viv-rail-investigations-group-items">'
         + (g.studies.length
             ? g.studies.map(function(s) { return _railStudyItem(s, { indent: true }); }).join('')
-            : '<div class="viv-rail-empty" style="font-size:0.82em;color:#94a3b8;'
+            : '<div class="viv-rail-empty" style="font-size:0.82em;color:var(--text-subtle);'
               + 'padding:4px 14px 4px 28px;font-style:italic">No studies</div>')
         + '</div>'
         + '</div>';
@@ -12419,12 +12452,12 @@
     var html = pinnedHtml + groupsHtml + ungroupedHtml;
 
     if (!html && searching) {
-      html = '<div class="viv-rail-empty" style="font-size:0.85em;color:#94a3b8;'
+      html = '<div class="viv-rail-empty" style="font-size:0.85em;color:var(--text-subtle);'
            + 'padding:6px 14px;font-style:italic">No studies match “' + _esc(q) + '”.</div>';
     }
 
     host.innerHTML = html
-      || '<div class="viv-rail-empty" style="font-size:0.85em;color:#94a3b8;'
+      || '<div class="viv-rail-empty" style="font-size:0.85em;color:var(--text-subtle);'
        + 'padding:6px 14px;font-style:italic">No studies yet.</div>';
   }
 
@@ -12484,8 +12517,8 @@
         + _esc(i.title || i.name) + '</option>');
     });
     return '<select class="rail-iset-picker" style="width:calc(100% - 24px);'
-      + 'margin:2px 12px 6px;padding:3px 6px;font-size:0.82em;color:#374151;'
-      + 'border:1px solid #e5e7eb;border-radius:4px;background:#fff;cursor:pointer;"'
+      + 'margin:2px 12px 6px;padding:3px 6px;font-size:0.82em;color:var(--text);'
+      + 'border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;"'
       + ' onchange="window._railSelectInvestigation(this.value)">'
       + opts.join('') + '</select>';
   }
@@ -12682,7 +12715,7 @@
         parents.map(function(p) {
           var name = (typeof p === 'string') ? p : p.study;
           var cond = (typeof p === 'string') ? 'tests-passed' : (p.condition || 'tests-passed');
-          return _depLink(name, cond, '#3b82f6');
+          return _depLink(name, cond, 'var(--link)');
         }).join(' · ') +
       '</div>';
     }
@@ -12690,7 +12723,7 @@
     if (children.length) {
       blocksHtml = '<div class="ic-deps" style="font-size:0.78em;">' +
         '<span class="muted">Blocks:</span> ' +
-        children.map(function(name) { return _depLink(name, '', '#94a3b8'); }).join(' · ') +
+        children.map(function(name) { return _depLink(name, '', 'var(--text-subtle)'); }).join(' · ') +
       '</div>';
     }
 
@@ -12701,16 +12734,16 @@
         return b.study + ' (' + b.condition + (b.missing ? ' — ' + b.missing : '') + ')';
       }).join('\n');
       blockedBadge = ' <span class="status-pill" ' +
-                     'style="background:#fef3c7;color:#92400e;font-size:0.7em;padding:1px 6px;" ' +
+                     'style="background:var(--warning-bg);color:var(--warning-fg);font-size:0.7em;padding:1px 6px;" ' +
                      'title="Blocked by:\n' + _esc(reasons) + '">🔒 blocked</span>';
     }
 
     var phaseColors = {
-      Design:   {bg: '#e0e7ff', fg: '#3730a3'},
-      Build:    {bg: '#fef3c7', fg: '#92400e'},
-      Simulate: {bg: '#dbeafe', fg: '#1e40af'},
-      Evaluate: {bg: '#fce7f3', fg: '#9d174d'},
-      Decide:   {bg: '#d1fae5', fg: '#065f46'},
+      Design:   {bg: 'var(--active)', fg: 'var(--active-fg)'},
+      Build:    {bg: 'var(--warning-bg)', fg: 'var(--warning-fg)'},
+      Simulate: {bg: 'var(--info-bg)', fg: 'var(--info-fg)'},
+      Evaluate: {bg: 'var(--accent2-bg)', fg: 'var(--accent2)'},
+      Decide:   {bg: 'var(--success-bg)', fg: 'var(--success-fg)'},
     };
     var pc = phaseColors[inv.phase] || null;
     var phaseChip = (inv.phase && pc)
@@ -12738,7 +12771,7 @@
       '</div>' +
       '<div class="ic-actions">' +
         '<button class="btn-mini" onclick="event.stopPropagation(); event.preventDefault(); _runInvestigation(\'' + _esc(inv.name) + '\')">' + runLabel + '</button>' +
-        '<button class="btn-mini" onclick="event.stopPropagation(); event.preventDefault(); _deleteInvestigation(\'' + _esc(inv.name) + '\')" style="color:#c00">Delete</button>' +
+        '<button class="btn-mini" onclick="event.stopPropagation(); event.preventDefault(); _deleteInvestigation(\'' + _esc(inv.name) + '\')" style="color:var(--danger-fg)">Delete</button>' +
       '</div>' +
     '</div>';
   }
@@ -12813,7 +12846,7 @@
       .then(function(data) { _renderInvestigationDetail(name, data); })
       .catch(function(err) {
         if (detail) {
-          detail.innerHTML = '<p style="color:#c00">Failed: ' + _esc(String(err)) + '</p>';
+          detail.innerHTML = '<p style="color:var(--danger-fg)">Failed: ' + _esc(String(err)) + '</p>';
         }
         console.error('Failed to open investigation:', err);
         _setInvestigationsFocusMode(false);
@@ -12847,7 +12880,7 @@
   function _renderInvestigationDetail(name, data) {
     var detail = document.getElementById('investigation-detail');
     if (data.error) {
-      detail.innerHTML = '<p style="color:#c00">' + _esc(data.error) + '</p>';
+      detail.innerHTML = '<p style="color:var(--danger-fg)">' + _esc(data.error) + '</p>';
       return;
     }
     var spec = data.spec || {};
@@ -12993,7 +13026,7 @@
     detail.innerHTML =
       '<div class="inv-detail-back" style="margin-bottom:12px">' +
         '<a href="#" onclick="_closeInvestigationFocus(); return false;" ' +
-           'style="color:#3b82f6; text-decoration:none; font-size:0.9em">' +
+           'style="color:var(--link); text-decoration:none; font-size:0.9em">' +
           '← Back to all studies' +
         '</a>' +
       '</div>' +
@@ -13036,7 +13069,7 @@
         '</div>' +
         '<div id="inv-composites-list" style="display:grid;grid-template-columns:220px 1fr;gap:16px">' +
           '<div id="inv-composites-sidebar"></div>' +
-          '<div id="inv-composite-detail" style="border-left:1px solid #eee;padding-left:14px">' +
+          '<div id="inv-composite-detail" style="border-left:1px solid var(--border-faint);padding-left:14px">' +
             '<div class="loom-frame-toolbar" style="display:flex;justify-content:flex-end;margin-bottom:6px">' +
               '<button class="btn-mini" onclick="_popoutLoom(\'inv-composite-explore-frame\')" title="Open this wiring view in a separate window">' +
                 'Pop out ↗' +
@@ -13045,9 +13078,9 @@
             '<iframe id="inv-composite-explore-frame"' +
                     ' src="/bigraph-loom/index.html"' +
                     ' title="Composite wiring"' +
-                    ' style="width:100%;height:520px;border:1px solid #ddd;background:#fff;display:none">' +
+                    ' style="width:100%;height:520px;border:1px solid var(--border-2);background:var(--surface);display:none">' +
             '</iframe>' +
-            '<div id="inv-composite-intervention" style="margin-top:12px;padding:10px;border:1px solid #eee;border-radius:4px;display:none"></div>' +
+            '<div id="inv-composite-intervention" style="margin-top:12px;padding:10px;border:1px solid var(--border-faint);border-radius:4px;display:none"></div>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -13073,8 +13106,8 @@
         '</label>' +
         '<div id="inv-observables-tree" style="font-family:monospace;font-size:0.9em"></div>' +
         '<button class="action-btn js-authoring" onclick="_saveObservables()">Save observables</button>' +
-        '<div id="inv-observables-status" style="margin-top:8px;font-size:0.9em;color:#555"></div>' +
-        '<hr style="margin:20px 0;border:none;border-top:1px solid #eee">' +
+        '<div id="inv-observables-status" style="margin-top:8px;font-size:0.9em;color:var(--text-secondary)"></div>' +
+        '<hr style="margin:20px 0;border:none;border-top:1px solid var(--border-faint)">' +
         '<p class="panel-lead">Analyses to run at dispatch time — one <code>v2ecoli.workflow.analysis.' +
           'ANALYSIS_REGISTRY</code> name per line (e.g. <code>doubling_time_distribution</code>). Translated ' +
           'into <code>analysis_options</code> for remote (sms-api) dispatch and the local post-run pipeline ' +
@@ -13082,10 +13115,10 @@
         '<textarea id="inv-analyses-list" rows="3" style="width:100%;font-family:monospace;font-size:0.9em" ' +
           'placeholder="doubling_time_distribution"></textarea>' +
         '<button class="action-btn js-authoring" onclick="_saveAnalyses()">Save analyses</button>' +
-        '<div id="inv-analyses-status" style="margin-top:8px;font-size:0.9em;color:#555"></div>' +
+        '<div id="inv-analyses-status" style="margin-top:8px;font-size:0.9em;color:var(--text-secondary)"></div>' +
       '</div>' +
       '<div class="investigation-detail-panel" data-tab="viz">' +
-        '<section class="ws-comparisons" style="margin-bottom:16px;padding:10px;border:1px solid #eee">' +
+        '<section class="ws-comparisons" style="margin-bottom:16px;padding:10px;border:1px solid var(--border-faint)">' +
           '<h3 style="margin-top:0">Comparisons</h3>' +
           '<div id="ws-comparisons-list"></div>' +
           '<button class="btn-mini js-authoring" onclick="_openAddComparisonModal()">+ Add comparison</button>' +
@@ -13121,7 +13154,7 @@
           '</label>' +
           '<button class="btn-primary js-authoring" onclick="_saveConclusions()">Save</button>' +
           '<h4 style="margin-top:16px">Raw markdown (combined)</h4>' +
-          '<pre id="conclusions-preview" style="background:#f5f5f5;padding:10px;white-space:pre-wrap;font-family:monospace"></pre>' +
+          '<pre id="conclusions-preview" style="background:var(--surface-3);padding:10px;white-space:pre-wrap;font-family:monospace"></pre>' +
         '</div>' +
       '</div>';
 
@@ -13259,12 +13292,12 @@
       var nameAttr = cname.replace(/'/g, "\\'");
       return (
         '<div class="ws-comparison-row" data-name="' + _esc(cname) + '"' +
-            ' style="padding:6px 0;border-bottom:1px solid #f0f0f0">' +
+            ' style="padding:6px 0;border-bottom:1px solid var(--border-faint)">' +
           '<strong>' + _esc(cname) + '</strong> ' +
           '<small class="muted">variants: ' + _esc(vCsv || '—') +
             ' · observables: ' + _esc(oCsv || '—') + '</small> ' +
           '<button class="btn-mini" onclick="_openEditComparisonModal(\'' + _esc(nameAttr) + '\')">Edit</button> ' +
-          '<button class="btn-mini" style="color:#c00"' +
+          '<button class="btn-mini" style="color:var(--danger-fg)"' +
             ' onclick="_deleteComparison(\'' + _esc(nameAttr) + '\')">Remove</button>' +
         '</div>'
       );
@@ -13362,14 +13395,14 @@
           '<input type="text" id="cmp-description" value="' + _esc(initDesc) + '">' +
         '</label>' +
         '<label>Variants</label>' +
-        '<div id="cmp-variants-list" style="max-height:160px;overflow:auto;padding:4px;border:1px solid #eee;margin-bottom:6px">' +
+        '<div id="cmp-variants-list" style="max-height:160px;overflow:auto;padding:4px;border:1px solid var(--border-faint);margin-bottom:6px">' +
           variantBoxes +
         '</div>' +
         '<label>Observables</label>' +
-        '<div id="cmp-observables-list" style="max-height:160px;overflow:auto;padding:4px;border:1px solid #eee;margin-bottom:6px">' +
+        '<div id="cmp-observables-list" style="max-height:160px;overflow:auto;padding:4px;border:1px solid var(--border-faint);margin-bottom:6px">' +
           obsBoxes +
         '</div>' +
-        '<div class="form-error" id="cmp-form-error" style="color:#c00;min-height:1em"></div>' +
+        '<div class="form-error" id="cmp-form-error" style="color:var(--danger-fg);min-height:1em"></div>' +
         '<div style="margin-top:8px">' +
           '<button type="button" class="action-btn" id="cmp-save-btn"' +
             (obsEmpty ? ' disabled' : '') + '>Save</button> ' +
@@ -13492,7 +13525,7 @@
           var listEl = document.getElementById('ws-comparisons-list');
           if (listEl) {
             var banner = document.createElement('div');
-            banner.style.cssText = 'color:#c00;padding:6px;margin-bottom:6px;border:1px solid #fbb;background:#fff5f5';
+            banner.style.cssText = 'color:var(--danger-fg);padding:6px;margin-bottom:6px;border:1px solid var(--danger-border);background:var(--danger-bg)';
             banner.textContent = msg;
             listEl.insertBefore(banner, listEl.firstChild);
             setTimeout(function() {
@@ -13532,13 +13565,13 @@
       var nameAttr = gname.replace(/'/g, "\\'");
       return (
         '<div class="ws-group-row" data-name="' + _esc(gname) + '"' +
-            ' style="padding:6px;border-bottom:1px solid #eee">' +
+            ' style="padding:6px;border-bottom:1px solid var(--border-faint)">' +
           '<strong>' + _esc(gname) + '</strong> ' +
           '<small class="muted">' + gvariants.length + ' variant(s): ' +
             _esc(vCsv || '—') + '</small>' +
           '<div>' + _esc(desc) + '</div>' +
           '<button class="btn-mini" onclick="_openEditGroupModal(\'' + _esc(nameAttr) + '\')">Edit</button> ' +
-          '<button class="btn-mini" style="color:#c00"' +
+          '<button class="btn-mini" style="color:var(--danger-fg)"' +
             ' onclick="_deleteGroup(\'' + _esc(nameAttr) + '\')">Remove</button>' +
         '</div>'
       );
@@ -13614,10 +13647,10 @@
           '<input type="text" id="grp-description" value="' + _esc(initDesc) + '">' +
         '</label>' +
         '<label>Variants</label>' +
-        '<div id="grp-variants-list" style="max-height:160px;overflow:auto;padding:4px;border:1px solid #eee;margin-bottom:6px">' +
+        '<div id="grp-variants-list" style="max-height:160px;overflow:auto;padding:4px;border:1px solid var(--border-faint);margin-bottom:6px">' +
           variantBoxes +
         '</div>' +
-        '<div class="form-error" id="grp-form-error" style="color:#c00;min-height:1em"></div>' +
+        '<div class="form-error" id="grp-form-error" style="color:var(--danger-fg);min-height:1em"></div>' +
         '<div style="margin-top:8px">' +
           '<button type="button" class="action-btn" id="grp-save-btn"' +
             (variants.length ? '' : ' disabled') + '>Save</button> ' +
@@ -13788,9 +13821,9 @@
             ? '<button class="btn-mini" onclick="event.stopPropagation();_openPromoteModal(\'' +
                 _esc(invName) + '\',\'' + _esc(c.name) + '\')">Promote</button>'
             : (alreadyPromoted
-                ? '<span class="badge" style="color:#080;margin-left:4px">&#10003; Promoted</span>'
+                ? '<span class="badge" style="color:var(--success-fg);margin-left:4px">&#10003; Promoted</span>'
                 : '');
-          return '<div class="inv-composite-row" style="padding:6px;border-bottom:1px solid #eee;cursor:pointer"' +
+          return '<div class="inv-composite-row" style="padding:6px;border-bottom:1px solid var(--border-faint);cursor:pointer"' +
                  ' onclick="_loadInvCompositeDetail(\'' + _esc(invName) + '\',\'' + _esc(c.name) + '\')">' +
                  '<strong>' + _esc(c.name) + '</strong><br>' + subtitle +
                  '<div style="margin-top:4px">' +
@@ -13801,7 +13834,7 @@
                      _esc(invName) + '\',\'' + _esc(c.name) + '\')">Rebuild</button>'
                    : '') +
                  promoteBtn +
-                 '<button class="btn-mini" style="color:#c00" onclick="event.stopPropagation();_removeComposite(\'' +
+                 '<button class="btn-mini" style="color:var(--danger-fg)" onclick="event.stopPropagation();_removeComposite(\'' +
                    _esc(invName) + '\',\'' + _esc(c.name) + '\')">Remove</button>' +
                  '</div></div>';
         }).join('');
@@ -13921,7 +13954,7 @@
       })
       .catch(function(err) {
         var host = document.getElementById('inv-interventions-host');
-        if (host) host.innerHTML = '<p style="color:#c00">Failed to load: ' + _esc(err) + '</p>';
+        if (host) host.innerHTML = '<p style="color:var(--danger-fg)">Failed to load: ' + _esc(err) + '</p>';
       });
   }
   window._loadInterventionsTab = _loadInterventionsTab;
@@ -13960,7 +13993,7 @@
     host.innerHTML =
       '<table class="inv-interventions" style="width:100%;border-collapse:collapse">' +
         '<thead>' +
-          '<tr style="border-bottom:1px solid #ccc;text-align:left">' +
+          '<tr style="border-bottom:1px solid var(--border-2);text-align:left">' +
             '<th style="padding:6px">Variant</th>' +
             '<th style="padding:6px">Parent</th>' +
             '<th style="padding:6px">Description</th>' +
@@ -14018,7 +14051,7 @@
       if (entries[i] && entries[i].name === name) { entry = entries[i]; break; }
     }
     if (!entry) {
-      if (cell) cell.innerHTML = '<p style="color:#c00">Variant not found in cache.</p>';
+      if (cell) cell.innerHTML = '<p style="color:var(--danger-fg)">Variant not found in cache.</p>';
       return;
     }
     var iv = entry.intervention || {};
@@ -14030,7 +14063,7 @@
     var procId = 'inv-iv-proc-' + name;
     var errId = 'inv-iv-err-' + name;
     cell.innerHTML =
-      '<div style="padding:10px;background:#fafafa;border:1px solid #eee">' +
+      '<div style="padding:10px;background:var(--bg);border:1px solid var(--border-faint)">' +
         '<div style="margin-bottom:8px">' +
           '<label style="display:block;font-weight:600;margin-bottom:2px">Description</label>' +
           '<input type="text" id="' + _esc(inputId) + '" value="' + _esc(desc) +
@@ -14052,7 +14085,7 @@
             '</textarea>' +
           '</div>' +
         '</div>' +
-        '<div id="' + _esc(errId) + '" style="color:#c00;margin-top:6px;min-height:1em"></div>' +
+        '<div id="' + _esc(errId) + '" style="color:var(--danger-fg);margin-top:6px;min-height:1em"></div>' +
         '<div style="margin-top:8px">' +
           '<button class="action-btn" data-iv-save="' + _esc(name) + '">Save</button> ' +
           '<button class="btn-mini" data-iv-cancel="' + _esc(name) + '">Cancel</button>' +
@@ -14204,7 +14237,7 @@
               return '<div style="padding:3px 0"><label>' +
                      '<input type="checkbox" data-path="' + _esc(k) + '"' + checked + disabled + '> ' +
                      '<code>' + _esc(k) + '</code> ' +
-                     '<small style="color:#888"> ' + u.types.join(',') +
+                     '<small style="color:var(--text-muted)"> ' + u.types.join(',') +
                      '  ·  in: ' + u.composites.join(', ') + '</small>' +
                      '</label></div>';
             }).join('');
@@ -14444,7 +14477,7 @@
         '<label>Description' +
           '<input type="text" id="promote-description" placeholder="Short description (optional)">' +
         '</label>' +
-        '<div class="form-error" id="promote-error" style="color:#c00;min-height:1em"></div>' +
+        '<div class="form-error" id="promote-error" style="color:var(--danger-fg);min-height:1em"></div>' +
         '<div style="margin-top:8px">' +
           '<button type="button" class="action-btn" id="promote-save-btn">Promote</button> ' +
           '<button type="button" class="btn-mini" onclick="_closePromoteModal()">Cancel</button>' +
@@ -14522,10 +14555,10 @@
              '<td><span class="ce-history-status ' + statusClass + '">' + _esc(r.status) + '</span></td>' +
              '<td><code style="font-size:0.78em">' + rowId.slice(-12) + '</code></td>' +
              '<td><button class="btn-mini" onclick=\'_dupRun("' + _esc(investigationName) + '","' + rowId + '","' + _esc(r.sim_name) + '",' + paramsJson + ',' + (r.n_steps || 10) + ')\'>Duplicate</button> ' +
-                  '<button class="btn-mini" style="color:#c00" onclick="_deleteRun(\'' + _esc(investigationName) + '\',\'' + rowId + '\')">Delete</button></td>' +
+                  '<button class="btn-mini" style="color:var(--danger-fg)" onclick="_deleteRun(\'' + _esc(investigationName) + '\',\'' + rowId + '\')">Delete</button></td>' +
            '</tr>';
     }).join('');
-    var clearBtn = '<div style="margin-bottom:6px"><button class="btn-mini" style="color:#c00" ' +
+    var clearBtn = '<div style="margin-bottom:6px"><button class="btn-mini" style="color:var(--danger-fg)" ' +
                    'onclick="_clearRuns(\'' + _esc(investigationName) + '\')">Clear all runs</button></div>';
     return clearBtn + '<table style="width:100%"><thead><tr>' +
       '<th>Simulation</th><th>Params</th><th>Steps</th><th>Status</th><th>Run id</th><th>Actions</th>' +
@@ -14643,7 +14676,7 @@
       panel.id = 'run-viz-' + runId;
       panel.style.marginTop = '14px';
       panel.style.padding = '10px';
-      panel.style.border = '1px solid #ddd';
+      panel.style.border = '1px solid var(--border-2)';
       panel.style.borderRadius = '4px';
       if (!files.length) {
         panel.innerHTML = '<p class="empty-state" style="margin:0">No visualizations for run <code>' +
@@ -14651,12 +14684,12 @@
       } else {
         var iframes = files.map(function(f) {
           return '<figure style="margin:0 0 14px 0">' +
-            '<figcaption style="font-size:0.85em;color:#555;margin-bottom:4px">' +
+            '<figcaption style="font-size:0.85em;color:var(--text-secondary);margin-bottom:4px">' +
               _esc(f.name) +
               ' <small><a href="/' + _esc(f.html_path) + '" target="_blank">open ↗</a></small>' +
             '</figcaption>' +
             '<iframe src="/' + _esc(f.html_path) + '" sandbox="allow-scripts" ' +
-              'style="width:100%;height:380px;border:1px solid #eee;background:#fff"></iframe>' +
+              'style="width:100%;height:380px;border:1px solid var(--border-faint);background:var(--surface)"></iframe>' +
           '</figure>';
         }).join('');
         panel.innerHTML = '<h4 style="margin:0 0 8px 0">Run ' + _esc(runId.slice(-12)) +
@@ -14908,14 +14941,14 @@
   function _pollForGeneratedClass(name, targetFile, attempt) {
     if (attempt > 600) {  // ~5 min
       var statusEl = document.getElementById('viz-generate-status');
-      if (statusEl) statusEl.innerHTML += '<br><span style="color:#991b1b">Timed out waiting.</span>';
+      if (statusEl) statusEl.innerHTML += '<br><span style="color:var(--danger-fg)">Timed out waiting.</span>';
       return;
     }
     fetch('/' + targetFile + '?_=' + Date.now()).then(function(r) {
       if (r.ok) {
         var statusEl = document.getElementById('viz-generate-status');
         if (statusEl) statusEl.innerHTML +=
-          '<br><span style="color:#1f7a3a">File detected.</span> ' +
+          '<br><span style="color:var(--success-fg)">File detected.</span> ' +
           '<button class="btn-mini" onclick="_vizClassPreview(\'local:' + name + '\',\'' + name + '\')">' +
           'Preview</button> ' +
           '<button class="btn-mini" onclick="_acceptGeneratedClass(\'' + name + '\')">Accept &amp; commit</button>';
@@ -14934,11 +14967,11 @@
         var statusEl = document.getElementById('viz-generate-status');
         if (!ok) {
           if (statusEl) statusEl.innerHTML +=
-            '<br><span style="color:#991b1b">Accept failed: ' + (j.error || '') + '</span>';
+            '<br><span style="color:var(--danger-fg)">Accept failed: ' + (j.error || '') + '</span>';
           return;
         }
         if (statusEl) statusEl.innerHTML +=
-          '<br><span style="color:#1f7a3a">Committed. Reloading catalog…</span>';
+          '<br><span style="color:var(--success-fg)">Committed. Reloading catalog…</span>';
         setTimeout(function() { window.location.reload(); }, 600);
       });
   }
@@ -15100,7 +15133,7 @@
     var done = function (ok) {
       var badge = document.createElement('span');
       badge.textContent = ok ? '  ✓ copied' : '  (copy failed)';
-      badge.style.cssText = 'color:' + (ok ? '#16a34a' : '#b91c1c') + ';font-size:10px;white-space:nowrap';
+      badge.style.cssText = 'color:' + (ok ? 'var(--success-fg)' : 'var(--danger-fg)') + ';font-size:10px;white-space:nowrap';
       el.appendChild(badge);
       setTimeout(function () { if (badge.parentNode) badge.parentNode.removeChild(badge); }, 1800);
     };
@@ -15126,10 +15159,10 @@
     var pop = document.createElement('div');
     pop.id = 'sim-config-popover';
     pop.style.cssText = 'position:fixed;z-index:3000;min-width:300px;max-width:min(560px,92vw);' +
-      'background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 10px 34px rgba(15,23,42,.20);padding:10px 12px';
+      'background:var(--surface);border:1px solid var(--border-2);border-radius:10px;box-shadow:0 10px 34px rgba(15,23,42,.20);padding:10px 12px';
     var head = document.createElement('div');
     head.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:6px';
-    head.innerHTML = '<strong style="font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:#334155;flex:1">Run config</strong>';
+    head.innerHTML = '<strong style="font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text);flex:1">Run config</strong>';
     var copyBtn = document.createElement('button');
     copyBtn.type = 'button'; copyBtn.className = 'btn-mini'; copyBtn.textContent = '⧉ Copy JSON';
     copyBtn.onclick = function (ev) {
@@ -15147,8 +15180,8 @@
     head.appendChild(copyBtn); head.appendChild(closeBtn);
     var pre = document.createElement('pre');
     pre.textContent = json;
-    pre.style.cssText = 'margin:0;font-size:11.5px;line-height:1.45;color:#1f2937;white-space:pre;' +
-      'max-height:min(60vh,420px);overflow:auto;background:#f8fafc;border:1px solid #eef2f7;border-radius:7px;padding:8px 10px';
+    pre.style.cssText = 'margin:0;font-size:11.5px;line-height:1.45;color:var(--text);white-space:pre;' +
+      'max-height:min(60vh,420px);overflow:auto;background:var(--surface-2);border:1px solid var(--border-faint);border-radius:7px;padding:8px 10px';
     pop.appendChild(head); pop.appendChild(pre);
     document.body.appendChild(pop);
     // Position below the cell, clamped to the viewport.
@@ -15439,7 +15472,7 @@
         if (data.error) {
           if (quiet) return;
           if (loading) loading.innerHTML =
-            '<span style="color:#c00;">Could not load simulations: ' +
+            '<span style="color:var(--danger-fg);">Could not load simulations: ' +
             _escSim(data.error) + ' <button class="action-btn" ' +
             'onclick="_initSimulations()">Retry</button></span>';
           return;
@@ -15470,7 +15503,7 @@
       .catch(function (err) {
         if (quiet) return;
         if (loading) loading.innerHTML =
-          '<span style="color:#c00;">Network error: ' + _escSim(String(err)) +
+          '<span style="color:var(--danger-fg);">Network error: ' + _escSim(String(err)) +
           ' <button class="action-btn" onclick="_initSimulations()">Retry</button></span>';
       });
   }
@@ -15697,7 +15730,7 @@
     var studies = sim.studies || [];
     var studiesTxt = studies.length ? studies.map(_escSim).join(', ') : '<em>none</em>';
     var stillRunning = (sim.status === 'running')
-      ? '<p style="color:#b45309; margin:8px 0 0;"><strong>⚠ This run is still running.</strong> ' +
+      ? '<p style="color:var(--warning-fg); margin:8px 0 0;"><strong>⚠ This run is still running.</strong> ' +
         'Deleting now will orphan the detached process (it will fail-write later, harmlessly).</p>'
       : '';
     var composite = sim.spec_id
@@ -15807,7 +15840,7 @@
 
     if (status === 'gone') {
       el.innerHTML =
-        '<div style="background:#fef3c7; border:1px solid #fde68a; ' +
+        '<div style="background:var(--warning-bg); border:1px solid var(--warning-border); ' +
         'padding:10px 14px; border-radius:4px;">' +
         '<strong>This run no longer exists.</strong> It may have been deleted ' +
         'from the <a href="#simulations">Simulations tab</a>. Click <strong>' +
@@ -15821,10 +15854,10 @@
         ? Math.round((prog / n) * 100) : 0;
       bannerHtml =
         '<div style="margin:0 0 12px;">' +
-        '<div style="background:#e5e7eb; border-radius:4px; height:10px; overflow:hidden;">' +
-        '<div style="width:' + pct + '%; background:#3b82f6; height:100%;"></div>' +
+        '<div style="background:var(--border); border-radius:4px; height:10px; overflow:hidden;">' +
+        '<div style="width:' + pct + '%; background:var(--link); height:100%;"></div>' +
         '</div>' +
-        '<small style="color:#6b7280;">Running detached — step ' + _esc(String(prog)) +
+        '<small style="color:var(--text-subtle);">Running detached — step ' + _esc(String(prog)) +
         ' of ' + _esc(String(n)) + ' — safe to leave this tab.</small></div>';
     } else if (status === 'failed' || status === 'orphaned') {
       var logTxt = input && input.log_path
@@ -15833,18 +15866,18 @@
       var errBlock = '';
       if (input && input.error) {
         errBlock =
-          '<details style="margin-top:6px;"><summary style="cursor:pointer; color:#7f1d1d;">' +
-          'Show log excerpt</summary><pre style="background:#fef2f2; border:1px solid #fecaca; ' +
+          '<details style="margin-top:6px;"><summary style="cursor:pointer; color:var(--danger-fg);">' +
+          'Show log excerpt</summary><pre style="background:var(--danger-bg); border:1px solid var(--danger-border); ' +
           'padding:10px; font-size:11px; line-height:1.4; overflow:auto; max-height:320px; ' +
           'margin-top:6px; white-space:pre-wrap;">' + _esc(String(input.error).trim()) +
           '</pre></details>';
       }
       bannerHtml =
-        '<div style="color:#c00; margin:0 0 12px;"><p style="margin:0;"><strong>Run ' +
+        '<div style="color:var(--danger-fg); margin:0 0 12px;"><p style="margin:0;"><strong>Run ' +
         _esc(status) + '.</strong>' + logTxt + '</p>' + errBlock + '</div>';
     } else if (status === 'completed') {
       bannerHtml =
-        '<p style="color:#6b7280; font-size:13px; margin:0 0 10px;">Run complete — ' +
+        '<p style="color:var(--text-subtle); font-size:13px; margin:0 0 10px;">Run complete — ' +
         '<strong>' + _esc(String(n)) + '</strong> steps. ' +
         String(Object.keys(results).length) + ' observables.</p>';
     }
@@ -15875,7 +15908,7 @@
         }
         tableHtml += '<tr><td><code>' + _esc(k) + '</code></td>' +
           '<td>' + entries.length + '</td>' +
-          '<td style="font-family:monospace; font-size:12px; color:#4b5563;">' +
+          '<td style="font-family:monospace; font-size:12px; color:var(--text-secondary);">' +
           _esc(preview) + '</td></tr>';
       });
       tableHtml += '</tbody></table>';
@@ -15889,8 +15922,8 @@
         var payload = viz[path] || {};
         var html = payload.html || '<p>No HTML</p>';
         vizHtml +=
-          '<div style="margin-bottom:12px; border:1px solid #e5e7eb; border-radius:4px;">' +
-          '<div style="padding:6px 10px; background:#f3f4f6; font-family:monospace; ' +
+          '<div style="margin-bottom:12px; border:1px solid var(--border); border-radius:4px;">' +
+          '<div style="padding:6px 10px; background:var(--surface-3); font-family:monospace; ' +
           'font-size:12px;">' + _esc(path) + '</div>' +
           '<iframe srcdoc="' + _esc(html).replace(/&quot;/g, '&#34;') +
           '" style="width:100%; height:320px; border:0;" sandbox="allow-scripts"></iframe>' +
@@ -16455,7 +16488,7 @@
     var hint = document.getElementById('viv-gh-default-org-hint');
     if (!sel) return;
     sel.disabled = true;
-    var _retry = ' <a href="#" id="viv-gh-org-retry" style="color:#2563eb">Retry</a>';
+    var _retry = ' <a href="#" id="viv-gh-org-retry" style="color:var(--link)">Retry</a>';
     function _bindRetry() {
       var a = document.getElementById('viv-gh-org-retry');
       if (a) a.onclick = function (e) { e.preventDefault(); _loadGithubOrgs(); };
@@ -16553,10 +16586,10 @@
     });
     var gaps = sev.error + sev.warning;
     var head, bg, bd, col;
-    if (!findings.length) { head = '✓ Ready'; bg = '#f0fdf4'; bd = '#16a34a'; col = '#166534'; }
-    else if (gaps) { head = '⚠ ' + gaps + ' gap' + (gaps === 1 ? '' : 's'); bg = '#fffbeb'; bd = '#f59e0b'; col = '#92400e'; }
-    else { head = 'ℹ ' + sev.info + ' note' + (sev.info === 1 ? '' : 's'); bg = '#eff6ff'; bd = '#3b82f6'; col = '#1e40af'; }
-    var lbl = '<span class="small" style="color:#64748b">code-computed by the report linter (deterministic)</span>';
+    if (!findings.length) { head = '✓ Ready'; bg = 'var(--success-bg)'; bd = 'var(--success-fg)'; col = 'var(--success-fg)'; }
+    else if (gaps) { head = '⚠ ' + gaps + ' gap' + (gaps === 1 ? '' : 's'); bg = 'var(--warning-bg)'; bd = 'var(--warning-fg)'; col = 'var(--warning-fg)'; }
+    else { head = 'ℹ ' + sev.info + ' note' + (sev.info === 1 ? '' : 's'); bg = 'var(--info-bg)'; bd = 'var(--link)'; col = 'var(--info-fg)'; }
+    var lbl = '<span class="small" style="color:var(--text-muted)">code-computed by the report linter (deterministic)</span>';
     // Ready → no dropdown needed.
     if (!findings.length) {
       return '<div class="readiness-banner" style="margin:12px 0;padding:12px 16px;background:' + bg
@@ -16570,18 +16603,18 @@
     var groups = checks.map(function (c) {
       var items = byCheck[c].map(function (f) {
         var s = f.severity || 'info';
-        var dot = s === 'error' ? '#dc2626' : (s === 'warning' ? '#f59e0b' : '#3b82f6');
+        var dot = s === 'error' ? 'var(--danger-fg)' : (s === 'warning' ? 'var(--warning-fg)' : 'var(--link)');
         return '<li style="margin-top:3px"><span style="color:' + dot + ';font-weight:700">●</span> ' + _h(f.message || '') + '</li>';
       }).join('');
       return '<div style="margin-top:9px"><code>' + _h(c) + '</code> '
-        + '<span class="small" style="color:#94a3b8">(' + byCheck[c].length + ')</span>'
+        + '<span class="small" style="color:var(--text-subtle)">(' + byCheck[c].length + ')</span>'
         + '<ul class="small" style="margin:3px 0 0 18px;padding:0">' + items + '</ul></div>';
     }).join('');
     return '<details class="readiness-banner" style="margin:12px 0;background:' + bg
       + ';border:1px solid ' + bd + ';border-left-width:5px;border-radius:6px;color:' + col + '">'
       + '<summary style="padding:12px 16px;cursor:pointer;list-style:none;outline:none">'
       + '<strong>Readiness: ' + head + '</strong> ' + lbl
-      + '<div class="small" style="color:#64748b;margin-top:5px">' + breakdown
+      + '<div class="small" style="color:var(--text-muted);margin-top:5px">' + breakdown
       + ' &nbsp;·&nbsp; <span style="opacity:.7;font-style:italic">click to expand</span></div>'
       + '</summary>'
       + '<div style="padding:2px 16px 12px 16px">' + groups + '</div>'

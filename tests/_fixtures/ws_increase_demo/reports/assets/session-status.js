@@ -151,7 +151,7 @@
     dismissBtn.className = "viv-sf-dismiss";
     dismissBtn.textContent = "Dismiss";
     dismissBtn.style.cssText = "cursor:pointer; border:1px solid #3a2f3a; background:transparent;" +
-      " color:#93a1b5; border-radius:6px; padding:5px 12px";
+      " color:var(--text-subtle); border-radius:6px; padding:5px 12px";
     dismissBtn.addEventListener("click", clearFailure);
     actions.appendChild(dismissBtn);
     panel.appendChild(actions);

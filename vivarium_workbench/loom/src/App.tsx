@@ -15,6 +15,7 @@ import PlaceEdge from './edges/PlaceEdge';
 import BoundaryLabels from './edges/BoundaryLabels';
 import { useLayoutMode } from './hooks/useLayoutMode';
 import { useFocus } from './hooks/useFocus';
+import { useResolvedTheme } from './hooks/useResolvedTheme';
 import { getMode } from './layouts/registry';
 import { egoLayout } from './layouts/egoLayout';
 import { pickDrawnEdges } from './layouts/pickDrawnEdges';
@@ -94,6 +95,8 @@ type TrajectoryRow = { step: number; time?: number; state: Record<string, unknow
 
 export default function App() {
   const [state, setState] = useState<any | null>(decodeUrlComposite());
+  // Host (workbench) theme -> React Flow's built-in light/dark styling.
+  const colorMode = useResolvedTheme();
   // A composite-state build/resolve failure (HTTP 4xx/5xx, or a { error } body)
   // is held here and rendered as a clean error panel — NOT setState'd, which
   // would draw the error dict as an "error"/string store node in the canvas.
@@ -2213,18 +2216,18 @@ export default function App() {
       return (
         <div style={{ padding: 24, fontFamily: 'system-ui', maxWidth: 680 }}>
           <h3 style={{ margin: '0 0 8px' }}>⚠ Composite build failed</h3>
-          <p style={{ color: '#334155', margin: '0 0 12px' }}>
+          <p style={{ color: 'var(--text, #334155)', margin: '0 0 12px' }}>
             {compositeId
               ? <>Couldn’t build <code>{compositeId}</code>.</>
               : 'Couldn’t build this composite.'}
           </p>
           <pre style={{
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#fef2f2',
-            border: '1px solid #fecaca', color: '#991b1b', borderRadius: 6,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--danger-bg, #fef2f2)',
+            border: '1px solid var(--danger-border, #fecaca)', color: 'var(--danger-fg, #991b1b)', borderRadius: 6,
             padding: '10px 12px', fontSize: 12, margin: '0 0 12px',
           }}>{loadError}</pre>
           {cacheHint && (
-            <p style={{ color: '#64748b', fontSize: 12, margin: '0 0 12px' }}>
+            <p style={{ color: 'var(--text-muted, #64748b)', fontSize: 12, margin: '0 0 12px' }}>
               The ParCa cache (<code>out/cache</code>) is missing or built from
               different source. Rebuild it for this workspace, then Retry.
             </p>
@@ -2233,8 +2236,8 @@ export default function App() {
             onClick={() => { setLoadError(null); setRetryTick((t) => t + 1); }}
             style={{
               fontFamily: 'system-ui', fontSize: 13, padding: '6px 14px',
-              border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff',
-              color: '#334155', cursor: 'pointer',
+              border: '1px solid var(--border-2, #cbd5e1)', borderRadius: 6, background: 'var(--surface, #fff)',
+              color: 'var(--text, #334155)', cursor: 'pointer',
             }}
           >Retry</button>
         </div>
@@ -2243,17 +2246,17 @@ export default function App() {
     return (
       <div style={{ padding: 24, fontFamily: 'system-ui' }}>
         <h3>bigraph-loom</h3>
-        <p style={{ color: '#666' }}>
+        <p style={{ color: 'var(--text-secondary, #666)' }}>
           {compositeId ? `Loading composite "${compositeId}"…` : 'Waiting for composite data…'}
         </p>
         {compositeId && (
-          <p style={{ color: '#888', fontSize: 12 }}>
+          <p style={{ color: 'var(--text-muted, #888)', fontSize: 12 }}>
             Fetching from <code>/api/composite-state?ref={compositeId}</code>.
             If this hangs, the dashboard server may be unreachable.
           </p>
         )}
         {!compositeId && (
-          <p style={{ color: '#888', fontSize: 12 }}>
+          <p style={{ color: 'var(--text-muted, #888)', fontSize: 12 }}>
             Embed this page and post a <code>composite:load</code> message,
             or open with <code>?id=&lt;ref&gt;</code>.
           </p>
@@ -2323,8 +2326,8 @@ export default function App() {
             {openTabs.length > 0 && (
               <div style={{
                 display: 'flex', gap: 2, alignItems: 'flex-end',
-                padding: '4px 8px 0', borderBottom: '1px solid #e5e7eb',
-                background: '#fff', flex: '0 0 auto', overflowX: 'auto',
+                padding: '4px 8px 0', borderBottom: '1px solid var(--border, #e5e7eb)',
+                background: 'var(--surface, #fff)', flex: '0 0 auto', overflowX: 'auto',
               }}>
                 {[{ key: '', name: rootNameRef.current || 'Super-sim', hops: [] as string[][] }, ...openTabs].map((t) => {
                   const active = activeTabKey === t.key;
@@ -2337,9 +2340,9 @@ export default function App() {
                         display: 'inline-flex', alignItems: 'center', gap: 6,
                         padding: '5px 11px', borderRadius: '7px 7px 0 0', cursor: 'pointer', whiteSpace: 'nowrap',
                         fontSize: 13, fontWeight: active ? 600 : 400,
-                        color: active ? '#2563eb' : '#6b7280',
-                        background: active ? '#eff6ff' : 'transparent',
-                        border: '1px solid ' + (active ? '#bfdbfe' : 'transparent'), borderBottom: 'none',
+                        color: active ? 'var(--link, #2563eb)' : 'var(--text-subtle, #6b7280)',
+                        background: active ? 'var(--info-bg, #eff6ff)' : 'transparent',
+                        border: '1px solid ' + (active ? 'var(--info-border, #bfdbfe)' : 'transparent'), borderBottom: 'none',
                       }}
                     >
                       <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</span>
@@ -2347,7 +2350,7 @@ export default function App() {
                         <span
                           onClick={(e) => closeTab(t.key, e)}
                           title="Close tab"
-                          style={{ color: '#9ca3af', fontSize: 15, lineHeight: 1, cursor: 'pointer' }}
+                          style={{ color: 'var(--text-subtle, #9ca3af)', fontSize: 15, lineHeight: 1, cursor: 'pointer' }}
                         >×</span>
                       )}
                     </div>
@@ -2470,20 +2473,20 @@ export default function App() {
                       style={{
                         height: 28, width: 28, padding: 0, fontSize: 14,
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        background: showNavHelp ? '#eff6ff' : '#fff',
-                        border: '1px solid ' + (showNavHelp ? '#bfdbfe' : '#d1d5db'),
-                        borderRadius: 4, cursor: 'pointer', color: '#374151',
+                        background: showNavHelp ? 'var(--info-bg, #eff6ff)' : 'var(--surface, #fff)',
+                        border: '1px solid ' + (showNavHelp ? 'var(--info-border, #bfdbfe)' : 'var(--border-2, #d1d5db)'),
+                        borderRadius: 4, cursor: 'pointer', color: 'var(--text, #374151)',
                       }}
                     >ⓘ</button>
                     {showNavHelp && (
                       <div style={{
                         position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                        background: '#fff', border: '1px solid #d1d5db', borderRadius: 6,
+                        background: 'var(--surface, #fff)', border: '1px solid var(--border-2, #d1d5db)', borderRadius: 6,
                         boxShadow: '0 6px 20px rgba(0,0,0,.12)', padding: '10px 12px',
-                        width: 250, zIndex: 20, fontSize: 12, color: '#374151',
+                        width: 250, zIndex: 20, fontSize: 12, color: 'var(--text, #374151)',
                         lineHeight: 1.5, textAlign: 'left', cursor: 'default',
                       }}>
-                        <div style={{ fontWeight: 600, marginBottom: 6, color: '#111827' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--heading, #111827)' }}>
                           Navigating the graph
                         </div>
                         <table style={{ borderCollapse: 'collapse' }}><tbody>
@@ -2497,7 +2500,7 @@ export default function App() {
                             <tr key={k}>
                               <td style={{ padding: '2px 8px 2px 0', whiteSpace: 'nowrap',
                                            fontWeight: 600, verticalAlign: 'top' }}>{k}</td>
-                              <td style={{ padding: '2px 0', color: '#6b7280' }}>{v}</td>
+                              <td style={{ padding: '2px 0', color: 'var(--text-subtle, #6b7280)' }}>{v}</td>
                             </tr>
                           ))}
                         </tbody></table>
@@ -2511,8 +2514,8 @@ export default function App() {
                       style={{
                         height: 28, padding: '0 10px', fontSize: 12,
                         display: 'inline-flex', alignItems: 'center',
-                        background: '#fff', border: '1px solid #d1d5db',
-                        borderRadius: 4, cursor: 'pointer', color: '#374151',
+                        background: 'var(--surface, #fff)', border: '1px solid var(--border-2, #d1d5db)',
+                        borderRadius: 4, cursor: 'pointer', color: 'var(--text, #374151)',
                       }}
                     >
                       Download
@@ -2520,7 +2523,7 @@ export default function App() {
                     {showExport && (
                       <div style={{
                         position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                        background: '#fff', border: '1px solid #d1d5db', borderRadius: 4,
+                        background: 'var(--surface, #fff)', border: '1px solid var(--border-2, #d1d5db)', borderRadius: 4,
                         boxShadow: '0 2px 8px rgba(0,0,0,0.12)', overflow: 'hidden',
                         minWidth: 90,
                       }}>
@@ -2531,10 +2534,10 @@ export default function App() {
                             style={{
                               display: 'block', width: '100%', textAlign: 'left',
                               padding: '6px 12px', fontSize: 12, border: 0,
-                              background: '#fff', cursor: 'pointer', color: '#374151',
+                              background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text, #374151)',
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-3, #f3f4f6)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface, #fff)')}
                           >
                             {fmt.toUpperCase()}
                           </button>
@@ -2545,6 +2548,7 @@ export default function App() {
                 </div>
                 )}
                 <ReactFlow
+                  colorMode={colorMode}
                   nodes={tieredNodes}
                   edges={tieredEdges}
                   onInit={(inst) => { rfRef.current = inst; }}

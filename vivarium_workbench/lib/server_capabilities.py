@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError
+from vivarium_workbench.lib.remote_api_client import RemoteApiClient, SmsApiError
 
 # Capability names the workbench branches on. Mirrored from viva-api's
 # CAPABILITY_REGISTRY — the strings themselves are the public, stable API
@@ -74,7 +74,7 @@ class CapabilityUnsupportedError(RuntimeError):
         self.version = version
 
 
-def fetch_capabilities(client: SmsApiClient) -> ServerCapabilities:
+def fetch_capabilities(client: RemoteApiClient) -> ServerCapabilities:
     """The deployment's advertisement, honestly degraded.
 
     * endpoint answers → its ``{version, capabilities}`` verbatim;
@@ -98,7 +98,7 @@ def fetch_capabilities(client: SmsApiClient) -> ServerCapabilities:
     )
 
 
-def require_capabilities(client: SmsApiClient, *names: str) -> ServerCapabilities:
+def require_capabilities(client: RemoteApiClient, *names: str) -> ServerCapabilities:
     """Gate a dispatch path on the deployment advertising every ``name``.
 
     Returns the fetched :class:`ServerCapabilities` on success (so callers can

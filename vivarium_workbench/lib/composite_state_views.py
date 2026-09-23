@@ -145,23 +145,6 @@ def _degrade_build_error(
     """
     err_str = str(err)
     build_error: "dict[str, Any]" = {"kind": _build_error_kind(err_str), "detail": err_str}
-    # A materialized remote build ships no local ParCa cache — keep the clearer,
-    # expected-for-Cloud wording as the notice rather than a raw build trace.
-    if _is_parca_cache_error(err_str):
-        try:
-            from vivarium_workbench.lib.remote_simulations import _read_build_meta
-            _meta = _read_build_meta(ws_root)
-        except Exception:
-            _meta = None
-        if _meta is not None:
-            _sim = _meta.get("simulator_id")
-            _commit = str(_meta.get("commit") or "")[:7]
-            who = (f"remote build #{_sim}" if _sim is not None else "this remote build") \
-                + (f" @ {_commit}" if _commit else "")
-            build_error["notice"] = (
-                f"{who} has no local ParCa cache, so its wiring preview can't be built "
-                f"here — run it on the Cloud, or provision a local out/cache.")
-            build_error["remote_no_cache"] = True
 
     def _finish(payload: dict) -> "tuple[dict, int]":
         payload["build_error"] = build_error

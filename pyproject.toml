@@ -106,6 +106,17 @@ dev = ["pytest>=7.4", "pytest-timeout", "pytest-json-report>=1.5", "pytest-xdist
 # fail. Install with: uv pip install -e ".[dev,test]". See CONTRIBUTING.md.
 # (zarr is needed alongside xarray for DataTree.to_zarr in the zarr tests.)
 test = ["polars", "xarray", "zarr", "pyarrow"]
+# The optional AI coding assistant extension (vivarium_workbench_assistant/).
+# The core never imports it; enable with `serve --enable-extension assistant`.
+# httpx: the one provider HTTP client (no vendor SDKs); keyring: OS-keychain
+# credential storage.
+assistant = ["httpx>=0.27", "keyring>=24"]
+# Google Vertex AI credentials (ADC / service-account key file) for the assistant.
+assistant-google = ["vivarium-workbench[assistant]", "google-auth[requests]>=2.20"]
+# Browser end-to-end tests (tests/e2e/, opt-in: VIVARIUM_WORKBENCH_E2E=1), then
+# `python -m playwright install chromium`. axe-playwright-python (MIT) ships
+# Deque's axe-core (MPL-2.0, unmodified) for the accessibility checks.
+e2e = ["pytest>=7.4", "pytest-timeout", "playwright>=1.40", "httpx>=0.27", "axe-playwright-python>=0.1.8"]
 
 [project.scripts]
 # New canonical console scripts.
@@ -116,6 +127,12 @@ vivarium-workbench-publish = "vivarium_workbench.publish:main"
 vivarium-dashboard = "vivarium_workbench.cli:main"
 vdash = "vivarium_workbench.cli:main"
 vivarium-dashboard-publish = "vivarium_workbench.publish:main"
+
+# Opt-in workbench extensions (vivarium_workbench.lib.extensions). Nothing here
+# loads unless the operator enables it (VIVARIUM_WORKBENCH_EXTENSIONS /
+# `serve --enable-extension`).
+[project.entry-points."vivarium_workbench.extensions"]
+assistant = "vivarium_workbench_assistant.extension:AssistantExtension"
 
 # Git source for the bare pbg-basic-processes dependency (not on PyPI). uv reads
 # this when vivarium-dashboard is the root project; consumers that depend on it
@@ -175,7 +192,18 @@ bigraph-schema = { git = "https://github.com/vivarium-collective/bigraph-schema.
 # the interface without dragging in an implementation, and a cloud adapter swaps
 # in without the port changing. Enforced in CI (`lint-imports`).
 [tool.importlinter]
-root_packages = ["vivarium_workbench", "viva_superpowers"]
+root_packages = ["vivarium_workbench", "viva_superpowers", "vivarium_workbench_assistant"]
+
+[[tool.importlinter.contracts]]
+# The AI-free core never imports the optional assistant extension, directly or
+# transitively; the extension imports the core through the public seam
+# (vivarium_workbench.lib.extensions) and lib read APIs. tests/test_no_ai_deps.py
+# (unchanged) keeps LLM SDKs out of the core; tests/assistant/test_no_vendor_sdks.py
+# keeps them out of the extension too (it talks to providers over httpx).
+name = "the workbench core never imports the assistant extension"
+type = "forbidden"
+source_modules = ["vivarium_workbench"]
+forbidden_modules = ["vivarium_workbench_assistant"]
 
 [[tool.importlinter.contracts]]
 name = "ports are pure interfaces (no adapter / no git-impl imports)"
@@ -323,8 +351,6 @@ files = [
     "vivarium_workbench/lib/job_status_views.py",
     "vivarium_workbench/lib/csrf.py",
     "vivarium_workbench/lib/source_switch_views.py",
-    "vivarium_workbench/lib/source_build_views.py",
-    "vivarium_workbench/lib/remote_run_views.py",
     "vivarium_workbench/lib/auth_views.py",
     "vivarium_workbench/lib/git_commit_views.py",
     "vivarium_workbench/lib/work_mutations.py",
@@ -339,7 +365,6 @@ files = [
     "vivarium_workbench/lib/study_run_post.py",
     "vivarium_workbench/lib/study_runs.py",
     "vivarium_workbench/lib/smoke.py",
-    "vivarium_workbench/lib/comparison_pinning.py",
     "vivarium_workbench/lib/server_capabilities.py",
     "vivarium_workbench/lib/remote_link.py",
     "vivarium_workbench/lib/test_run_views.py",
@@ -350,6 +375,14 @@ files = [
     "vivarium_workbench/lib/install_views.py",
     "vivarium_workbench/lib/catalog_install_views.py",
     "vivarium_workbench/lib/catalog_uninstall_views.py",
+    "vivarium_workbench/lib/sensitive_paths.py",
+    "vivarium_workbench/lib/server_runtime.py",
+    "vivarium_workbench/lib/host_guard.py",
+    "vivarium_workbench/lib/user_dirs.py",
+    "vivarium_workbench/lib/extensions.py",
+    "vivarium_workbench/lib/deploy_config.py",
+    "vivarium_workbench/lib/theme_embed.py",
+    "vivarium_workbench_assistant",
 ]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
@@ -371,7 +404,7 @@ allow-direct-references = true
 # Docker). They stay shipped via `packages`; no force-include needed.
 # Ship the renamed package AND the thin vivarium_dashboard/ back-compat shim
 # (deprecated; removed in Phase 3) so old imports keep resolving in wheels too.
-packages = ["vivarium_workbench", "vivarium_dashboard"]
+packages = ["vivarium_workbench", "vivarium_dashboard", "vivarium_workbench_assistant"]
 # vivarium_workbench/loom/_dist (the Vite build output of the vendored
 # bigraph-loom, produced by `scripts/build_loom.sh` / `npm run build`) is
 # gitignored — it's a generated artifact, not source. hatchling's default

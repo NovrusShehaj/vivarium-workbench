@@ -44,6 +44,11 @@ def main() -> None:
     print(f"  Swagger UI : {base}/docs")
     print(f"  ReDoc      : {base}/redoc")
     print(f"  OpenAPI    : {base}/openapi.json")
+    # Tell request-time policy how this server is bound (lib.server_runtime):
+    # the app is imported by uvicorn (possibly in a --reload child), so the
+    # env var — not an in-process configure() — is what reaches it.
+    from vivarium_workbench.lib.server_runtime import BIND_HOST_ENV
+    os.environ[BIND_HOST_ENV] = args.host
     # Import string (not the app object) so --reload works.
     uvicorn.run("vivarium_workbench.api.app:app", host=args.host, port=args.port, reload=args.reload)
 

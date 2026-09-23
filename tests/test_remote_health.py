@@ -1,15 +1,15 @@
 """Tests for the remote sms-api health indicator (#2/#3 hardening).
 
 `workspace_deps_views.remote_health()` powers the Source panel's 🟢/🔴 dot and the
-startup log; `SmsApiClient.ping()` is its lightweight reachability probe. Both must
+startup log; `RemoteApiClient.ping()` is its lightweight reachability probe. Both must
 degrade cleanly (never raise) so a fresh operator/Chris always gets a clear signal.
 """
 import pytest
 
-from vivarium_workbench.lib import sms_api_client as sac
+from vivarium_workbench.lib import remote_api_client as sac
 from vivarium_workbench.lib import remote_api_client as rac
 from vivarium_workbench.lib import workspace_deps_views as wdv
-from vivarium_workbench.lib.sms_api_client import SmsApiError
+from vivarium_workbench.lib.remote_api_client import SmsApiError
 
 
 class _OkClient:
@@ -29,12 +29,12 @@ class _DownClient:
 
 
 def test_remote_health_reachable(monkeypatch):
-    # Clear the canonical name: _sms_api_base reads VIVA_API_BASE first, and
+    # Clear the canonical name: _remote_api_base reads VIVA_API_BASE first, and
     # conftest's _isolate_viva_api_base sets both. This test exercises the
     # legacy alias specifically (cf. test_env_worker_launcher, same pattern).
     monkeypatch.delenv("VIVA_API_BASE", raising=False)
     monkeypatch.setenv("SMS_API_BASE", "http://sms-api.example:8080")
-    monkeypatch.setattr(sac, "SmsApiClient", _OkClient)
+    monkeypatch.setattr(sac, "RemoteApiClient", _OkClient)
     assert wdv.remote_health() == {
         "configured": True,
         "base_url": "http://sms-api.example:8080",
@@ -45,12 +45,12 @@ def test_remote_health_reachable(monkeypatch):
 
 
 def test_remote_health_unreachable_does_not_raise(monkeypatch):
-    # Clear the canonical name: _sms_api_base reads VIVA_API_BASE first, and
+    # Clear the canonical name: _remote_api_base reads VIVA_API_BASE first, and
     # conftest's _isolate_viva_api_base sets both. This test exercises the
     # legacy alias specifically (cf. test_env_worker_launcher, same pattern).
     monkeypatch.delenv("VIVA_API_BASE", raising=False)
     monkeypatch.setenv("SMS_API_BASE", "http://sms-api.example:8080")
-    monkeypatch.setattr(sac, "SmsApiClient", _DownClient)
+    monkeypatch.setattr(sac, "RemoteApiClient", _DownClient)
     h = wdv.remote_health()
     assert h["configured"] is True
     assert h["reachable"] is False
@@ -63,14 +63,14 @@ def test_remote_health_unconfigured_uses_default_and_flags_it(monkeypatch):
     # test_remote_run_endpoints.test_sms_api_base_default_and_override.
     monkeypatch.delenv("VIVA_API_BASE", raising=False)
     monkeypatch.delenv("SMS_API_BASE", raising=False)
-    monkeypatch.setattr(sac, "SmsApiClient", _DownClient)
+    monkeypatch.setattr(sac, "RemoteApiClient", _DownClient)
     h = wdv.remote_health()
     assert h["configured"] is False
     assert h["base_url"] == "http://localhost:8080"
     assert h["reachable"] is False
 
 
-# --- SmsApiClient.ping() ----------------------------------------------------
+# --- RemoteApiClient.ping() ----------------------------------------------------
 
 class _Resp:
     def __init__(self, body):
@@ -88,12 +88,12 @@ class _Resp:
 
 def test_ping_parses_json_string_version(monkeypatch):
     monkeypatch.setattr(rac, "urlopen", lambda req, timeout=None: _Resp(b'"0.9.27"'))
-    assert sac.SmsApiClient("http://x").ping() == "0.9.27"
+    assert sac.RemoteApiClient("http://x").ping() == "0.9.27"
 
 
 def test_ping_parses_dict_version(monkeypatch):
     monkeypatch.setattr(rac, "urlopen", lambda req, timeout=None: _Resp(b'{"version": "1.2.3"}'))
-    assert sac.SmsApiClient("http://x").ping() == "1.2.3"
+    assert sac.RemoteApiClient("http://x").ping() == "1.2.3"
 
 
 def test_ping_raises_smsapierror_when_unreachable(monkeypatch):
@@ -104,4 +104,4 @@ def test_ping_raises_smsapierror_when_unreachable(monkeypatch):
 
     monkeypatch.setattr(rac, "urlopen", _boom)
     with pytest.raises(SmsApiError, match="unreachable"):
-        sac.SmsApiClient("http://x").ping()
+        sac.RemoteApiClient("http://x").ping()

@@ -1,6 +1,6 @@
 """Process-wide reachability state for the remote sms-api (viva-api) endpoint.
 
-Every sms-api call site used to construct its own :class:`SmsApiClient` and
+Every sms-api call site used to construct its own :class:`RemoteApiClient` and
 discover a dead SSM tunnel only by timing out — 30 s x 3 retries ~= 91.5 s per
 GET. A wedged tunnel (one whose ``session-manager-plugin`` still accepts the
 socket but never answers) is indistinguishable from a merely slow one until that
@@ -14,7 +14,7 @@ microsecond failure instead of a minute-and-a-half one:
 * :meth:`RemoteLink.check` raises :class:`CircuitOpen` **immediately** while the
   link is known-down, re-probing once every :attr:`RemoteLink.OPEN_FOR` seconds
   (the classic half-open state);
-* ``SmsApiClient._get``/``_post`` also mark the link up on any success and down on
+* ``RemoteApiClient._get``/``_post`` also mark the link up on any success and down on
   any connection-level failure, so the breaker stays fresh between probes even if
   the background thread never started (passive detection atop the active probe).
 
@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from vivarium_workbench.lib.sms_api_client import SmsApiError, sms_api_base
+from vivarium_workbench.lib.remote_api_client import SmsApiError, remote_api_base
 
 STATE_UNKNOWN = "unknown"
 STATE_UP = "up"
@@ -136,10 +136,10 @@ class RemoteLink:
         Without this, a deployment whose ``/version`` 501s (or a gateway 5xx while
         upstream restarts) would trip the breaker even though the tunnel is fine.
         """
-        from vivarium_workbench.lib.sms_api_client import SmsApiClient
+        from vivarium_workbench.lib.remote_api_client import RemoteApiClient
 
         try:
-            SmsApiClient(
+            RemoteApiClient(
                 self.base_url, timeout=self.PROBE_TIMEOUT, max_retries=1, force_link=True
             ).ping(timeout=self.PROBE_TIMEOUT)
         except SmsApiError as e:
@@ -223,7 +223,7 @@ def link(base_url: Optional[str] = None) -> RemoteLink:
     instance per distinct base_url, so every call site checks and updates the
     same breaker state.
     """
-    resolved = (base_url or sms_api_base()).rstrip("/")
+    resolved = (base_url or remote_api_base()).rstrip("/")
     with _links_lock:
         lk = _links.get(resolved)
         if lk is None:

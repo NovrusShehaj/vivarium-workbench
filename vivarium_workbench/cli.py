@@ -59,6 +59,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if allowed:
         os.environ["VIVARIUM_WORKBENCH_ALLOWED_ORIGINS"] = ",".join(allowed)
 
+    allowed_hosts = getattr(args, "allowed_host", None) or []
+    if allowed_hosts:
+        os.environ["VIVARIUM_WORKBENCH_ALLOWED_HOSTS"] = ",".join(allowed_hosts)
+
+    enabled_extensions = getattr(args, "enable_extension", None) or []
+    if enabled_extensions:
+        existing = [e for e in os.environ.get("VIVARIUM_WORKBENCH_EXTENSIONS", "").split(",") if e.strip()]
+        os.environ["VIVARIUM_WORKBENCH_EXTENSIONS"] = ",".join(
+            dict.fromkeys([*existing, *enabled_extensions]))
+
     # Render the dashboard HTML once before serving.
     try:
         from vivarium_workbench.lib.report import render_dashboard
@@ -479,16 +489,16 @@ def cmd_run_remote(args: argparse.Namespace) -> int:
     completion, and lands results.zip in the workspace.
     """
     from vivarium_workbench.lib.remote_run import run_remote
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError
-    from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
+    from vivarium_workbench.lib.remote_api_client import RemoteApiClient, SmsApiError
+    from vivarium_workbench.lib.workspace_deps_views import _remote_api_base
 
     workspace = Path(args.workspace).resolve()
     if not (workspace / "workspace.yaml").is_file():
         print(f"ERROR: not a workspace (no workspace.yaml): {workspace}", file=sys.stderr)
         return 2
 
-    base_url = getattr(args, "sms_api_url", None) or _sms_api_base()
-    client = SmsApiClient(base_url)
+    base_url = getattr(args, "sms_api_url", None) or _remote_api_base()
+    client = RemoteApiClient(base_url)
 
     dest = Path(args.dest) if getattr(args, "dest", None) else None
 
@@ -1006,6 +1016,16 @@ def _serve_detached(workspace: Path, args: argparse.Namespace) -> int:
         cmd += ["--host", args.host]
     if getattr(args, "base_path", ""):
         cmd += ["--base-path", args.base_path]
+    # Forward the security/extension flags so the detached child enforces the
+    # same Host allowlist and loads the same opt-in extensions.
+    if getattr(args, "trust_proxy", False):
+        cmd += ["--trust-proxy"]
+    for origin in getattr(args, "allowed_origin", None) or []:
+        cmd += ["--allowed-origin", origin]
+    for allowed_host in getattr(args, "allowed_host", None) or []:
+        cmd += ["--allowed-host", allowed_host]
+    for ext_id in getattr(args, "enable_extension", None) or []:
+        cmd += ["--enable-extension", ext_id]
 
     with open(log_file, "wb") as log:
         proc = subprocess.Popen(  # noqa: S603
@@ -1241,6 +1261,20 @@ def main(argv: list[str] | None = None) -> int:
              "even when the proxy rewrites Host and omits X-Forwarded-Host "
              "(sets VIVARIUM_WORKBENCH_ALLOWED_ORIGINS). Repeatable. Use behind "
              "a proxy you control — an ALB terminating a /workbench subpath.",
+    )
+    p_serve.add_argument(
+        "--allowed-host", action="append", metavar="HOST",
+        help="Accept requests addressed to HOST (a name or IP, optionally "
+             "host:port) in addition to 127.0.0.1/localhost/[::1] (sets "
+             "VIVARIUM_WORKBENCH_ALLOWED_HOSTS). Repeatable. A loopback-bound "
+             "server rejects every other Host header (DNS-rebinding defense); on "
+             "a non-loopback bind the allowlist is only enforced when set.",
+    )
+    p_serve.add_argument(
+        "--enable-extension", action="append", metavar="ID",
+        help="Enable an installed opt-in extension, e.g. 'assistant' (sets "
+             "VIVARIUM_WORKBENCH_EXTENSIONS). Repeatable. Extensions are never "
+             "loaded on a read-only server.",
     )
     p_serve.add_argument(
         "--detach", action="store_true",

@@ -25,6 +25,14 @@ TRUST_PROXY_ENV = NEW_PREFIX + "TRUST_PROXY"
 ALLOWED_ORIGINS_ENV = NEW_PREFIX + "ALLOWED_ORIGINS"
 GH_CLIENT_ID_ENV = NEW_PREFIX + "GH_CLIENT_ID"
 BUILD_CACHE_ENV = NEW_PREFIX + "BUILD_CACHE"
+# Host-header allowlist (lib.host_guard), opt-in extensions (lib.extensions),
+# and the per-user config/data directories (lib.user_dirs).
+ALLOWED_HOSTS_ENV = NEW_PREFIX + "ALLOWED_HOSTS"
+EXTENSIONS_ENV = NEW_PREFIX + "EXTENSIONS"
+CONFIG_DIR_ENV = NEW_PREFIX + "CONFIG_DIR"
+DATA_DIR_ENV = NEW_PREFIX + "DATA_DIR"
+# Operator pin for the optional assistant extension's mode (local|hosted|disabled).
+ASSISTANT_MODE_ENV = NEW_PREFIX + "ASSISTANT_MODE"
 
 _warned: set[str] = set()
 

@@ -17,7 +17,7 @@ export function DocumentPanel(props: DocumentPanelProps) {
   const [mode, setMode] = useState<'tree' | 'raw'>('tree');
 
   if (!props.state) {
-    return <p style={{ padding: 16, color: '#888' }}>No composite loaded.</p>;
+    return <p style={{ padding: 16, color: 'var(--text-muted, #888)' }}>No composite loaded.</p>;
   }
 
   const json = JSON.stringify(props.state, null, 2);
@@ -44,7 +44,7 @@ export function DocumentPanel(props: DocumentPanelProps) {
 
   const btnStyle: React.CSSProperties = {
     padding: '4px 10px', fontSize: 13,
-    background: '#fff', border: '1px solid #d1d5db',
+    background: 'var(--surface, #fff)', border: '1px solid var(--border-2, #d1d5db)',
     borderRadius: 4, cursor: 'pointer',
   };
   const btnStylePrimary: React.CSSProperties = {
@@ -53,10 +53,10 @@ export function DocumentPanel(props: DocumentPanelProps) {
   };
   const segStyle = (active: boolean): React.CSSProperties => ({
     padding: '4px 10px', fontSize: 13,
-    background: active ? '#eff6ff' : '#fff',
-    border: '1px solid ' + (active ? '#2563eb' : '#d1d5db'),
+    background: active ? 'var(--info-bg, #eff6ff)' : 'var(--surface, #fff)',
+    border: '1px solid ' + (active ? '#2563eb' : 'var(--border-2, #d1d5db)'),
     borderRadius: 4, cursor: 'pointer',
-    color: active ? '#1e40af' : '#1f2937',
+    color: active ? 'var(--info-fg, #1e40af)' : 'var(--text, #1f2937)',
     fontWeight: active ? 600 : 400,
   });
 
@@ -74,8 +74,8 @@ export function DocumentPanel(props: DocumentPanelProps) {
 
       {mode === 'tree' ? (
         <div style={{
-          background: '#fafafa',
-          border: '1px solid #e5e7eb',
+          background: 'var(--bg, #fafafa)',
+          border: '1px solid var(--border, #e5e7eb)',
           borderRadius: 4,
           padding: '10px 14px',
           overflow: 'auto',

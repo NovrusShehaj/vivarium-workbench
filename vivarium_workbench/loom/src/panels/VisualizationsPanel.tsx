@@ -93,12 +93,12 @@ function downloadVizZip(vizHtml: Record<string, VizPayload>, baseName?: string):
 
 function _VizIframe({ label, html }: { label: string; html: string }) {
   return (
-    <div style={{ marginBottom: 16, border: '1px solid #e5e7eb', borderRadius: 4 }}>
-      <div style={{ padding: '6px 10px', background: '#f3f4f6', fontFamily: 'monospace', fontSize: 12 }}>
+    <div style={{ marginBottom: 16, border: '1px solid var(--border, #e5e7eb)', borderRadius: 4 }}>
+      <div style={{ padding: '6px 10px', background: 'var(--surface-3, #f3f4f6)', fontFamily: 'monospace', fontSize: 12 }}>
         {label}
       </div>
       <iframe
-        srcDoc={html || '<p style="font-family:system-ui;color:#888;padding:12px">No HTML</p>'}
+        srcDoc={html || '<p style="font-family:system-ui;color:var(--text-muted, #888);padding:12px">No HTML</p>'}
         style={{ width: '100%', height: '70vh', minHeight: 400, border: 0 }}
         sandbox="allow-scripts"
         title={`viz-${label}`}
@@ -110,11 +110,11 @@ function _VizIframe({ label, html }: { label: string; html: string }) {
 function _ExpectedCard({ title, status }: { title: string; status: keyof typeof _BADGE }) {
   return (
     <div style={{
-      marginBottom: 12, border: '1px dashed #d1d5db', borderRadius: 6,
+      marginBottom: 12, border: '1px dashed var(--border-2, #d1d5db)', borderRadius: 6,
       padding: '12px 14px', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', gap: 12, background: '#fcfcfd',
     }}>
-      <span style={{ fontSize: 14, color: '#374151' }}>{title}</span>
+      <span style={{ fontSize: 14, color: 'var(--text, #374151)' }}>{title}</span>
       <_StatusBadge status={status} />
     </div>
   );
@@ -134,7 +134,7 @@ export function VisualizationsPanel(
     return (
       <div style={wrap}>
         <h3 style={{ marginTop: 0 }}>Visualizations</h3>
-        <p style={{ color: '#6b7280' }}>
+        <p style={{ color: 'var(--text-subtle, #6b7280)' }}>
           {readOnly
             ? 'The read-only mirror does not include run data — run this composite in a live dashboard to see visualizations.'
             : vizHtml
@@ -175,7 +175,7 @@ export function VisualizationsPanel(
             title={`Download all ${renderedKeys.length} rendered visualization${renderedKeys.length === 1 ? '' : 's'} as a .zip`}
             style={{
               fontSize: 13, fontWeight: 600, padding: '4px 11px', cursor: 'pointer',
-              color: '#0d6e6b', background: '#fff',
+              color: 'var(--accent-text, #0d6e6b)', background: 'var(--surface, #fff)',
               border: '1px solid #0d6e6b', borderRadius: 6, whiteSpace: 'nowrap',
             }}
           >
@@ -184,7 +184,7 @@ export function VisualizationsPanel(
         )}
       </div>
       {declaredList.length > 0 && (
-        <p style={{ color: '#6b7280', fontSize: 12, margin: '0 0 12px' }}>
+        <p style={{ color: 'var(--text-subtle, #6b7280)', fontSize: 12, margin: '0 0 12px' }}>
           Declared by the composite generator{isRunning ? ' — rendering as the run produces data.' : '.'}
         </p>
       )}

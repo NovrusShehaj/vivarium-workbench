@@ -29,7 +29,6 @@ from __future__ import annotations
 import json
 import sys
 import time
-from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -55,99 +54,6 @@ def _ws_add_to_sys_path(ws_root: Path) -> None:
 # Step count above which a run gets a non-blocking "this may be heavy" warning
 # in the launch response (full-state snapshots per step add up).
 _HEAVY_RUN_STEPS = 250
-
-
-def _dispatch_build_image_run(simulator_id, overrides, emit_paths, config_filename, spec_id):
-    """Dispatch a registered build's PRE-BUILT image via sms-api run_simulation
-    (plan B) and return the composite-test-run response tuple.
-
-    Used for both composite-card Cloud paths — an explicit run_target=deployment
-    + build, and a pinned/materialized-build workspace. Skips the compose
-    git-install path entirely: run_simulation runs the build's committed code
-    from its image, so no compose allow-list entry (and no local push) is needed.
-    Async — returns a synthetic ``remote-sim-<id>`` run_id the loom polls; the run
-    surfaces in the Simulations/Runs tab via remote_simulations.
-    """
-    from vivarium_workbench.lib import remote_run_views as _rrv
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError
-
-    overrides = overrides or {}
-    client = SmsApiClient(_rrv._sms_api_base())
-    # Resolve a real config for this build. sms-api defaults to
-    # 'api_simulation_default.json', which only exists in the vEcoli-lineage
-    # repos (e.g. v2ecoli) — a build whose repo lacks it (e.g. the sms-ecoli fork,
-    # which carries only CD-specific configs) 404s when the config is omitted. So
-    # when the caller didn't pin one, ask discovery and prefer the whole-cell
-    # default.
-    #
-    # #1113: do NOT fall back to the build's first available config (cfgs[0]).
-    # ``spec_id`` (the composite actually requested) never mapped to that pick, so
-    # cfgs[0] — the alphabetically-first file in the build's repo — silently ran an
-    # UNRELATED simulation (e.g. every ecoli_baseline card-run against build #211,
-    # which lacks the whole-cell default, resolved to fss_pathway_oe_native_oe_carina
-    # and burned real Batch/ParCa compute before failing later for an unrelated
-    # reason). Fail CLOSED instead: a wrong-config dispatch that happens to succeed
-    # would attribute a real result to the wrong composite. The caller must pick a
-    # config explicitly when the build has no whole-cell default.
-    if not config_filename:
-        cfgs: list = []
-        try:
-            disc = client._get("/api/v1/simulations/discovery",
-                               params={"simulator_id": int(simulator_id)})
-            cfgs = disc.get("config_filenames") or []
-        except Exception:  # noqa: BLE001 — discovery is best-effort; treated as "none discovered"
-            cfgs = []
-        if "api_simulation_default.json" in cfgs:
-            config_filename = "api_simulation_default.json"
-        else:
-            _avail = ", ".join(cfgs) if cfgs else "(none discovered)"
-            return {
-                "error": (f"Cloud build #{simulator_id} has no default config for "
-                          f"'{spec_id}'. Pick a config explicitly before dispatching "
-                          f"— configs available on this build: {_avail}."),
-                "reason": "no-config-for-composite",
-                "run_target": "deployment",
-                "spec_id": spec_id,
-                "available_configs": cfgs,
-            }, 409
-    try:
-        sim = client.run_simulation(
-            simulator_id=int(simulator_id),
-            num_generations=int(overrides.get("n_generations") or 1),
-            num_seeds=int(overrides.get("n_seeds") or 1),
-            run_parca=True,
-            observables=list(emit_paths or []),
-            config_filename=config_filename,
-            description=f"composite-card cloud run: {spec_id}",
-        )
-    except SmsApiError as e:
-        return {"error": f"cloud dispatch failed: {e}",
-                "reason": "dispatch-failed", "run_target": "deployment"}, 502
-    sim_db_id = sim.get("database_id") or sim.get("simulation_id")
-    return {"run_id": f"remote-sim-{sim_db_id}", "status": "running",
-            "remote": True, "simulation_id": sim_db_id,
-            "experiment_id": sim.get("experiment_id")}, 202
-
-
-@dataclass(frozen=True)
-class CloudTarget:
-    """A resolved Cloud image-dispatch target for a composite Cloud run.
-
-    ``source`` records which of the three resolution routes produced it:
-      * ``"explicit"``      — Environment picker → Cloud + a selected build
-                              (``run_target="deployment"`` + ``build``),
-      * ``"session-build"`` — this session's materialized ``.viv-build.json``,
-      * ``"pinned"``        — the deployment-wide ``VIVARIUM_WORKBENCH_REMOTE_PINNED`` pin.
-
-    All three dispatch the same way: :func:`_dispatch_build_image_run` runs the
-    build's PRE-BUILT image via sms-api ``run_simulation`` (plan B / #1101), which
-    needs only ``simulator_id`` — no local push, no compose allow-list entry.
-    """
-
-    simulator_id: int
-    repo_url: str
-    commit: str
-    source: str
 
 
 _COMPOSE_TRUTHY = {"1", "true", "yes", "on"}
@@ -186,8 +92,7 @@ def _no_image(commit: "str | None", *, reason: str) -> tuple[dict, int]:
     return {
         "error": ("No cloud image exists for this workspace"
                   + (f" at commit {c[:7]}" if c else "")
-                  + ". Cloud runs execute a registered build's pre-built image — "
-                    "build one on the cloud, or switch the Environment to Local."),
+                  + ". Switch the Environment to Local to run it here."),
         "reason": reason,
         "run_target": "deployment",
         "actions": cloud_build_actions(c),
@@ -211,63 +116,26 @@ def _explicit_build_ref(body: dict) -> "dict | None":
 
 def resolve_cloud_target(
     ws_root: Path, body: dict
-) -> "CloudTarget | tuple[dict, int] | None":
+) -> "tuple[dict, int] | None":
     """The ONE typed Cloud-vs-local dispatch decision for a composite-test-run.
 
-    Returns exactly one of:
-      * :class:`CloudTarget` — dispatch the registered build's pre-built image
-        (:func:`_dispatch_build_image_run`);
-      * ``None`` — a local run (the workspace resolves to ``local`` and no
-        explicit Cloud run was requested); the caller runs locally, unchanged;
-      * ``(error_dict, 409)`` — a Cloud run was requested/implied but no cloud
-        image exists for it. The payload carries an actionable ``actions[]`` list
-        ("Build on cloud" / "Switch Environment to Local") instead of silently
-        falling into the dead compose/git-install path.
+    Returns ``None`` for a local run, or an actionable ``(dict, 409)`` when the
+    request is Cloud-scoped.
 
-    This collapses the three fall-throughs the composite-card Run path used to
-    have — an explicit deployment build lacking a ``simulator_id``, a pinned
-    workspace where no build resolves, and the frozen-``PinnedConfig`` ``.get``
-    ``AttributeError`` — into one decision with an explicit outcome.
+    Cloud runs used to dispatch a registered build's pre-built image through the
+    retired SMS simulator registry, resolved from an explicitly selected build,
+    this session's materialized ``.viv-build.json``, or a deployment-wide pin.
+    With that registry retired there is no image to dispatch, so a Cloud-scoped
+    request is a dead end unless the operator opts into the compose/git-install
+    path (see :func:`_compose_dispatch_allowed`).
     """
-    from vivarium_workbench.lib import remote_pinned
-
+    del ws_root  # the workspace can no longer resolve a build of its own
     build = body.get("build") or {}
     if not isinstance(build, dict):
         build = {}
-
-    # (1) Explicit Cloud run against a SELECTED build (Environment picker → Cloud).
     if str(body.get("run_target") or "").strip() == "deployment":
-        if build.get("simulator_id"):
-            return CloudTarget(int(build["simulator_id"]),
-                               str(build.get("repo_url") or ""),
-                               str(build.get("commit") or ""), "explicit")
         return _no_image(build.get("commit"), reason="no-build")
-
-    # (2) No explicit Cloud request: the workspace's own resolved target decides.
-    #     A pinned/materialized workspace resolves to "deployment" WITHOUT the
-    #     loom sending run_target (it only sends it when the scope is toggled).
-    if remote_pinned.resolve_run_target(ws_root) != "deployment":
-        return None  # local run — unchanged
-
-    # (3) Deployment workspace: dispatch the resolved build's image. Session build
-    #     first (the picker's switched build), else the deployment-wide pin.
-    session_build = remote_pinned.resolved_from_session_build(ws_root)
-    if session_build:
-        return CloudTarget(int(session_build["simulator_id"]),
-                           str(session_build.get("repo_url") or ""),
-                           str(session_build.get("commit") or ""), "session-build")
-
-    from vivarium_workbench.lib import remote_run_views as _rrv
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient
-
-    client = SmsApiClient(_rrv._sms_api_base())
-    # resolve_pinned_simulator_id handles the frozen PinnedConfig + unreachable
-    # sms-api correctly (returns None), so no `.get("simulator_id")` on a dataclass.
-    sid = remote_pinned.resolve_pinned_simulator_id(client, ws_root)
-    if sid is not None:
-        cfg = remote_pinned.pinned_config()
-        return CloudTarget(int(sid), str(cfg.repo_url if cfg else ""), "", "pinned")
-    return _no_image(None, reason="no-build")
+    return None
 
 
 def composite_test_run(ws_root: Path, body: dict) -> tuple[dict, int]:
@@ -351,23 +219,12 @@ def composite_test_run(ws_root: Path, body: dict) -> tuple[dict, int]:
     from vivarium_workbench.lib import run_core
 
     # Run-path decision (c1): resolve_cloud_target is the ONE typed decision for
-    # "Cloud image, local, or dead-end". A CloudTarget dispatches the build's
-    # PRE-BUILT image (plan B / #1101 — needs only simulator_id, no local push and
-    # no compose allow-list entry). None is a local run. A (dict, 409) is an
-    # actionable dead-end (no cloud image) carrying an actions[] list, returned
-    # verbatim instead of silently falling into the dead compose/git-install path.
-    #
-    # Item 18 context: a pinned/materialized workspace resolves to "deployment"
-    # WITHOUT the loom sending run_target (it only sends it when the Environment
-    # scope is toggled to Cloud); resolve_cloud_target routes both the explicit
-    # and the pinned case to the same image dispatch, so they can never drift.
+    # "local, or dead-end". None is a local run; a (dict, 409) is an actionable
+    # dead-end (no cloud image) carrying an actions[] list, returned verbatim
+    # instead of silently falling into the compose/git-install path.
     build_ref = None
     target = "local"
     cloud = resolve_cloud_target(ws_root, body)
-    if isinstance(cloud, CloudTarget):
-        cfg_fn = (body.get("config_filename") or "").strip() or None
-        return _dispatch_build_image_run(
-            cloud.simulator_id, overrides, emit_paths, cfg_fn, spec_id)
     if isinstance(cloud, tuple):
         # No cloud image resolved for a Cloud-scoped run. The compose/git-install
         # path is DEAD for almost every repo (sms-api's allow-list 403s it), so it

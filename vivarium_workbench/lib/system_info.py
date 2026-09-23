@@ -133,7 +133,7 @@ def build_github_repo(ws_root: Path) -> dict:
 # build_ui_config
 # ---------------------------------------------------------------------------
 
-def build_ui_config(ws_root: Path) -> dict:
+def build_ui_config(ws_root: Path, *, extensions: list | None = None) -> dict:
     """Return the UI feature-flags dict for GET /api/ui-config.
 
     Resolves the ``ui:`` block through :mod:`vivarium_workbench.lib.deploy_config`
@@ -146,6 +146,10 @@ def build_ui_config(ws_root: Path) -> dict:
       auto_results            — default True; gates whether a composite run
                                  auto-runs its declared analyses/visualizations
                                  (see lib.composite_flush.run_flush)
+      extensions              — the available opt-in extensions
+                                 (``lib.extensions.ui_contributions``); the
+                                 caller passes them because they belong to the
+                                 running app, not to the workspace.
     """
     ws_root = Path(ws_root)
     from vivarium_workbench.lib.deploy_config import resolve_ui_config
@@ -157,6 +161,7 @@ def build_ui_config(ws_root: Path) -> dict:
         "readonly": readonly,
         "composite_view": ui.get("composite_view", "bigraph-loom"),
         "auto_results": ui.get("auto_results", True),
+        "extensions": list(extensions or []),
     }
 
 

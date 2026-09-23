@@ -16,6 +16,38 @@ from __future__ import annotations
 from typing import Iterable, Mapping
 from urllib.parse import urlsplit
 
+#: Methods that never change state. Every other method — POST, PUT, PATCH,
+#: DELETE and any extension method — is guarded by the same-origin check.
+SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+
+
+def is_unsafe_method(method: str) -> bool:
+    """True for any method outside :data:`SAFE_METHODS` (case-insensitive)."""
+    return (method or "").upper() not in SAFE_METHODS
+
+
+def is_browser_request_allowed(
+    origin: str | None, host: str | None, *, disabled: bool,
+    forwarded_host: str | None = None, trust_forwarded: bool = False,
+    allowed_origins: Iterable[str] | None = None,
+) -> bool:
+    """Stricter variant for browser-only surfaces: an ``Origin`` is REQUIRED.
+
+    :func:`is_request_allowed` admits Origin-less requests so ``curl`` and the
+    CLI keep working. Surfaces that only a browser page should reach (for
+    example an extension's panel API) call this instead: a request without an
+    ``Origin`` header is refused, and a present one must pass the normal
+    same-origin decision. The ``disabled`` escape hatch still applies.
+    """
+    if disabled:
+        return True
+    if not origin:
+        return False
+    return is_request_allowed(
+        origin, host, disabled=False, forwarded_host=forwarded_host,
+        trust_forwarded=trust_forwarded, allowed_origins=allowed_origins,
+    )
+
 
 def is_request_allowed(
     origin: str | None, host: str | None, *, disabled: bool,

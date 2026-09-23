@@ -135,11 +135,11 @@ export default function ViewsMenu(props: {
 
   const itemBtn: React.CSSProperties = {
     display: 'block', width: '100%', textAlign: 'left', padding: '6px 12px',
-    fontSize: 12, border: 0, background: '#fff', cursor: 'pointer', color: '#374151',
+    fontSize: 12, border: 0, background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text, #374151)',
   };
   const hover = {
-    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.background = '#f3f4f6'),
-    onMouseLeave: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.background = '#fff'),
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.background = 'var(--surface-3, #f3f4f6)'),
+    onMouseLeave: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.background = 'var(--surface, #fff)'),
   };
 
   return (
@@ -148,9 +148,9 @@ export default function ViewsMenu(props: {
         onClick={() => setOpen((v) => !v)}
         title="Save / restore named views (arrangement + visibility)"
         style={{
-          height: 28, padding: '0 10px', fontSize: 12, background: '#fff',
+          height: 28, padding: '0 10px', fontSize: 12, background: 'var(--surface, #fff)',
           display: 'inline-flex', alignItems: 'center',
-          border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', color: '#374151',
+          border: '1px solid var(--border-2, #d1d5db)', borderRadius: 4, cursor: 'pointer', color: 'var(--text, #374151)',
         }}
       >
         Views
@@ -159,20 +159,20 @@ export default function ViewsMenu(props: {
       {open && (
         <div style={{
           position: 'absolute', top: '100%', right: 0, marginTop: 4,
-          background: '#fff', border: '1px solid #d1d5db', borderRadius: 4,
+          background: 'var(--surface, #fff)', border: '1px solid var(--border-2, #d1d5db)', borderRadius: 4,
           boxShadow: '0 2px 10px rgba(0,0,0,0.14)', overflow: 'hidden',
           minWidth: 230, zIndex: 20,
         }}>
           {/* Saved views */}
           {names.length === 0 && (
-            <div style={{ padding: '8px 12px', fontSize: 12, color: '#9ca3af' }}>
+            <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-subtle, #9ca3af)' }}>
               No saved views yet.
             </div>
           )}
           {names.map((n) => (
             <div key={n} style={{
               display: 'flex', alignItems: 'center', gap: 4,
-              borderBottom: '1px solid #f3f4f6',
+              borderBottom: '1px solid var(--border-faint, #f3f4f6)',
             }}>
               <button
                 onClick={() => onApply(n)}
@@ -188,7 +188,7 @@ export default function ViewsMenu(props: {
                 style={{
                   border: 0, background: 'transparent', cursor: 'pointer',
                   fontSize: 13, padding: '0 2px',
-                  color: n === defaultName ? '#f59e0b' : '#d1d5db',
+                  color: n === defaultName ? '#f59e0b' : 'var(--text-disabled, #d1d5db)',
                 }}
               >
                 {n === defaultName ? '★' : '☆'}
@@ -196,19 +196,19 @@ export default function ViewsMenu(props: {
               <button
                 onClick={() => onDelete(n)}
                 title={`Delete view "${n}"`}
-                style={{ border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, padding: '0 8px 0 2px', color: '#9ca3af' }}
+                style={{ border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, padding: '0 8px 0 2px', color: 'var(--text-subtle, #9ca3af)' }}
               >
                 ×
               </button>
             </div>
           ))}
 
-          <div style={{ height: 1, background: '#e5e7eb' }} />
+          <div style={{ height: 1, background: 'var(--surface-3, #e5e7eb)' }} />
           {defaultName && (
-            <button onClick={onGoToDefault} style={{ ...itemBtn, color: '#b45309' }} {...hover}>↺ Go to default</button>
+            <button onClick={onGoToDefault} style={{ ...itemBtn, color: 'var(--warning-fg, #b45309)' }} {...hover}>↺ Go to default</button>
           )}
           <button onClick={onSaveDefault} style={itemBtn} {...hover}>★ Save current as default</button>
-          <div style={{ height: 1, background: '#e5e7eb' }} />
+          <div style={{ height: 1, background: 'var(--surface-3, #e5e7eb)' }} />
           <button onClick={onExportFile} style={itemBtn} {...hover}>⭳ Save current view (file)</button>
           <button onClick={() => fileRef.current?.click()} style={itemBtn} {...hover}>⭱ Load view (file)</button>
           <input

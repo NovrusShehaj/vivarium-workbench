@@ -21,44 +21,32 @@ from typing import Optional
 # GET /api/source/builds
 # ---------------------------------------------------------------------------
 
-def _sms_api_base() -> str:
-    """Base URL of the viva-api (nee sms-api; the SSM tunnel by default).
+def _remote_api_base() -> str:
+    """Base URL of the core viva-api.
 
-    Delegates to the single source of truth :func:`sms_api_client.sms_api_base`;
-    kept under this name because several modules import it from here.
+    Delegates to the single source of truth
+    :func:`remote_api_client.remote_api_base`; kept under this name because
+    several modules import it from here.
     """
-    from vivarium_workbench.lib.sms_api_client import sms_api_base
+    from vivarium_workbench.lib.remote_api_client import remote_api_base
 
-    return sms_api_base()
-
-
-def build_source_builds() -> dict:
-    """Builder for GET /api/source/builds.
-
-    Mirrors ``server.Handler._get_source_builds``.  Env-based (``SMS_API_BASE``);
-    no ws_root needed.  Always returns a dict — best-effort (empty builds +
-    error reason when sms-api is down).
-    """
-    from vivarium_workbench.lib import remote_build_source
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient
-
-    return remote_build_source.list_build_sources(SmsApiClient(_sms_api_base()))
+    return remote_api_base()
 
 
 def remote_health() -> dict:
-    """Reachability + config status of the remote sms-api endpoint (``SMS_API_BASE``).
+    """Reachability + config status of the core viva-api (``VIVA_API_BASE``).
 
-    Powers the Source panel's health indicator and the startup log: tells a fresh
-    operator (or Chris) whether the remote endpoint is even configured and whether
+    Powers the Source panel's health indicator and the startup log: tells a
+    fresh operator whether the remote endpoint is even configured and whether
     it answers. Best-effort — never raises; returns
     ``{configured, base_url, reachable, version, error}``.
     """
-    from vivarium_workbench.lib.sms_api_client import SmsApiClient
+    from vivarium_workbench.lib.remote_api_client import RemoteApiClient
 
-    base = _sms_api_base()
+    base = _remote_api_base()
     configured = bool(os.environ.get("VIVA_API_BASE") or os.environ.get("SMS_API_BASE"))
     try:
-        version = SmsApiClient(base).ping()
+        version = RemoteApiClient(base).ping()
         return {"configured": configured, "base_url": base, "reachable": True,
                 "version": version, "error": None}
     except Exception as exc:  # noqa: BLE001 — a health probe must never raise
@@ -73,9 +61,8 @@ def remote_health() -> dict:
 def _git_identity(path: str) -> tuple[str, str, str]:
     """(branch, short_commit, repo) for a git workspace; ('', '', '') when unresolvable.
 
-    ``repo`` is the real remote identity — the origin URL's last path segment,
-    parsed the same way ``remote_build_source.list_build_sources`` already
-    derives it for Remote-scope builds — NOT ``workspace.yaml``'s ``name``
+    ``repo`` is the real remote identity — the origin URL's last path segment
+    — NOT ``workspace.yaml``'s ``name``
     field. That field can permanently lag a fork's real repo identity (e.g.
     sms-ecoli's ``workspace.yaml`` still declares ``name: v2ecoli`` — see
     backlog item 54); grouping the Local-scope picker by ``name`` silently
@@ -366,7 +353,8 @@ def build_system_deps_check(ws_root: Path, name: str) -> tuple[dict, int]:
         return {"error": f"unknown module: {name}"}, 404
 
     sys_deps = (entry.get("system_dependencies") or {}).get("checks") or []
-    venv_py = ws_root / ".venv" / "bin" / "python3"
+    from vivarium_workbench.lib import env_resolver
+    venv_py = env_resolver.resolve_venv_python(ws_root) or (ws_root / ".venv" / "bin" / "python3")
     plat = platform_key()
 
     results = []

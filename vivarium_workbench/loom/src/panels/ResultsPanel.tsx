@@ -52,27 +52,27 @@ function ObservableRow({ name, entries }: { name: string; entries: any[] }) {
 
   return (
     <>
-      <tr style={{ borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }}
+      <tr style={{ borderBottom: '1px solid var(--border-faint, #f3f4f6)', cursor: 'pointer' }}
           onClick={() => setOpen((o) => !o)}>
         <td style={{ padding: '6px 8px' }}>
-          <span style={{ display: 'inline-block', width: 14, color: '#6b7280' }}>
+          <span style={{ display: 'inline-block', width: 14, color: 'var(--text-subtle, #6b7280)' }}>
             {open ? '▾' : '▸'}
           </span>
           <code>{name}</code>
         </td>
         <td style={{ padding: '6px 8px' }}>{total}</td>
-        <td style={{ padding: '6px 8px', fontFamily: 'monospace', fontSize: 12, color: '#4b5563' }}>
+        <td style={{ padding: '6px 8px', fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary, #4b5563)' }}>
           {previewStr}
         </td>
       </tr>
       {open && (
         <tr>
-          <td colSpan={3} style={{ background: '#fafafa', padding: 0 }}>
+          <td colSpan={3} style={{ background: 'var(--bg, #fafafa)', padding: 0 }}>
             <div style={{ padding: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, fontSize: 13 }}>
                 <button onClick={() => setStep((s) => Math.max(0, s - 1))}
                         disabled={step === 0} style={{ padding: '2px 8px' }}>‹ Prev</button>
-                <span style={{ color: '#374151' }}>
+                <span style={{ color: 'var(--text, #374151)' }}>
                   Step <strong>{step + 1}</strong> of {total}
                 </span>
                 <input type="range" min={0} max={Math.max(0, total - 1)} value={step}
@@ -81,13 +81,13 @@ function ObservableRow({ name, entries }: { name: string; entries: any[] }) {
                 <button onClick={() => setStep((s) => Math.min(total - 1, s + 1))}
                         disabled={step >= total - 1} style={{ padding: '2px 8px' }}>Next ›</button>
                 {current.time !== undefined && (
-                  <small style={{ color: '#6b7280' }}>time = {String(current.time)}</small>
+                  <small style={{ color: 'var(--text-subtle, #6b7280)' }}>time = {String(current.time)}</small>
                 )}
               </div>
-              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 4,
+              <div style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 4,
                             padding: '8px 12px', maxHeight: 400, overflow: 'auto' }}>
                 {Object.keys(visible).length === 0 ? (
-                  <p style={{ color: '#9ca3af', fontSize: 13, margin: 0 }}>
+                  <p style={{ color: 'var(--text-subtle, #9ca3af)', fontSize: 13, margin: 0 }}>
                     No emitted fields at this step.
                   </p>
                 ) : (
@@ -121,8 +121,8 @@ export function ResultsPanel({ trajectory, hasRun, runId, downloadable, readOnly
 
   // Provenance line: which run produced these results (+ download).
   const runLine = runId ? (
-    <div style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px', fontFamily: 'ui-monospace, monospace' }}>
-      run <span style={{ color: '#334155' }}>{runId.length > 12 ? runId.slice(0, 12) + '…' : runId}</span>
+    <div style={{ fontSize: 12, color: 'var(--text-subtle, #6b7280)', margin: '0 0 10px', fontFamily: 'ui-monospace, monospace' }}>
+      run <span style={{ color: 'var(--text, #334155)' }}>{runId.length > 12 ? runId.slice(0, 12) + '…' : runId}</span>
     </div>
   ) : null;
 
@@ -131,7 +131,7 @@ export function ResultsPanel({ trajectory, hasRun, runId, downloadable, readOnly
       <div style={wrap}>
         <h3 style={{ marginTop: 0 }}>Results</h3>
         {downloadLink}
-        <p style={{ color: '#6b7280' }}>
+        <p style={{ color: 'var(--text-subtle, #6b7280)' }}>
           {readOnly
             ? 'The read-only mirror does not include run data — run this composite in a live dashboard to see results.'
             : hasRun ? 'Loading trajectory…' : 'No run yet — press ▶ Run above.'}
@@ -149,14 +149,14 @@ export function ResultsPanel({ trajectory, hasRun, runId, downloadable, readOnly
       {runLine}
       {downloadLink}
       {keys.length === 0 ? (
-        <p style={{ color: '#6b7280' }}>
+        <p style={{ color: 'var(--text-subtle, #6b7280)' }}>
           Run complete — no observables emitted. Toggle stores in the View
           tab to capture their values.
         </p>
       ) : (
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ background: '#f3f4f6' }}>
+            <tr style={{ background: 'var(--surface-3, #f3f4f6)' }}>
               <th style={{ textAlign: 'left', padding: '6px 8px' }}>Observable</th>
               <th style={{ textAlign: 'left', padding: '6px 8px', width: 80 }}>Steps</th>
               <th style={{ textAlign: 'left', padding: '6px 8px' }}>Latest preview</th>

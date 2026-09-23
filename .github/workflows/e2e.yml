@@ -1,0 +1,46 @@
+name: e2e
+
+# Browser end-to-end tests (tests/e2e/): Playwright + Chromium against real
+# `vivarium-workbench serve` processes on throwaway fixture workspaces.
+#
+#   * theme: first-paint theme on every HTML entry point for each
+#     preference x OS scheme (FOUC probe), live OS changes, persistence across
+#     reloads/tabs and across a server restart on a new port (cookie), the rail
+#     menu and Settings radio group by keyboard, loom colorMode, generated viz
+#   * accessibility: axe-core (all WCAG 2.x A/AA rules) on the audited pages in
+#     BOTH themes, plus the open theme menu and assistant panel
+#   * assistant: add a local provider in Settings, test the connection, choose
+#     a model, stream / stop / retry / regenerate against a fake model server,
+#     panel shortcut + resize, and no assistant entry points in a snapshot bundle
+#
+# No live provider is ever called. Opt-in locally with VIVARIUM_WORKBENCH_E2E=1.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UV_PYTHON: "3.12.12"
+      VIVARIUM_WORKBENCH_E2E: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install (locked)
+        run: uv sync --frozen --extra dev --extra assistant --extra e2e
+      - name: Build the vendored loom bundle (gitignored _dist)
+        run: bash scripts/build_loom.sh
+      - name: Install Chromium
+        run: uv run --frozen python -m playwright install --with-deps chromium
+      - name: pytest tests/e2e
+        run: uv run --frozen pytest tests/e2e -q -p no:cacheprovider

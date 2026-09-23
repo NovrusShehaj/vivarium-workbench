@@ -67,13 +67,13 @@
     b.style.cssText = "font-size:11px; line-height:1.4; padding:2px 8px; border-radius:5px; "
       + "cursor:pointer; white-space:nowrap; "
       + (primary
-        ? "border:1px solid #b7c6ea; background:#eef3fd; color:#2f57b5;"
-        : "border:1px solid #d5dbe4; background:#fff; color:#3a4657;");
+        ? "border:1px solid var(--info-border); background:var(--info-bg); color:var(--link);"
+        : "border:1px solid var(--border-2); background:var(--surface); color:var(--text);");
     return b;
   }
   function _rowTag(text) {
     var t = _el("span", "viv-bs-rowtag", text);
-    t.style.cssText = "font-size:11px; color:#41a06a; white-space:nowrap; padding:0 2px";
+    t.style.cssText = "font-size:11px; color:var(--success-fg); white-space:nowrap; padding:0 2px";
     return t;
   }
 
@@ -256,21 +256,21 @@
     dot.style.cssText = "width:8px; height:8px; border-radius:50%; display:inline-block; flex:0 0 auto";
     var color, txt;
     if (!h) {
-      color = "#93a1b5"; txt = "checking remote endpoint…";
+      color = "var(--text-subtle)"; txt = "checking remote endpoint…";
     } else if (!h.configured && !h.reachable) {
-      color = "#5d6b7e"; txt = "SMS_API_BASE not set — remote disabled";
+      color = "var(--text-disabled)"; txt = "SMS_API_BASE not set — remote disabled";
     } else if (h.reachable) {
-      color = "#41d886";
+      color = "var(--success-fg)";
       txt = h.base_url + (h.version ? "  ·  sms-api v" + h.version : "") + "  ·  reachable ✓";
       dot.style.boxShadow = "0 0 6px " + color;
     } else {
-      color = "#ff5d6c";
+      color = "var(--danger-fg)";
       txt = h.base_url + " — unreachable ✗ (is the tunnel up?)";
       if (h.error) row.title = h.error;
     }
     dot.style.background = color;
     var label = _el("span", "viv-bs-health-txt", txt);
-    label.style.cssText = "color:#93a1b5; font-family:ui-monospace,SFMono-Regular,Menlo,monospace";
+    label.style.cssText = "color:var(--text-subtle); font-family:ui-monospace,SFMono-Regular,Menlo,monospace";
     row.appendChild(dot);
     row.appendChild(label);
     return row;
@@ -284,7 +284,7 @@
     // One-line scope cue so the two cards read as distinct jobs: this card is
     // "where the tab runs"; the GitHub card below is "sync & collaborate".
     var _sub = _el("div", "viv-bs-subtitle", "Choose where to work with this project. Local uses a checkout on your computer; Cloud uses a reusable environment managed by Workbench.");
-    _sub.style.cssText = "color:#93a1b5; font-size:12px; margin:-4px 0 12px";
+    _sub.style.cssText = "color:var(--text-subtle); font-size:12px; margin:-4px 0 12px";
     host.appendChild(_sub);
 
     // Read-only (remote-server) mode: the switchable sources are the workspaces
@@ -466,7 +466,7 @@
     // emphasize Open (first, tinted) and de-emphasize Switch. A local workspace
     // switch is cheap, so there Switch here stays first.
     if (remoteScope) {
-      openBtn.style.cssText = "font-weight:600; border-color:#4bb3ae; color:#0d6e6b; background:#ecfdf9";
+      openBtn.style.cssText = "font-weight:600; border-color:var(--accent-text); color:var(--accent-text); background:var(--success-bg)";
       switchHereBtn.style.cssText = "opacity:.6";
       actions.appendChild(openBtn);
       actions.appendChild(switchHereBtn);
@@ -542,7 +542,7 @@
         // Quiet indicator only; the selectors/list above keep the last-known
         // builds, and this clears itself the moment a poll succeeds.
         var chip = _el("div", "viv-bs-note", "⟳ sms-api reconnecting… showing last-known builds");
-        chip.style.cssText = "color:#92740e;font-size:0.82em;opacity:0.8;margin-top:6px";
+        chip.style.cssText = "color:var(--warning-fg);font-size:0.82em;opacity:0.8;margin-top:6px";
         host.appendChild(chip);
       } else {
         // No builds yet (first-load failure): a calm, actionable message — not
@@ -571,15 +571,15 @@
       // Repo/Branch/Commit picker + actions above, which point THIS tab. The
       // picker changes where this workspace runs; the list is what exists.
       var _listHead = _el("div", "viv-bs-list-head");
-      _listHead.style.cssText = "margin-top:16px; padding-top:12px; border-top:1px solid #eef1f4";
+      _listHead.style.cssText = "margin-top:16px; padding-top:12px; border-top:1px solid var(--border-faint)";
       var _lTitle = _el("div", "viv-bs-list-title",
         state.scope === "remote" ? "Registered builds" : "Known workspaces");
       _lTitle.style.cssText = "font-size:11px; font-weight:700; letter-spacing:.05em; "
-        + "text-transform:uppercase; color:#64748b";
+        + "text-transform:uppercase; color:var(--text-muted)";
       var _lSub = _el("div", "viv-bs-list-sub", state.scope === "remote"
         ? "Every build registered on the cloud (☁ cloud) — browse the history; ⚡ local copy marks the ones already downloaded to your machine. Open ↗ explores one in a new tab; Use this environment re-points THIS tab to it. Not here yet? Build it on the cloud above."
         : "Local checkouts known to this workbench. Open ↗ for a new tab; Switch here re-points THIS tab.");
-      _lSub.style.cssText = "font-size:12px; color:#94a3b8; margin:2px 0 8px";
+      _lSub.style.cssText = "font-size:12px; color:var(--text-subtle); margin:2px 0 8px";
       _listHead.appendChild(_lTitle); _listHead.appendChild(_lSub);
       host.appendChild(_listHead);
 
@@ -645,15 +645,15 @@
         var chip = null;
         if (m.current || m.matchesWorkspace) {
           chip = _el("span", null, m.current ? "in workspace ✓" : "workspace commit");
-          chip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:#1f7a44; "
-            + "background:#e7f6ec; border:1px solid #b7e2c6; border-radius:10px; padding:1px 7px";
+          chip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:var(--success-fg); "
+            + "background:var(--success-bg); border:1px solid var(--success-border); border-radius:10px; padding:1px 7px";
           chip.title = m.current
             ? "This build is the source loaded in this tab"
             : "A build of the commit your workspace is currently on";
         } else if (isRemote && m.simulator_id === latestId) {
           chip = _el("span", null, "latest");
-          chip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:#2f57b5; "
-            + "background:#eef3fd; border:1px solid #b7c6ea; border-radius:10px; padding:1px 7px";
+          chip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:var(--link); "
+            + "background:var(--info-bg); border:1px solid var(--info-border); border-radius:10px; padding:1px 7px";
           chip.title = "Newest build of " + (m.branch || "this branch");
         }
         if (chip) pEl.appendChild(chip);
@@ -666,8 +666,8 @@
         // downloaded a copy for instant browsing) — the two were conflated before.
         if (isRemote) {
           var clchip = _el("span", null, "☁ cloud");
-          clchip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:#2563a8; "
-            + "background:#e8f1fb; border:1px solid #b3cdec; border-radius:10px; padding:1px 7px";
+          clchip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:var(--link); "
+            + "background:var(--info-bg); border:1px solid var(--info-border); border-radius:10px; padding:1px 7px";
           clchip.title = "Registered on the cloud — this build can be run remotely as-is. "
             + "Every build listed here is on the cloud; a commit that isn't built yet won't "
             + "appear. To put one there, pick its branch and use “Build on cloud”.";
@@ -678,8 +678,8 @@
         // chips (a build can be both). Absence means the first open downloads it.
         if (m.cached) {
           var cchip = _el("span", null, "⚡ local copy");
-          cchip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:#8a5a00; "
-            + "background:#fff4e0; border:1px solid #f0d6a0; border-radius:10px; padding:1px 7px";
+          cchip.style.cssText = "flex:0 0 auto; font-size:10px; font-weight:600; color:var(--warning-fg); "
+            + "background:var(--warning-bg); border:1px solid var(--warning-border); border-radius:10px; padding:1px 7px";
           cchip.title = "This cloud build's workspace is already downloaded to YOUR machine "
             + "(the local build cache), so Open / Use this environment is instant — no re-download. "
             + "This is about the local copy on your computer, NOT whether the build runs on the cloud "
@@ -697,7 +697,7 @@
         }
         if (metaBits.length) {
           var mEl = _el("div", "viv-bs-row-meta", metaBits.join("  ·  "));
-          mEl.style.cssText = "font-size:11px; color:#93a1b5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis";
+          mEl.style.cssText = "font-size:11px; color:var(--text-subtle); white-space:nowrap; overflow:hidden; text-overflow:ellipsis";
           labelWrap.appendChild(mEl);
         }
         li.appendChild(labelWrap);

@@ -1,0 +1,295 @@
+/*
+ * tokens.css — the workbench's semantic design tokens, for BOTH themes.
+ *
+ * Loaded before style.css on every shell (index, study-detail) and injected
+ * into the loom viewer. <html data-theme="light|dark"> is the RESOLVED theme,
+ * set before first paint by templates/_theme_boot.html and kept current by
+ * static/theme.js. Every colour the UI uses should come from a token here;
+ * tests/test_theme_ratchet.py keeps hard-coded colours from growing elsewhere
+ * and tests/test_theme_tokens.py checks that every token exists in both themes
+ * and that the declared text/background pairs meet WCAG 2.2 AA.
+ *
+ * Existing token names (--bg, --surface*, --field, --border*, --hover,
+ * --active, --text, --text-muted, --heading, --link, --accent) are kept; the
+ * legacy names (--panel, --gray, --ink, --line, --string, --num, --bool) are
+ * aliases so older rules resolve in both themes.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg: #fafafa;
+  --rail: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --surface-elevated: #ffffff;
+  --field: #ffffff;
+  --overlay: rgba(0, 0, 0, 0.45);
+
+  /* Borders */
+  --border: #e2e6eb;
+  --border-faint: #eef2f7;
+  --border-2: #d5dbe6;
+  --border-control: #7c8799;
+
+  /* Text */
+  --text: #1f2937;
+  --heading: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-subtle: #6b7280;
+  --text-placeholder: #6b7280;
+  --text-disabled: #9ca3af;
+  --link: #2563eb;
+
+  /* Brand / accent */
+  --accent: #33aa88;
+  --accent2: #7c3aed;
+  /* Secondary (violet) chips: --accent2 text on --accent2-bg. */
+  --accent2-bg: #ede9fe;
+  --accent2-border: #ddd6fe;
+  --accent-text: #0f766e;
+  /* Accent (teal) tints: --accent-text on --accent-bg; decorative --accent-border. */
+  --accent-bg: #ecfdf9;
+  --accent-border: #4bb3ae;
+  /* Text on accent fills. White on the brand green is 2.9:1, so light fills
+     carry dark ink (6.2:1). */
+  --on-accent: #0f172a;
+  /* Text on saturated fills (primary buttons, solid badges): white in both themes. */
+  --on-fill: #ffffff;
+
+  /* Interaction */
+  --hover: #f3f4f6;
+  --active: #e0e7ff;
+  --active-fg: #1e40af;
+  --active-indicator: #2563eb;
+  --focus-ring: #2563eb;
+  --selection-bg: rgba(37, 99, 235, 0.25);
+
+  /* Status */
+  --success-fg: #166534;
+  --success-bg: #dcfce7;
+  --success-border: #86efac;
+  --warning-fg: #854d0e;
+  --warning-bg: #fef9c3;
+  --warning-border: #fcd34d;
+  --danger-fg: #991b1b;
+  --danger-bg: #fee2e2;
+  --danger-border: #fca5a5;
+  --info-fg: #1e40af;
+  --info-bg: #dbeafe;
+  --info-border: #93c5fd;
+
+  /* Code and syntax */
+  --code-bg: #f6f8fa;
+  --code-fg: #1f2328;
+  --syntax-string: #047857;
+  --syntax-number: #1d4ed8;
+  --syntax-boolean: #b45309;
+  --syntax-keyword: #6d28d9;
+  --syntax-comment: #57606a;
+
+  /* Diffs */
+  --diff-add-bg: #e6ffec;
+  --diff-add-fg: #116329;
+  --diff-del-bg: #ffebe9;
+  --diff-del-fg: #82071e;
+
+  /* Charts and figures */
+  --chart-text: #64748b;
+  --chart-axis: #64748b;
+  --chart-grid: #e2e8f0;
+  --chart-series-1: #2563eb;
+  --chart-series-2: #dc2626;
+  --figure-surface: #ffffff;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-2: 0 8px 32px rgba(0, 0, 0, 0.18);
+
+  /* Scrollbars */
+  --scrollbar-thumb: #c3cad6;
+  --scrollbar-track: transparent;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0b1220;
+  --rail: #0f1728;
+  --surface: #18233c;
+  --surface-2: #12203a;
+  --surface-3: #1c2946;
+  --surface-elevated: #1c2946;
+  --field: #0d1526;
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  --border: #26324c;
+  --border-faint: #1e2b44;
+  --border-2: #2c3a58;
+  --border-control: #64799e;
+
+  --text: #d3ddeb;
+  --heading: #eef2f8;
+  --text-secondary: #cdd8e6;
+  --text-muted: #93a3b6;
+  --text-subtle: #8a9ab0;
+  --text-placeholder: #7a8aa0;
+  --text-disabled: #5d6b80;
+  --link: #8ab4ff;
+
+  /* Accent FILL; indigo-600 so white text on it is 6.3:1 (indigo-500 was 4.47:1). */
+  --accent: #4f46e5;
+  --accent2: #a78bfa;
+  --accent2-bg: #2a2250;
+  --accent2-border: #4c3d8f;
+  --accent-text: #2dd4bf;
+  --accent-bg: #0f2e2c;
+  --accent-border: #2a7f7a;
+  --on-accent: #ffffff;
+  --on-fill: #ffffff;
+
+  --hover: #182339;
+  --active: #20304f;
+  --active-fg: #eaf1ff;
+  --active-indicator: #818cf8;
+  --focus-ring: #8ab4ff;
+  --selection-bg: rgba(138, 180, 255, 0.30);
+
+  --success-fg: #86efac;
+  --success-bg: #12351f;
+  --success-border: #1c4a2c;
+  --warning-fg: #fcd34d;
+  --warning-bg: #2a2113;
+  --warning-border: rgba(245, 158, 11, 0.35);
+  --danger-fg: #fca5a5;
+  --danger-bg: #3a1518;
+  --danger-border: #5a2226;
+  --info-fg: #93c5fd;
+  --info-bg: #14243f;
+  --info-border: #22375c;
+
+  --code-bg: #0f141b;
+  --code-fg: #d5dae2;
+  --syntax-string: #6ee7b7;
+  --syntax-number: #93c5fd;
+  --syntax-boolean: #fcd34d;
+  --syntax-keyword: #c4b5fd;
+  --syntax-comment: #8b9ab0;
+
+  --diff-add-bg: rgba(46, 160, 67, 0.18);
+  --diff-add-fg: #86efac;
+  --diff-del-bg: rgba(248, 81, 73, 0.18);
+  --diff-del-fg: #fca5a5;
+
+  --chart-text: #93a3b6;
+  --chart-axis: #93a3b6;
+  --chart-grid: #26324c;
+  --chart-series-1: #60a5fa;
+  --chart-series-2: #f87171;
+  --figure-surface: #ffffff;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 32px rgba(0, 0, 0, 0.6);
+
+  --scrollbar-thumb: #34425f;
+  --scrollbar-track: transparent;
+}
+
+/* Legacy names — aliases so older rules follow the resolved theme. */
+:root,
+:root[data-theme="dark"] {
+  --panel: var(--surface);
+  --gray: var(--text-muted);
+  --ink: var(--text);
+  --ink-2: var(--text-muted);
+  --line: var(--border);
+  --string: var(--syntax-string);
+  --num: var(--syntax-number);
+  --bool: var(--syntax-boolean);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Global accessibility and theme mechanics                                  */
+/* ------------------------------------------------------------------------ */
+
+html {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: inherit;
+}
+
+/* Every interactive element gets a visible keyboard focus indicator. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"],
+       [role="menuitemradio"], [role="menuitem"], [role="tab"], [role="separator"]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* A theme swap must not animate through every colour transition. */
+.viv-theme-switching,
+.viv-theme-switching *,
+.viv-theme-switching *::before,
+.viv-theme-switching *::after {
+  transition: none !important;
+}
+
+/* Visually hidden but available to assistive technology. */
+.viv-sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Windows High Contrast / forced colours: keep boundaries and selection
+   visible when author backgrounds are discarded. */
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid Highlight;
+  }
+  .viv-rail-link.active,
+  [aria-current="page"],
+  [aria-checked="true"],
+  [aria-selected="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .panel,
+  .registry-card,
+  .ccard,
+  .module-card,
+  .investigation-card,
+  .modal-box,
+  .count-badge,
+  .status-chip,
+  .phase-pill,
+  .viv-sidepanel,
+  .viv-theme-menu [role="menu"] {
+    border: 1px solid CanvasText;
+  }
+  .act-gate-dot {
+    forced-color-adjust: none;
+  }
+}

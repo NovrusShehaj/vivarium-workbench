@@ -48,6 +48,37 @@ The dashboard's job is to **author** the workspace's YAML specs through a UI,
 into status verdicts and charts, and **commit** every change to git so there is
 a full audit trail.
 
+**AI-free core, optional assistant extension.** Nothing in
+`vivarium_workbench/` imports an LLM SDK or the assistant (`tests/test_no_ai_deps.py`
+plus an import-linter `forbidden` contract).
+
+- **The extension seam.** `lib/extensions.py` loads opt-in extensions: entry
+  points in the `vivarium_workbench.extensions` group, enabled with
+  `--enable-extension` or `VIVARIUM_WORKBENCH_EXTENSIONS`, and skipped when
+  read-only. Their routes mount under `/api/ext/<id>` *before* the catch-all
+  static route, and their assets under `/ext/<id>/assets/`. The shell gives
+  them escaped UI slots, a right-side panel host (`static/sidepanel.js`) and
+  Settings sections (`static/settings.js`).
+- **The one extension today.** `vivarium_workbench_assistant/` is a
+  bring-your-own-key coding assistant. The server proxies every provider call
+  over `httpx`; the browser never talks to a provider. See
+  [docs/assistant.md](assistant.md) and
+  [ADR-0001](adr/0001-ai-free-core-optional-assistant-extension.md).
+- **Per-user state lives outside the workspace.**
+  `lib/user_dirs.py` resolves the per-user config and data directories:
+  `VIVARIUM_WORKBENCH_CONFIG_DIR` / `_DATA_DIR`, else XDG, else `~/.config` and
+  `~/.local/share`. Assistant configuration, conversations and the audit log
+  live there, never in the workspace.
+- **Request hardening in front of every route:**
+  - a Host allowlist (`lib/host_guard.py`, DNS-rebinding defense;
+    `--allowed-host`);
+  - CSRF/Origin checks on every unsafe method (`lib/csrf.py`);
+  - a sensitive-path denylist with realpath containment on the catch-all
+    static route (`lib/sensitive_paths.py`, `lib/static_serving.py`).
+- **Theme.** A three-state System/Light/Dark preference. A pre-paint boot sets
+  `<html data-theme>`, `static/theme.js` is the runtime, and
+  `static/tokens.css` is the palette. See [docs/theme.md](theme.md).
+
 ### The crucial split: repo vs. workspace
 
 This repository is the *server/tooling*. The *data* it operates on lives in a
@@ -423,6 +454,7 @@ model assumes a trusted-localhost deployment. See the deep-dive §10.
 | Bigraph **type system** + JSON (de)serialization | **bigraph-schema** | `BigraphJSONEncoder` / `bigraph_json_hook` when persisting/transporting state. |
 | Interactive **state-tree (bigraph) explorer** | **bigraph-loom** | Embedded viewer; the dashboard feeds it composite-state JSON. Assets copied into the publish bundle. |
 | Workspace **scaffold** + `.pbg/schemas/` validators | **viva-template** | Read-only here. Schemas are loaded at save time (`lib/workspace_yaml.py` → `Draft7Validator`); invalid YAML is rejected with HTTP 400 *before* any commit. viva-template owns the schema versions. |
+| *(optional, in-repo)* **In-app AI assistant** | **vivarium_workbench_assistant/** (this repo, separate package) | Opt-in extension; never imported by the core. BYOK providers proxied by the server. [docs/assistant.md](assistant.md) |
 | **AI-assisted authoring** + many runtime computations | **pbg-superpowers** | A *runtime library*, not just a plugin. Provides `workspace_catalog` (multi-dashboard discovery via `~/.pbg/servers/`), `composite_generator`, visualization discovery, and the verdict/status/rigor rollups the dashboard computes on read. Its `/pbg-*` Claude Code skills write the **same** workspace files the dashboard does. |
 
 > **⚠ Coupling note:** this is the deepest and leakiest dependency in the repo —

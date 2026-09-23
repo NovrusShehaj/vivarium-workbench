@@ -6,6 +6,8 @@ This file provides essential, high-signal guidance for AI agents working in the 
 
 - **Crucial Distinction:** This repository contains the `vivarium-workbench` tooling. The data it operates on (simulations, studies, results) lives in a separate **workspace directory**, passed with the `--workspace` flag.
 - **Git History:** This repo's git history is for the tool itself. The workbench creates commits in the *workspace's* git history, which serves as the scientific audit trail. Keep these two contexts separate.
+- **AI-free core + optional assistant:** `vivarium_workbench/` must never import an LLM SDK (`tests/test_no_ai_deps.py`) or the separate, opt-in `vivarium_workbench_assistant/` package (import-linter contract). The assistant is enabled with `serve --enable-extension assistant`; see `docs/assistant.md`.
+- **Theme:** colours come only from `static/tokens.css` (`var(--token)`); the shrink-only ratchet `tests/test_theme_ratchet.py` fails on new hex/inline colours or dark overrides. See `docs/theme.md`.
 - **Rename:** The project was renamed from `vivarium-dashboard` to `vivarium-workbench`. You will find many deprecated aliases (`vdash`, `vivarium-dashboard` command, `vivarium_dashboard` import package) for backward compatibility.
 
 ## Key Commands

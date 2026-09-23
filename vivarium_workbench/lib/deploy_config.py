@@ -83,6 +83,37 @@ def deploy_ui() -> dict:
     return _ui_block(path) if path is not None else {}
 
 
+def deploy_section(key: str) -> dict:
+    """A top-level mapping from the deployment config (``{}`` when absent).
+
+    Generic operator-policy reader for blocks other than ``ui:`` — for example
+    an extension's ``<extension-id>:`` policy block. Same "never raises; a
+    missing, unreadable or malformed source contributes nothing" semantics as
+    :func:`deploy_ui`.
+    """
+    path = deploy_config_path()
+    if path is None:
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001 - a bad config must never break the server
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    block = data.get(key)
+    return block if isinstance(block, dict) else {}
+
+
+def assistant_block() -> dict:
+    """The operator policy for the optional assistant extension (``assistant:``).
+
+    Plain configuration data, read with :func:`deploy_section`'s semantics; the
+    core attaches no meaning to it (the extension interprets it, and the
+    assistant stays disabled on hosted deployments unless it says otherwise).
+    """
+    return deploy_section("assistant")
+
+
 def default_sources(ws_root: Path | str) -> list[UiSource]:
     """The standard source chain, **lowest precedence first**.
 

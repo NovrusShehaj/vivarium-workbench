@@ -256,9 +256,9 @@ def refresh_submitted(job, client=None) -> None:
         if not pending:
             return
         if client is None:
-            from vivarium_workbench.lib.sms_api_client import SmsApiClient
-            from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
-            client = SmsApiClient(_sms_api_base())
+            from vivarium_workbench.lib.remote_api_client import RemoteApiClient
+            from vivarium_workbench.lib.workspace_deps_views import _remote_api_base
+            client = RemoteApiClient(_remote_api_base())
         rows = client.compose_status_batch([sid for _, sid in pending])
         by_sim = {r.get("sim_id"): r for r in rows if isinstance(r, dict)}
         for idx, sid in pending:

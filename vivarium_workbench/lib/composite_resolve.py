@@ -16,8 +16,6 @@ from pathlib import Path
 import yaml
 from process_bigraph.composite_spec import CompositeSpec, get as _get_spec  # module-level for monkeypatch
 
-from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError
-from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
 
 
 def _ws_add_to_sys_path(ws_root: Path) -> None:
@@ -504,14 +502,9 @@ def resolve_composite_for_request(
     workspace resolves locally. Returns the resolve payload dict (or None on
     a local miss)."""
     from vivarium_workbench.lib.run_core import run_target_for
-    from vivarium_workbench.lib.remote_simulations import _read_build_meta
 
     ws_root = Path(ws_root)
     if run_target_for(ws_root) == "deployment":
-        meta = _read_build_meta(ws_root) or {}
-        sim_id = meta.get("simulator_id")
-        if sim_id is None:
-            return {"error": "remote build has no simulator_id stamp"}
         # item 63: `.viv-build.json` only ever gets stamped into a materialized
         # session clone (source_build_views.switch_build) — its presence means
         # ws_root has real source files on disk. Not special-cased to any one
@@ -539,17 +532,15 @@ def resolve_composite_for_request(
         local = _local_generator_payload(ws_root, spec_id)
         if local is not None:
             return local
-        try:
-            return SmsApiClient(_sms_api_base()).composite_resolve(int(sim_id), spec_id, overrides or {})
-        except SmsApiError as e:
-            # sms-api has no POST /core/v1/simulator/{id}/composite-resolve route —
-            # this client method was added speculatively and the server side was
-            # never built. Composite preview is a non-blocking convenience (actual
-            # dispatch reads the composite ref directly and never calls this), so
-            # degrade to the same honest-unavailable shape every other resolve
-            # failure already uses, instead of a 500.
-            return _degraded_result(
-                spec_id, e,
-                notice="composite preview is not available for remote-pinned deployments yet",
-            )
+        # The retired SMS surface used to be consulted here, through a
+        # composite-resolve route the server side never actually implemented,
+        # so this only ever produced the degraded result below. Composite
+        # preview is a non-blocking convenience — dispatch reads the composite
+        # ref directly and never calls this — so an unresolvable stamped
+        # workspace degrades honestly instead of 500ing.
+        return _degraded_result(
+            spec_id,
+            RuntimeError("no local definition for this composite"),
+            notice="composite preview is not available for this workspace",
+        )
     return resolve_composite(ws_root, spec_id, overrides)

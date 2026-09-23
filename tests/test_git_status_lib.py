@@ -147,14 +147,17 @@ class TestRemoteRepoUrl:
         )
         assert gs.remote_repo_url(tmp_path) == "https://github.com/x/y"
 
-    def test_uses_lib_normalize_not_a_new_copy(self, monkeypatch, tmp_path: Path) -> None:
-        """remote_repo_url routes through lib.source_build_views._normalize_repo_url."""
-        from vivarium_workbench.lib import source_build_views as sbv
+    def test_routes_through_the_module_normalizer(self, monkeypatch, tmp_path: Path) -> None:
+        """remote_repo_url normalizes via the module's own _normalize_repo_url.
+
+        It used to import that helper from lib.source_build_views, which
+        retired with the SMS build registry.
+        """
         monkeypatch.setattr(
             gs.subprocess, "run",
             lambda *a, **k: _cp(returncode=0, stdout="ssh://git@host/r.git"),
         )
-        monkeypatch.setattr(sbv, "_normalize_repo_url", lambda u: "SENTINEL")
+        monkeypatch.setattr(gs, "_normalize_repo_url", lambda u: "SENTINEL")
         assert gs.remote_repo_url(tmp_path) == "SENTINEL"
 
 

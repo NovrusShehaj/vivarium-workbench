@@ -11,8 +11,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import tarfile
-import tempfile
 import time
 import traceback
 from dataclasses import dataclass
@@ -1001,7 +999,7 @@ def _execute_remote(req: RunRequest, run_dir: Path) -> int:
     no manifests) and best-effort (never fails an otherwise-completed run —
     mirrors the local path's try/except in ``composite_flush.run_flush``).
     """
-    from vivarium_workbench.lib import remote_run, remote_run_landing
+    from vivarium_workbench.lib import remote_run
 
     conn = cr.connect(req.db_file)
     try:
@@ -1016,19 +1014,10 @@ def _execute_remote(req: RunRequest, run_dir: Path) -> int:
             # committed code (git+repo@commit), not the local tree (no push needed).
             if req.build_ref:
                 run_remote_kwargs["build_ref"] = req.build_ref
-            results_path = remote_run.run_remote(req.workspace, req.spec_id, **run_remote_kwargs)
-            if results_path is not None:
-                try:
-                    with tempfile.TemporaryDirectory() as td:
-                        extract_root = Path(td)
-                        with tarfile.open(results_path, "r:gz") as tar:
-                            tar.extractall(extract_root, filter="data")
-                        remote_run_landing.fold_analyses(extract_root, req.workspace, req.run_id)
-                        # Persist PTools TSV exports locally so the Omics Viewer
-                        # discovers this (e.g. GovCloud) run like a local study's.
-                        remote_run_landing.land_ptools_tsvs(extract_root, req.workspace, req.run_id)
-                except Exception as fold_exc:  # noqa: BLE001 — best-effort, never fail a completed run
-                    _write_log(req, f"note: could not fold remote analyses/ptools for this run: {fold_exc}")
+            remote_run.run_remote(req.workspace, req.spec_id, **run_remote_kwargs)
+            # The retired SMS landing step used to fold this archive's
+            # analyses/ and PTools TSV exports into the study here. The run's
+            # results archive is still written to ``run_dir`` by run_remote.
         except Exception as exc:
             tb = traceback.format_exc()
             reason = _remote_failure_reason(exc)

@@ -135,26 +135,6 @@ def test_parca_cache_error_generic_ws_degrades(tmp_path, monkeypatch):
     assert "remote_no_cache" not in body["build_error"]
 
 
-def test_parca_cache_error_on_remote_build_soft_message(tmp_path, monkeypatch):
-    """A materialized remote build (.viv-build.json) ships no local ParCa cache, so
-    a local generator build fails with a cache error. build_composite_state degrades
-    to a 200 with a clear, build-aware build_error (remote_no_cache), never a 400."""
-    csv.clear_cache()
-    ws = _make_ws(tmp_path)
-    (ws / ".viv-build.json").write_text(
-        json.dumps({"simulator_id": 211, "commit": "33ecd77abc"}), encoding="utf-8")
-    _patch_subprocess(monkeypatch, {"__build_error__": "Cache at 'out/cache' is stale or unversioned"})
-    body, status = csv.build_composite_state(ws, "gen")
-    assert status == 200
-    be = body["build_error"]
-    assert be.get("remote_no_cache") is True
-    assert "build #211" in be["notice"]
-    assert "33ecd77" in be["notice"]
-    assert "no local ParCa cache" in be["notice"]
-    # original cache error is still carried in the detail so the frontend hint fires
-    assert "stale or unversioned" in be["detail"]
-
-
 def test_build_error_degrades_to_last_good(tmp_path, monkeypatch):
     """After a successful build, a later build failure serves the last-known-good
     wiring (labelled) instead of a skeleton — so a transient failure never blanks

@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Optional
 
 import vivarium_workbench as _vd_pkg
+from vivarium_workbench.lib import sensitive_paths as _sensitive
 from vivarium_workbench.lib.saved_visualizations import parsimony_viewer_dir
 from vivarium_workbench.lib.workspace_paths import WorkspacePaths
 
@@ -49,6 +50,13 @@ class AssetTraversal(Exception):
     """Raised by :func:`resolve_loom_asset` (and used by the catch-all guard) to
     signal a path-traversal attempt (a ``..`` path segment).  The caller maps it
     to an HTTP 403 — mirroring the legacy ``send_response(403)`` branches."""
+
+
+class DeniedAsset(Exception):
+    """Raised by :func:`resolve_asset` for a path on the sensitive-path denylist
+    (``lib.sensitive_paths``) or one whose real location escapes the workspace
+    (a symlink pointing outside it).  The caller maps it to an HTTP 404 so the
+    response does not reveal whether such a file exists."""
 
 
 def guess_mime(rel: str) -> str:
@@ -95,7 +103,23 @@ def resolve_asset(ws_root: Path, rel: str) -> Path:
     ``rel`` must already be ``lstrip("/")``-ed and traversal-checked by the
     caller (the catch-all route refuses ``..`` segments first).  Returns the
     chosen path (which may not exist).
+
+    **Sensitive paths are never served.** Before any lookup, ``rel`` is checked
+    against the shared denylist in :mod:`vivarium_workbench.lib.sensitive_paths`
+    (``.git/``, ``.env*``, private keys, credential JSON, ``.pbg/server/``,
+    ``.pbg/state.json``, ``.pbg/assistant/`` …): a match raises
+    :class:`DeniedAsset`. A malformed ``rel`` (NUL byte, backslash, ``..``)
+    raises :class:`AssetTraversal`. For the workspace and ``reports/`` tiers the
+    *real* path (symlinks followed) must stay inside its root, otherwise
+    :class:`DeniedAsset` is raised — a symlink cannot be used to read files
+    outside the workspace or to reach a denied file inside it.
     """
+    try:
+        clean = _sensitive.normalize_rel(rel)
+    except _sensitive.UnsafePath as exc:
+        raise AssetTraversal(rel) from exc
+    if _sensitive.is_sensitive_rel(clean):
+        raise DeniedAsset(rel)
     bundled = STATIC_DIR / rel
     if bundled.is_file():
         return bundled
@@ -105,8 +129,14 @@ def resolve_asset(ws_root: Path, rel: str) -> Path:
             return bundled_alt
     primary = ws_root / rel
     if primary.is_file():
+        if _sensitive.resolve_contained(ws_root, clean) is None:
+            raise DeniedAsset(rel)
         return primary
-    return WorkspacePaths.load(ws_root).reports / rel
+    reports = WorkspacePaths.load(ws_root).reports
+    candidate = reports / rel
+    if candidate.exists() and _sensitive.resolve_contained(reports, clean) is None:
+        raise DeniedAsset(rel)
+    return candidate
 
 
 def resolve_loom_asset(rel: str) -> Path:

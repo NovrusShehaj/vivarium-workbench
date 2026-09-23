@@ -12,6 +12,10 @@ wheels/
 venv/
 env/
 
+# Environment & Secrets
+.env
+.env.*
+.env.local
 # Tests
 .pytest_cache/
 .coverage

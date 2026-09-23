@@ -181,34 +181,6 @@ def test_switching_tabs_does_not_steal_a_different_tabs_cookie(
     assert r.headers.get("X-VW-Session") == "tab-B"
 
 
-def test_switch_build_aligns_cookie_on_its_own_response(client, monkeypatch):
-    """item 78: /api/source/switch-build must align the cookie on ITS OWN
-    response, the same as /api/source/switch already does — this is what a
-    real browser's window.location.reload() (a plain navigation, no header)
-    depends on right after materializing a remote build. Bypasses the real
-    sms-api client via the same monkeypatch pattern other route tests use."""
-    from vivarium_workbench.lib import session_registry
-    session_registry.clear()
-
-    import vivarium_workbench.api.app as api_app
-    monkeypatch.setattr(
-        api_app._source_build_views, "switch_build",
-        lambda body, **kw: (
-            {"ok": True, "source": {"path": "/tmp/managed-build", "name": None}},
-            200,
-        ),
-    )
-    monkeypatch.setattr(
-        api_app.session_env, "prepare",
-        lambda *a, **kw: {"status": "ready"},
-    )
-
-    r = client.post("/api/source/switch-build", json={"simulator_id": 42},
-                     headers={"X-VW-Session": "tab-remote"})
-    assert r.status_code == 200
-    assert "vw_session=tab-remote" in r.headers.get("set-cookie", "")
-
-
 def test_session_header_takes_precedence_for_binding(client, tmp_path, monkeypatch):
     """The X-VW-Session id is the session key used for per-session binding: a
     switch carrying the header binds THAT id (preferred over cookie/minted)."""
@@ -236,9 +208,8 @@ def test_simulations_empty_workspace(client):
     body = r.json()
     assert body["simulations"] == [] and body["current"] is None
     assert body["total"] == 0 and body["offset"] == 0 and body["limit"] is None
-    # SWR remote-source provenance (added with non-blocking remote fetch): shape is
-    # stable; the state value varies (refreshing/stale/unavailable) so don't pin it.
-    assert set(body["remote"]) == {"state", "as_of", "error"}
+    # Remote-source provenance retired with the SMS simulations listing.
+    assert body["remote"] is None
 
 
 def test_simulations_returns_typed_rows(client, monkeypatch):
@@ -2698,40 +2669,6 @@ class TestWorkCompositeDiffRoute:
 # Workspace & source routes — Batch 13
 # ---------------------------------------------------------------------------
 
-class TestSourceBuildsRoute:
-    def test_always_200(self, client, monkeypatch):
-        """GET /api/source/builds always returns HTTP 200."""
-        from vivarium_workbench.lib import workspace_deps_views as wdv
-        monkeypatch.setattr(wdv, "build_source_builds", lambda: {"builds": [], "error": None})
-        r = client.get("/api/source/builds")
-        assert r.status_code == 200
-
-    def test_returns_builds_list_and_error(self, client, monkeypatch):
-        """Body carries builds[] and error (null or string)."""
-        from vivarium_workbench.lib import workspace_deps_views as wdv
-        monkeypatch.setattr(wdv, "build_source_builds", lambda: {"builds": [], "error": None})
-        body = client.get("/api/source/builds").json()
-        assert "builds" in body
-        assert isinstance(body["builds"], list)
-
-    def test_degraded_when_sms_api_down(self, client, monkeypatch):
-        """When sms-api is down, builds=[] and error carries a reason (still 200)."""
-        from vivarium_workbench.lib import workspace_deps_views as wdv
-        monkeypatch.setattr(
-            wdv, "build_source_builds",
-            lambda: {"builds": [], "error": "connection refused"},
-        )
-        r = client.get("/api/source/builds")
-        assert r.status_code == 200
-        body = r.json()
-        assert body["builds"] == []
-        assert body["error"] == "connection refused"
-
-    def test_source_builds_in_openapi(self, client):
-        components = client.get("/openapi.json").json()["components"]["schemas"]
-        assert "SourceBuilds" in components
-
-
 class TestWorkspacesRoute:
     def test_always_200(self, client, tmp_path, monkeypatch):
         """GET /api/workspaces always returns HTTP 200."""
@@ -3125,7 +3062,13 @@ class TestStaticRoutes:
         assert r.status_code == 200
         assert r.headers["content-type"] == "text/html"
         assert r.headers["cache-control"] == "no-store"
-        assert r.text == "<loom/>"
+        # The bundle's own markup is served intact, preceded by the theme head
+        # every loom HTML entry gets (pre-paint boot + tokens + runtime).
+        assert r.text.endswith("<loom/>")
+        head = r.text[: -len("<loom/>")]
+        assert "data-theme-pref" in head
+        assert '<link rel="stylesheet" href="/assets/tokens.css">' in head
+        assert '<script src="/assets/theme.js"></script>' in head
 
     def test_parsimony_404_when_no_dir(self, client, monkeypatch):
         monkeypatch.setattr(api_app._static_serving, "parsimony_viewer_dir", lambda: None)
@@ -4132,70 +4075,6 @@ class _FakeManager:
         return self._jobs.get(job_id)
 
 
-class TestJobStatusRoutes:
-    """The two FastAPI job-status GETs read the manager at call time via the
-    module attribute, so monkeypatching ``<module>.manager`` reroutes them to a
-    fake — no real background threads."""
-
-    # -- investigation-run-unblocked-status (lib.run_jobs.manager) -----------
-
-    def test_run_unblocked_jobs_list_200(self, client, monkeypatch):
-        from vivarium_workbench.lib import run_jobs
-        monkeypatch.setattr(run_jobs, "manager", _FakeManager(recent=[{"job_id": "r1"}]))
-        r = client.get("/api/investigation-run-unblocked-status")
-        assert r.status_code == 200
-        assert r.json() == {"jobs": [{"job_id": "r1"}]}
-
-    def test_run_unblocked_single_job_200(self, client, monkeypatch):
-        from vivarium_workbench.lib import run_jobs
-        job = _FakeJob({"job_id": "r9", "items": [{"status": "running"}]})
-        monkeypatch.setattr(run_jobs, "manager", _FakeManager(jobs={"r9": job}))
-        r = client.get("/api/investigation-run-unblocked-status?job_id=r9")
-        assert r.status_code == 200
-        assert r.json() == {"job_id": "r9", "items": [{"status": "running"}]}
-
-    def test_run_unblocked_missing_404(self, client, monkeypatch):
-        from vivarium_workbench.lib import run_jobs
-        monkeypatch.setattr(run_jobs, "manager", _FakeManager(jobs={}))
-        r = client.get("/api/investigation-run-unblocked-status?job_id=ghost")
-        assert r.status_code == 404
-        assert r.json() == {"error": "job not found"}
-
-    # -- remote-run-status (lib.remote_run_jobs.manager) ---------------------
-
-    def test_remote_run_jobs_list_200(self, client, monkeypatch):
-        from vivarium_workbench.lib import remote_run_jobs
-        monkeypatch.setattr(remote_run_jobs, "manager", _FakeManager(recent=[{"job_id": "rr1"}]))
-        r = client.get("/api/remote-run-status")
-        assert r.status_code == 200
-        assert r.json() == {"jobs": [{"job_id": "rr1"}]}
-
-    def test_remote_run_single_job_200(self, client, monkeypatch):
-        from vivarium_workbench.lib import remote_run_jobs
-        job = _FakeJob({"job_id": "rr9", "steps": [{"name": "fetch", "status": "done"}]})
-        monkeypatch.setattr(remote_run_jobs, "manager", _FakeManager(jobs={"rr9": job}))
-        r = client.get("/api/remote-run-status?job_id=rr9")
-        assert r.status_code == 200
-        assert r.json() == {"job_id": "rr9", "steps": [{"name": "fetch", "status": "done"}]}
-
-    def test_remote_run_missing_404(self, client, monkeypatch):
-        from vivarium_workbench.lib import remote_run_jobs
-        monkeypatch.setattr(remote_run_jobs, "manager", _FakeManager(jobs={}))
-        r = client.get("/api/remote-run-status?job_id=ghost")
-        assert r.status_code == 404
-        assert r.json() == {"error": "job not found"}
-
-    def test_routes_in_openapi(self, client):
-        paths = client.get("/openapi.json").json()["paths"]
-        for p in ("/api/investigation-run-unblocked-status", "/api/remote-run-status"):
-            assert p in paths and "get" in paths[p], p
-        schemas = client.get("/openapi.json").json()["components"]["schemas"]
-        assert "JobStatusPayload" in schemas
-
-
-# ===========================================================================
-# C-state-3a: CSRF same-origin middleware (whole POST/DELETE surface)
-# ===========================================================================
 class TestCsrfMiddleware:
     """The @app.middleware('http') guard rejects cross-origin POST/DELETE and
     never blocks GET. starlette's TestClient sends Host='testserver' and no
@@ -4370,315 +4249,6 @@ class TestSourceSwitchRoute:
 # ===========================================================================
 # C-state-3b: POST /api/source/build-remote + /api/source/switch-build
 # (sms-api NETWORK routes — every test monkeypatches the lib sms-api names)
-# ===========================================================================
-class TestSourceBuildRemoteRoute:
-    def test_missing_repo_branch_400(self, client):
-        r = client.post("/api/source/build-remote", json={"repo": "x"})
-        assert r.status_code == 400
-        assert r.json() == {"error": "repo and branch are required"}
-
-    def test_no_commit_502(self, client, monkeypatch):
-        from vivarium_workbench.lib import source_build_views as sbv
-
-        class _Client:
-            def __init__(self, base=None):
-                pass
-
-            def latest_simulator(self, repo, branch):
-                return {"git_commit_hash": ""}
-
-        monkeypatch.setattr(sbv, "SmsApiClient", _Client)
-        r = client.post("/api/source/build-remote", json={"repo": "r", "branch": "b"})
-        assert r.status_code == 502
-        assert r.json() == {"error": "could not resolve branch HEAD via sms-api"}
-
-    def test_sms_api_error_502(self, client, monkeypatch):
-        from vivarium_workbench.lib import source_build_views as sbv
-        from vivarium_workbench.lib.sms_api_client import SmsApiError
-
-        class _Client:
-            def __init__(self, base=None):
-                pass
-
-            def latest_simulator(self, repo, branch):
-                raise SmsApiError("boom")
-
-        monkeypatch.setattr(sbv, "SmsApiClient", _Client)
-        r = client.post("/api/source/build-remote", json={"repo": "r", "branch": "b"})
-        assert r.status_code == 502
-        assert r.json() == {"error": "sms-api: boom"}
-
-    def test_happy_path(self, client, monkeypatch):
-        from vivarium_workbench.lib import source_build_views as sbv
-
-        class _Client:
-            def __init__(self, base=None):
-                pass
-
-            def latest_simulator(self, repo, branch):
-                return {"git_commit_hash": "c0ffee"}
-
-            def register_simulator(self, repo, branch, commit):
-                return {"database_id": 42}
-
-        monkeypatch.setattr(sbv, "SmsApiClient", _Client)
-        r = client.post(
-            "/api/source/build-remote",
-            json={"repo": "https://github.com/x/y.git", "branch": "main"},
-        )
-        assert r.status_code == 200
-        assert r.json() == {
-            "ok": True, "simulator_id": 42,
-            "repo": "https://github.com/x/y", "branch": "main", "commit": "c0ffee",
-        }
-
-    def test_route_in_openapi(self, client):
-        paths = client.get("/openapi.json").json()["paths"]
-        assert "/api/source/build-remote" in paths
-        assert "post" in paths["/api/source/build-remote"]
-        schemas = client.get("/openapi.json").json()["components"]["schemas"]
-        assert "BuildRemoteResponse" in schemas
-
-
-class TestSourceSwitchBuildRoute:
-    @staticmethod
-    def _entry(sim_id=5):
-        return {
-            "simulator_id": sim_id, "repo": "y",
-            "repo_url": "https://github.com/x/y", "commit": "deadbeef",
-            "branch": "main", "label": "y @ deadbeef (build #5)",
-        }
-
-    def test_missing_sim_id_400(self, client):
-        r = client.post("/api/source/switch-build", json={})
-        assert r.status_code == 400
-        assert r.json() == {"error": "missing 'simulator_id'"}
-
-    def test_listing_error_502(self, client, monkeypatch):
-        from vivarium_workbench.lib import source_build_views as sbv
-        monkeypatch.setattr(sbv, "SmsApiClient", lambda base=None: object())
-        monkeypatch.setattr(
-            sbv, "list_build_sources",
-            lambda c: {"builds": [], "error": "tunnel down"},
-        )
-        r = client.post("/api/source/switch-build", json={"simulator_id": 5})
-        assert r.status_code == 502
-        assert r.json() == {"error": "sms-api unavailable: tunnel down"}
-
-    def test_not_found_404(self, client, monkeypatch):
-        from vivarium_workbench.lib import source_build_views as sbv
-        monkeypatch.setattr(sbv, "SmsApiClient", lambda base=None: object())
-        monkeypatch.setattr(
-            sbv, "list_build_sources", lambda c: {"builds": [self._entry(99)]},
-        )
-        r = client.post("/api/source/switch-build", json={"simulator_id": 5})
-        assert r.status_code == 404
-        assert r.json() == {"error": "build 5 not found"}
-
-    def test_materialize_error_502(self, client, monkeypatch):
-        from vivarium_workbench.lib import source_build_views as sbv
-        from vivarium_workbench.lib.sms_api_client import SmsApiError
-        monkeypatch.setattr(sbv, "SmsApiClient", lambda base=None: object())
-        monkeypatch.setattr(
-            sbv, "list_build_sources", lambda c: {"builds": [self._entry(5)]},
-        )
-
-        def _boom(c, session_key, sim_id, commit):
-            raise SmsApiError("no tarball")
-
-        # A real request always resolves a session key (minted on first contact),
-        # so the route calls materialize_session_build — item 20's per-session
-        # clone — not the bare materialize_build a session-less lib caller hits.
-        monkeypatch.setattr(sbv, "materialize_session_build", _boom)
-        r = client.post("/api/source/switch-build", json={"simulator_id": 5})
-        assert r.status_code == 502
-        assert r.json() == {"error": "materialize failed: no tarball"}
-
-    def test_happy_path_repoints(self, client, tmp_path, monkeypatch):
-        from vivarium_workbench.lib import source_build_views as sbv
-        from vivarium_workbench.lib import _root
-        cache = tmp_path / "session-clone"
-        cache.mkdir()
-        monkeypatch.setattr(sbv, "SmsApiClient", lambda base=None: object())
-        monkeypatch.setattr(
-            sbv, "list_build_sources", lambda c: {"builds": [self._entry(5)]},
-        )
-        seen = {}
-
-        def _materialize_session(c, session_key, sim_id, commit):
-            seen["session_key"] = session_key
-            seen["args"] = (sim_id, commit)
-            return cache
-
-        monkeypatch.setattr(sbv, "materialize_session_build", _materialize_session)
-
-        # item 63: a materialized remote build is a bare tarball extraction with
-        # no `.venv` of its own — the route must prepare it via the MANAGED (uv
-        # sync) path, not the in-place fast path, or `env_resolver` silently
-        # falls back to the workbench's own interpreter/deps instead of this
-        # commit's, and composite-parameter discovery degrades to empty. This
-        # test mocks `session_env.prepare` itself (its own managed=True mechanics
-        # are already covered by test_session_env.py) to assert the WIRING: the
-        # route must actually pass managed=True, not just call prepare() at all.
-        from vivarium_workbench.lib import session_env
-        prepare_calls = []
-
-        def _fake_prepare(session_key, source, *, managed=False, timeout=None):
-            prepare_calls.append({
-                "session_key": session_key, "source": source,
-                "managed": managed, "timeout": timeout,
-            })
-            return {"status": "materializing", "managed": managed,
-                    "source": str(source), "phase": "syncing", "elapsed_s": 0.1}
-
-        monkeypatch.setattr(session_env, "prepare", _fake_prepare)
-
-        from vivarium_workbench.lib import session_registry
-        session_registry.clear()
-        before = _root.get_workspace_root()
-        r = client.post("/api/source/switch-build", json={"simulator_id": 5})
-        assert r.status_code == 200
-        body = r.json()
-        assert body["ok"] is True
-        assert body["source"] == {"path": str(cache), "name": "y @ deadbeef (build #5)"}
-        # The real regression assertion: managed=True, not the default False.
-        assert len(prepare_calls) == 1
-        assert prepare_calls[0]["managed"] is True
-        assert prepare_calls[0]["source"] == str(cache)
-        assert body["materialization"]["status"] == "materializing"
-        # Per-session (slice 4/5): the global root is NOT re-pointed; the caller's
-        # session is bound to the materialized cache dir.
-        assert _root.get_workspace_root() == before
-        key = client.cookies.get(session_registry.SESSION_COOKIE)
-        assert key is not None and session_registry.get(key).source_path == Path(str(cache))
-        # item 20: the route must resolve+pass the caller's OWN session key, so
-        # switch_build materializes THAT session's exclusive clone, not the
-        # shared build cache directly.
-        assert seen["session_key"] == key
-        assert seen["args"] == (5, "deadbeef")
-        assert prepare_calls[0]["session_key"] == key
-
-    def test_route_in_openapi(self, client):
-        paths = client.get("/openapi.json").json()["paths"]
-        assert "/api/source/switch-build" in paths
-        assert "post" in paths["/api/source/switch-build"]
-
-
-# ===========================================================================
-# C-state-3c: POST /api/remote-run-start (manager.submit pipeline job)
-# Every external (auth, git, sms-api, manager) is monkeypatched on the lib
-# builder — no real network/git/auth.
-# ===========================================================================
-class TestRemoteRunStartRoute:
-    def test_not_authenticated_401(self, client, monkeypatch):
-        from vivarium_workbench.lib import remote_run_views as rrv
-        monkeypatch.setattr(rrv.github_auth, "current_session", lambda: None)
-        r = client.post("/api/remote-run-start", json={"study": "s"})
-        assert r.status_code == 401
-        assert r.json() == {"error": "not authenticated"}
-
-    def test_missing_study_400(self, client, monkeypatch):
-        from vivarium_workbench.lib import remote_run_views as rrv
-        monkeypatch.setattr(rrv.github_auth, "current_session", lambda: object())
-        r = client.post("/api/remote-run-start", json={"study": "   "})
-        assert r.status_code == 400
-        assert r.json() == {"error": "study is required"}
-
-    def test_happy_path_202(self, client, tmp_path, monkeypatch):
-        from vivarium_workbench.lib import remote_run_views as rrv
-
-        class _Job:
-            job_id = "JX"
-
-        captured = {}
-
-        monkeypatch.setattr(rrv.github_auth, "current_session", lambda: object())
-        monkeypatch.setattr(rrv.git_status, "has_origin_remote", lambda ws: True)
-        monkeypatch.setattr(rrv.git_status, "remote_repo_url", lambda ws: "https://github.com/x/y")
-        spec_file = tmp_path / "study.yaml"
-        spec_file.write_text("baseline: []\n")
-        monkeypatch.setattr(rrv.study_spec, "study_spec_path", lambda ws, name: spec_file)
-        monkeypatch.setattr(rrv.study_spec, "study_dir", lambda ws, name: tmp_path)
-        monkeypatch.setattr(rrv, "load_spec", lambda p: {"baseline": [], "readouts": []})
-        import subprocess as _sp
-        monkeypatch.setattr(
-            rrv.subprocess, "run",
-            lambda *a, **k: _sp.CompletedProcess(args=[], returncode=0, stdout="feature/x\n"),
-        )
-        monkeypatch.setattr(rrv, "SmsApiClient", lambda base=None: object())
-        monkeypatch.setattr(rrv, "_sms_api_base", lambda: "http://sms.local")
-
-        def _submit(study, worker_fn):
-            captured["study"] = study
-            captured["worker"] = worker_fn
-            return _Job()
-
-        monkeypatch.setattr(rrv.manager, "submit", _submit)
-
-        r = client.post("/api/remote-run-start", json={"study": "study-a"})
-        assert r.status_code == 202
-        assert r.json() == {"job_id": "JX"}
-        assert captured["study"] == "study-a"
-        assert callable(captured["worker"])
-
-    def _wire_happy(self, rrv, tmp_path, monkeypatch, captured):
-        """Monkeypatch every external for a happy submit; capture PipelineCtx kwargs."""
-        class _Job:
-            job_id = "JX"
-        monkeypatch.setattr(rrv.github_auth, "current_session", lambda: object())
-        monkeypatch.setattr(rrv.git_status, "has_origin_remote", lambda ws: True)
-        monkeypatch.setattr(rrv.git_status, "remote_repo_url", lambda ws: "https://github.com/x/y")
-        spec_file = tmp_path / "study.yaml"
-        spec_file.write_text("baseline: []\n")
-        monkeypatch.setattr(rrv.study_spec, "study_spec_path", lambda ws, name: spec_file)
-        monkeypatch.setattr(rrv.study_spec, "study_dir", lambda ws, name: tmp_path)
-        monkeypatch.setattr(rrv, "load_spec", lambda p: {"baseline": [], "readouts": []})
-        import subprocess as _sp
-        monkeypatch.setattr(
-            rrv.subprocess, "run",
-            lambda *a, **k: _sp.CompletedProcess(args=[], returncode=0, stdout="feature/x\n"),
-        )
-        monkeypatch.setattr(rrv, "SmsApiClient", lambda base=None: object())
-        monkeypatch.setattr(rrv, "_sms_api_base", lambda: "http://sms.local")
-
-        def _ctx(**kwargs):
-            captured.update(kwargs)
-            return object()
-        monkeypatch.setattr(rrv, "PipelineCtx", _ctx)
-        monkeypatch.setattr(rrv, "run_remote_pipeline", lambda j, ctx: None)
-        monkeypatch.setattr(rrv.manager, "submit", lambda study, worker_fn: _Job())
-
-    def test_run_parca_defaults_true_when_omitted(self, client, tmp_path, monkeypatch):
-        # Legacy raw-JSON contract: an OMITTED run_parca runs ParCa (.get(..., True)).
-        # The route must not let pydantic's None default flip it to False.
-        from vivarium_workbench.lib import remote_run_views as rrv
-        captured = {}
-        self._wire_happy(rrv, tmp_path, monkeypatch, captured)
-        r = client.post("/api/remote-run-start", json={"study": "study-a"})
-        assert r.status_code == 202
-        assert captured["run_parca"] is True
-
-    def test_run_parca_explicit_false_preserved(self, client, tmp_path, monkeypatch):
-        from vivarium_workbench.lib import remote_run_views as rrv
-        captured = {}
-        self._wire_happy(rrv, tmp_path, monkeypatch, captured)
-        r = client.post("/api/remote-run-start", json={"study": "study-a", "run_parca": False})
-        assert r.status_code == 202
-        assert captured["run_parca"] is False
-
-    def test_route_in_openapi(self, client):
-        paths = client.get("/openapi.json").json()["paths"]
-        assert "/api/remote-run-start" in paths
-        assert "post" in paths["/api/remote-run-start"]
-        schemas = client.get("/openapi.json").json()["components"]["schemas"]
-        assert "RemoteRunStartResponse" in schemas
-
-
-# ===========================================================================
-# C-state-3e: GitHub device-flow auth (5 thin wrappers over lib.github_auth)
-# Every test monkeypatches the github_auth fns reached via the auth_views
-# module attribute — no test ever touches real GitHub.  The 2 POSTs pass CSRF
-# because the TestClient sends no Origin header.
 # ===========================================================================
 class TestAuthRoutes:
     # -- POST /api/auth/github/start -----------------------------------------

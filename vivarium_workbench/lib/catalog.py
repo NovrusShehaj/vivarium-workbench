@@ -340,8 +340,13 @@ def _check_installed_module_sync(
     Swallows all errors (returns None on any unexpected failure) so callers
     never 500.
     """
-    venv_py = ws_root / ".venv" / "bin" / "python3"
-    if not venv_py.is_file():
+    venv_py = None
+    for rel in ("bin/python3", "bin/python", "Scripts/python.exe"):
+        cand = ws_root / ".venv" / rel
+        if cand.is_file():
+            venv_py = cand
+            break
+    if not venv_py:
         return None  # no venv to introspect; treat as consistent
     # The import name is derived from the display/dist name (hyphen→underscore),
     # which preserves case — but Python top-level packages are conventionally
@@ -410,8 +415,13 @@ def _detect_workspace_venv_distributions(ws_root: Path) -> dict[str, dict]:
     Returns {} if the venv is missing, probe times out, or JSON parse
     fails — caller should degrade gracefully (no transitive detection).
     """
-    venv_py = ws_root / ".venv" / "bin" / "python3"
-    if not venv_py.is_file():
+    venv_py = None
+    for rel in ("bin/python3", "bin/python", "Scripts/python.exe"):
+        cand = ws_root / ".venv" / rel
+        if cand.is_file():
+            venv_py = cand
+            break
+    if not venv_py:
         return {}
     try:
         result = subprocess.run(

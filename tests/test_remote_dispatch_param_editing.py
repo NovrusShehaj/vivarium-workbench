@@ -110,40 +110,6 @@ def test_edited_baseline_param_survives_save_and_reload_over_real_http(tmp_path,
 # ---------------------------------------------------------------------------
 
 
-def test_remote_run_submit_blocks_with_clear_error_when_unset_over_real_http(
-    tmp_path, dashboard_client, monkeypatch
-):
-    monkeypatch.setenv("VIVARIUM_WORKBENCH_REMOTE_PINNED", "1")
-    monkeypatch.setenv(
-        "VIVARIUM_WORKBENCH_REMOTE_REPO_URL", "https://github.com/vivarium-collective/v2ecoli")
-    ws = _make_ws(tmp_path, ws_name="blocked-dispatch-ws")
-    client = dashboard_client(ws)
-
-    res = client.post("/api/remote-run-submit", json={"study": "demo", "simulator_id": 66})
-    assert res.status_code == 400, res.text
-    assert "num_generations" in res.json().get("error", "")
-
-    res2 = client.post(
-        "/api/remote-run-submit",
-        json={"study": "demo", "simulator_id": 66, "num_generations": 5})
-    assert res2.status_code == 400, res2.text
-    assert "num_seeds" in res2.json().get("error", "")
-
-
-# ---------------------------------------------------------------------------
-# 3. Dispatch submits the CORRECT values when they ARE set. sms-api is a
-#    genuinely external network service (identical in kind to "AWS Batch"
-#    itself) — this project's own existing tests already fake exactly this
-#    boundary (test_remote_run_views_lib.py's _FakeThinClient). Because
-#    dashboard_client spawns a real subprocess, that in-process fake can't
-#    cross the process boundary, so this stands up a tiny real local HTTP
-#    server (stdlib only) speaking sms-api's actual wire shape and points
-#    VIVA_API_BASE at it — a real end-to-end HTTP round trip proving the
-#    literal bytes on the wire carry the right values, not an assumption
-#    about what SmsApiClient does with them.
-# ---------------------------------------------------------------------------
-
-
 class _FakeSmsApiHandler(BaseHTTPRequestHandler):
     captured: dict | None = None
 
@@ -266,17 +232,6 @@ def _dispatch_remote_composite_block(js: str) -> str:
     return js[i:j]
 
 
-def test_dispatch_remote_composite_reads_and_forwards_config_filename():
-    """Source-level check for the same config_filename gap the two real
-    end-to-end tests above close — mirrors this repo's own established
-    convention for testing static JS with no bundler/test runner (see module
-    docstring). Confirms the advanced panel's new field is actually wired
-    into the request, not just present as inert markup."""
-    block = _dispatch_remote_composite_block(_js_text())
-    assert "cp-config-filename" in block
-    assert "config_filename: configFilename" in block
-
-
 def _dispatch_remote_pinned_block(js: str) -> str:
     i = js.index("function _dispatchRemotePinned(cfg)")
     j = js.index("window._dispatchCurrentSpecBaseline = _dispatchCurrentSpecBaseline;", i)
@@ -287,51 +242,6 @@ def _model_config_block(js: str) -> str:
     i = js.index("function _coerceParamValue(raw, type)")
     j = js.index("// Simulations tab:", i)
     return js[i:j]
-
-
-def test_dispatch_remote_pinned_has_no_silent_default_fallback():
-    block = _dispatch_remote_pinned_block(_js_text())
-    assert "|| 1" not in block
-    assert "params.n_generations || 1" not in block
-    assert "params.n_seeds || 1" not in block
-
-
-def test_dispatch_remote_pinned_blocks_when_generations_or_seeds_unset():
-    block = _dispatch_remote_pinned_block(_js_text())
-    assert "if (!numGenerations) missing.push('n_generations');" in block
-    assert "if (!numSeeds) missing.push('n_seeds');" in block
-    # Blocks BEFORE the confirm()/POST — never asks the user to confirm a
-    # dispatch that's going to be rejected anyway.
-    i_guard = block.index("missing.length")
-    i_confirm = block.index("confirm(msg)")
-    i_post = block.index("/api/remote-run-submit")
-    assert i_guard < i_confirm < i_post
-    assert "Cannot dispatch:" in block
-    assert "Model tab" in block  # points the user at the new editable-params UI
-
-
-def test_dispatch_remote_pinned_confirm_shows_resolved_generations_and_seeds():
-    block = _dispatch_remote_pinned_block(_js_text())
-    i_msg = block.index("var msg =")
-    i_confirm = block.index("confirm(msg)")
-    msg_block = block[i_msg:i_confirm]
-    assert "generations:" in msg_block
-    assert "seeds:" in msg_block
-    assert "numGenerations" in msg_block and "numSeeds" in msg_block
-
-
-def test_dispatch_remote_pinned_refetches_fresh_study_state_before_reading_params():
-    """Stale-state re-fetch: window._study can be a stale in-memory copy
-    fetched before a param edit landed server-side (a confirmed real failure
-    mode — a tab left open across a baseline-param save re-dispatched the OLD
-    params from memory even though study.yaml on disk was already correct).
-    _dispatchRemotePinned must re-fetch via DataSource.loadStudy before
-    reading baseline[0].params."""
-    block = _dispatch_remote_pinned_block(_js_text())
-    assert "window.DataSource.loadStudy(slug)" in block
-    i_fetch = block.index("loadStudy(slug)")
-    i_read = block.index("baseline[0] && baseline[0].params")
-    assert i_fetch < i_read
 
 
 def test_model_config_renders_editable_input_and_save_button_when_baseline_name_present():

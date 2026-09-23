@@ -23,7 +23,7 @@ import types as _pytypes
 import typing
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from vivarium_workbench.lib import models as _models
 
@@ -107,6 +107,7 @@ _MODELS: list[type[BaseModel]] = [
     # System & workspace models
     _models.FrameworkMetrics,
     _models.GithubRepo,
+    _models.ExtensionInfo,
     _models.UiConfig,
     _models.WorkspaceHome,
     # Composite runs models
@@ -212,8 +213,8 @@ def _ts_type(tp: object) -> str:
         val_ts = _ts_type(args[1]) if len(args) == 2 else "any"
         return f"Record<string, {val_ts}>"
 
-    # Primitives.
-    if tp is str:
+    # Primitives (a write-only pydantic SecretStr is a string on the wire).
+    if tp is str or (isinstance(tp, type) and issubclass(tp, SecretStr)):
         return "string"
     if tp in (int, float):
         return "number"
@@ -247,18 +248,36 @@ def _emit_interface(model: type[BaseModel]) -> str:
     return "\n".join(lines)
 
 
-def generate_ts() -> str:
-    """Return the full TypeScript declaration text for the payload models."""
-    blocks = [
-        "// AUTO-GENERATED from vivarium_workbench/lib/models.py — do not edit by hand.\n"
-        "// Regenerate: python -m vivarium_workbench.lib.generate_ts"
-    ]
-    for name, tp in _ALIASES.items():
+def render_declarations(
+    models: "list[type[BaseModel]]",
+    aliases: "dict[str, object] | None" = None,
+    *,
+    header: str,
+) -> str:
+    """Render TypeScript declarations for ``models`` (+ named Literal ``aliases``).
+
+    The reusable core of :func:`generate_ts`: an extension package can render
+    its own payload models with the same emitter (the extension imports the
+    core, never the other way round).
+    """
+    blocks = [header]
+    for name, tp in (aliases or {}).items():
         union = " | ".join(_ts_literal(v) for v in typing.get_args(tp))
         blocks.append(f"export type {name} = {union};")
-    for model in _MODELS:
+    for model in models:
         blocks.append(_emit_interface(model))
     return "\n\n".join(blocks) + "\n"
+
+
+def generate_ts() -> str:
+    """Return the full TypeScript declaration text for the payload models."""
+    return render_declarations(
+        _MODELS, _ALIASES,
+        header=(
+            "// AUTO-GENERATED from vivarium_workbench/lib/models.py — do not edit by hand.\n"
+            "// Regenerate: python -m vivarium_workbench.lib.generate_ts"
+        ),
+    )
 
 
 def main() -> None:

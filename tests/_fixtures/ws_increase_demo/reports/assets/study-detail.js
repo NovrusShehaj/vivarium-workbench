@@ -106,13 +106,13 @@
     });
     if (kind === 'tests') { _loadTestsPanel(window._study); }
     if (kind === 'readouts') { _loadReadouts(); _loadReadoutsDownloadPointer(); }
-    if (kind === 'visualize') { _loadCharts('viz-charts-panel'); _loadNativeGallery(); }
+    if (kind === 'visualize') { _loadCharts('viz-charts-panel'); _loadNativeGallery(); _loadRemoteFigures(); }
     if (kind === 'compose') { _loadModelConfig(); _loadModelCards(); }
     // Study-spine reorg (spec §1, §3.2/3.3/3.4): Simulations keeps only the
     // runs table now; the analysis-files zip + raw-data bulk that used to
     // trigger here moved onto their own Evidence panels (Analyses/Results).
     if (kind === 'simulate') { _loadStudySims(); }
-    if (kind === 'analyses') { _loadAnalyses(); }
+    if (kind === 'analyses') { _loadAnalyses(); _loadRemoteAnalyses(); }
     if (kind === 'results') { _loadResults(); }
     // Study-spine reorg (spec §1, §3.7/§3.8): Audit + Build complete the
     // Assurance trio — dispatched the same way as the other lazy-loaded
@@ -159,8 +159,11 @@
     if (!host) return;
     var slug = host.getAttribute('data-study') || studyName();
     if (!slug) return;
-    fetch('/api/study-readouts?study=' + encodeURIComponent(slug),
-          {headers: {Accept: 'application/json'}})
+    var _DS = window.DataSource;
+    var _readoutsUrl = (_DS && _DS.readoutsUrl)
+      ? _DS.apiUrl(_DS.readoutsUrl(slug))
+      : '/api/study-readouts?study=' + encodeURIComponent(slug);
+    fetch(_readoutsUrl, {headers: {Accept: 'application/json'}})
       .then(function(r) { return r.ok || r.status === 422 || r.status === 501 ? r.json() : null; })
       .then(function(j) {
         if (emitterHost) emitterHost.innerHTML = _renderEmitterBlock(j && j.emitter);
@@ -189,7 +192,7 @@
     if (!em || !em.name) {
       return '<p class="empty-message">No emitter configuration declared.</p>';
     }
-    var errNote = em.error ? '<p class="muted" style="color:#92400e">' + e(em.error) + '</p>' : '';
+    var errNote = em.error ? '<p class="muted" style="color:var(--warning-fg)">' + e(em.error) + '</p>' : '';
     var rows = [
       ['Emitter', (em.class_name ? '<code>' + e(em.class_name) + '</code> (' + e(em.name) + ')' : '<code>' + e(em.name) + '</code>')],
       ['Module', em.module ? '<code style="font-size:0.85em;">' + e(em.module) + '</code>' : dash],
@@ -200,7 +203,7 @@
       ['Emit scope', em.scope ? e(em.scope) : dash],
     ];
     var body = rows.map(function (r) {
-      return '<tr style="border-bottom:1px solid #f1f5f9;">'
+      return '<tr style="border-bottom:1px solid var(--border-faint);">'
         + '<td style="padding:6px; font-weight:600; width:140px; vertical-align:top;">' + r[0] + '</td>'
         + '<td style="padding:6px; vertical-align:top;">' + r[1] + '</td></tr>';
     }).join('');
@@ -219,12 +222,12 @@
     }
     var head = '<table class="observables-table" style="width:100%; border-collapse: collapse;"><thead><tr>'
       + ['Store path', 'dtype', 'Shape', 'Units', 'Bytes'].map(function (h) {
-          return '<th style="text-align:left; padding:6px; border-bottom:1px solid #e2e8f0;">' + h + '</th>';
+          return '<th style="text-align:left; padding:6px; border-bottom:1px solid var(--border);">' + h + '</th>';
         }).join('') + '</tr></thead><tbody>';
     var body = shaped.map(function (o) {
       var dims = o.shape.map(function (d) { return String(d); });
       var shapeStr = '(' + dims.join(', ') + (dims.length === 1 ? ',' : '') + ')';
-      return '<tr style="border-bottom:1px solid #f1f5f9;">'
+      return '<tr style="border-bottom:1px solid var(--border-faint);">'
         + '<td style="padding:6px;"><code style="font-size:0.85em;">' + e(o.store_path) + '</code></td>'
         + '<td style="padding:6px;">' + e(o.dtype || '') + '</td>'
         + '<td style="padding:6px;"><code style="font-size:0.85em;">' + e(shapeStr) + '</code></td>'
@@ -255,10 +258,13 @@
     _readoutsDownloadPointerLoaded = true;
     var slug = studyName();
     if (!slug) { host.innerHTML = ''; return; }
-    fetch('/api/simulations?study=' + encodeURIComponent(slug), { headers: { Accept: 'application/json' } })
+    var _dsP = window.DataSource;
+    var _spUrl = (_dsP && _dsP.simulationsUrl) ? _dsP.apiUrl(_dsP.simulationsUrl(slug))
+      : '/api/simulations?study=' + encodeURIComponent(slug);
+    fetch(_spUrl, { headers: { Accept: 'application/json' } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
-        var sims = (j && j.simulations) || [];
+        var sims = (_dsP && _dsP.simulationsFilter) ? _dsP.simulationsFilter((j && j.simulations) || [], slug) : ((j && j.simulations) || []);
         var withData = sims.filter(function (s) { return s.run_id && (s.store_path || s.db_path); });
         host.innerHTML = withData.length
           ? '<p class="muted">⬇ Download this study\'s raw run data → '
@@ -299,10 +305,10 @@
         + 'margin:0 0 4px 0">' + e(g) + '/</div>'
         + '<table class="data-files-table" style="width:100%;border-collapse:collapse;font-size:0.9em">';
       groups[g].forEach(function (f) {
-        html += '<tr style="border-top:1px solid #eef2f6">'
+        html += '<tr style="border-top:1px solid var(--border-faint)">'
           + '<td style="padding:5px 8px"><a href="' + e(f.download_url) + '">'
           + e(f.name) + '</a></td>'
-          + '<td style="padding:5px 8px;text-align:right;color:#64748b;white-space:nowrap">'
+          + '<td style="padding:5px 8px;text-align:right;color:var(--text-muted);white-space:nowrap">'
           + e(_fmtBytes(f.size)) + '</td></tr>';
       });
       html += '</table></div>';
@@ -334,12 +340,70 @@
   }
   window._loadAnalyses = _loadAnalyses;
 
+  // Analyses tab: list the study's completed remote sims' ptools/EcoCyc overlay
+  // .tsv files for download, read from their S3 result_uri via the remote
+  // setting (complements the local "Analysis result files" above and the
+  // figures in the Visualizations tab). Silent when unavailable.
+  var _remoteAnalysesLoaded = false;
+  function _loadRemoteAnalyses() {
+    var anchor = document.getElementById('data-files');
+    if (!anchor || _remoteAnalysesLoaded) return;
+    _remoteAnalysesLoaded = true;
+    var slug = anchor.getAttribute('data-study') || studyName();
+    if (!slug) return;
+    var panel = document.getElementById('remote-analyses-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'remote-analyses-panel';
+      anchor.parentNode.insertBefore(panel, anchor.nextSibling);
+    }
+    fetch('/api/study-remote-figures?study=' + encodeURIComponent(slug) + '&limit=8')
+      .then(function (r) { return r.ok ? r.json() : { available: false }; })
+      .then(function (d) {
+        if (!d || !d.available || !(d.sims || []).length) {
+          panel.innerHTML = (d && d.reason === 's3-auth-error' && d.total_completed_remote_sims)
+            ? '<p class="muted" style="margin:10px 0">' + d.total_completed_remote_sims
+              + ' completed remote sim(s) have ptools/figures on S3, but the server can’t read them '
+              + '— check the workbench host’s AWS credentials.</p>'
+            : '';
+          _remoteAnalysesLoaded = false; return;
+        }
+        var enc = encodeURIComponent, esc = escapeHtmlForTests;
+        var rows = (d.sims || []).map(function (s) {
+          return (s.analyses || []).map(function (a) {
+            var links = (a.ptools || []).map(function (pp) {
+              var fname = pp.replace(/^ptools\//, '');
+              var url = '/api/remote-analysis-figure?simulation_id=' + enc(s.simulation_id)
+                + '&analysis=' + enc(a.name) + '&path=' + enc(pp);
+              return '<li><a href="' + url + '" download="' + esc(fname) + '">' + esc(fname) + '</a></li>';
+            }).join('');
+            var more = a.n_ptools > (a.ptools || []).length
+              ? ' <span class="muted">(showing ' + (a.ptools || []).length + ' of ' + a.n_ptools + ')</span>' : '';
+            return '<div style="margin:10px 0">'
+              + '<div style="font-weight:600">' + esc(s.sim_name) + '</div>'
+              + '<div class="muted" style="font-size:0.85em">' + esc(a.name) + ' — '
+              + a.n_ptools + ' ptools · ' + a.n_figures + ' figures' + more + '</div>'
+              + '<ul style="columns:3;-webkit-columns:3;font-size:0.82em;margin:4px 0">' + links + '</ul>'
+              + '</div>';
+          }).join('');
+        }).join('');
+        panel.innerHTML =
+          '<h4 style="margin-top:18px">Remote ptools / EcoCyc overlays (S3)</h4>'
+          + '<p class="muted">Rendered on GovCloud, read from S3 via the remote setting — showing '
+          + d.shown_sims + ' of ' + d.total_completed_remote_sims
+          + ' completed remote sims. Rendered figures are in the Visualizations tab.</p>'
+          + rows;
+      })
+      .catch(function () { panel.innerHTML = ''; _remoteAnalysesLoaded = false; });
+  }
+  window._loadRemoteAnalyses = _loadRemoteAnalyses;
+
   function _emitStatusBadge(status) {
     var e = escapeHtmlForTests;
     var styles = {
-      emitted:          {bg: '#d1fae5', fg: '#065f46', bd: '#6ee7b7', glyph: '✓', label: 'emitted'},
-      not_in_emit_plan: {bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5', glyph: '✗', label: 'not in emit plan'},
-      derived:          {bg: '#f1f5f9', fg: '#475569', bd: '#cbd5e1', glyph: '⏳', label: 'derived'},
+      emitted:          {bg: 'var(--success-bg)', fg: 'var(--success-fg)', bd: 'var(--success-border)', glyph: '✓', label: 'emitted'},
+      not_in_emit_plan: {bg: 'var(--danger-bg)', fg: 'var(--danger-fg)', bd: 'var(--danger-border)', glyph: '✗', label: 'not in emit plan'},
+      derived:          {bg: 'var(--surface-3)', fg: 'var(--text-secondary)', bd: 'var(--border-2)', glyph: '⏳', label: 'derived'},
     };
     var s = styles[status] || styles.derived;
     return '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;background:'
@@ -348,7 +412,7 @@
 
   function _renderReadoutsTable(j) {
     var e = escapeHtmlForTests;
-    var note = j.note ? '<p class="muted" style="color:#92400e">' + e(j.note) + '</p>' : '';
+    var note = j.note ? '<p class="muted" style="color:var(--warning-fg)">' + e(j.note) + '</p>' : '';
     var rows = j.rows || [];
     var idxHtml = function (o) {
       return o.index_by ? '<code style="font-size:0.85em;">' + e(o.index_by.type) + '=' + e(o.index_by.value) + '</code>'
@@ -373,7 +437,7 @@
     cols.forEach(function (c) { keep[c.id] = true; });
     var head = '<table class="observables-table" style="width:100%; border-collapse: collapse;"><thead><tr>'
       + cols.map(function(c) {
-          return '<th style="text-align:left; padding:6px; border-bottom:1px solid #e2e8f0;">' + c.label + '</th>';
+          return '<th style="text-align:left; padding:6px; border-bottom:1px solid var(--border);">' + c.label + '</th>';
         }).join('') + '</tr></thead><tbody>';
     var body = rows.map(function(o) {
       var tds = '';
@@ -383,7 +447,7 @@
       if (keep.indexed_by) tds += '<td style="padding:6px; vertical-align:top;">' + idxHtml(o) + '</td>';
       if (keep.units) tds += '<td style="padding:6px; vertical-align:top; font-size:0.9em;">' + e(o.units || '') + '</td>';
       if (keep.description) tds += '<td style="padding:6px; vertical-align:top; max-width:380px; font-size:0.9em;">' + e(o.description || '') + '</td>';
-      return '<tr style="border-bottom:1px solid #f1f5f9;" data-readout="' + e(o.name) + '">' + tds + '</tr>';
+      return '<tr style="border-bottom:1px solid var(--border-faint);" data-readout="' + e(o.name) + '">' + tds + '</tr>';
     }).join('');
     return note + head + body + '</tbody></table>';
   }
@@ -415,20 +479,38 @@
   // chart's stamped meta sidecar) — this render is conditional on it so a
   // chart with no recorded provenance omits the link rather than fabricate
   // one (Task V3).
-  // Auto-height resizer (Task V6): byte-identical logic to the
-  // embed_visualizations iframe's onload handler in
-  // templates/study-detail.html — grows an iframe to its content's
-  // scrollHeight (or a CSS-pinned overflow:hidden height) so a three.js
-  // canvas / self-contained HTML figure isn't clipped inside a fixed box,
-  // without giving it a scrollbar. Reused rather than re-derived so the two
-  // iframe call sites can't drift.
-  var _FIGURE_IFRAME_ONLOAD =
-    "(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;" +
-    "var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;" +
-    "var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){" +
-    "var hm=(bStyle.height||'').match(/^(\\d+(?:\\.\\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}" +
-    "var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);" +
-    "if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)";
+  // Auto-height resizer (Task V6): grows a figure iframe to its content so a
+  // three.js canvas / self-contained HTML figure isn't clipped inside a fixed
+  // box. Two extra steps kill the innermost of the nested-scrollbar bug without
+  // ever feedback-looping on elastic (height:100%) Plotly content:
+  //   1. zero the figure document's default 8px body margin — that margin made
+  //      documentElement.scrollHeight sit ~8px above the fitted body height, so
+  //      the figure kept an 8px scrollbar (and made a re-fitting observer run
+  //      away, +8px per tick, as the margin compounded);
+  //   2. hide the figure documentElement's own overflow, so any residual px is
+  //      clipped rather than shown as a scrollbar.
+  // One-shot (no ResizeObserver): elastic Plotly fills whatever height we set,
+  // so continuous re-fitting is circular — a single measure is correct and safe.
+  // Exposed on window so the server-rendered embed_visualizations iframes
+  // (templates/study-detail.html) share ONE implementation and can't drift.
+  function _fitFigureFrame(f) {
+    try {
+      var d = f.contentDocument; if (!d) return;
+      var b = d.body, e = d.documentElement;
+      if (b) b.style.margin = '0';
+      if (e) e.style.overflow = 'hidden';
+      var bStyle = b && d.defaultView && d.defaultView.getComputedStyle ? d.defaultView.getComputedStyle(b) : null;
+      var pinnedH = 0;
+      if (bStyle && (bStyle.overflow || '').indexOf('hidden') >= 0) {
+        var hm = (bStyle.height || '').match(/^(\d+(?:\.\d+)?)px$/);
+        if (hm) pinnedH = Math.round(parseFloat(hm[1]));
+      }
+      var h = pinnedH > 0 ? pinnedH : Math.max(e ? e.scrollHeight : 0, b ? b.scrollHeight : 0);
+      if (h > 0) f.style.height = h + 'px';
+    } catch (e) {}
+  }
+  window.__fitFigureFrame = _fitFigureFrame;
+  var _FIGURE_IFRAME_ONLOAD = "window.__fitFigureFrame&&window.__fitFigureFrame(this)";
 
   function _renderChartCard(c) {
     // c.svg=inline svg; c.img=data-URI <img>; a declared threejs:/html: figure
@@ -656,6 +738,67 @@
   // a self-contained Altair/Plotly doc, so it renders in its own srcdoc iframe
   // (innerHTML would not execute the embedded vega/plotly <script> tags).
   var _nativeGalleryLoaded = false;
+  var _remoteFiguresLoaded = false;
+
+  // Visualizations tab: render the study's completed remote sims' rendered
+  // figures straight from their S3 result_uri (via /api/study-remote-figures +
+  // /api/remote-analysis-figure). This is the "accessible through the remote
+  // setting" path — figures live on S3, not landed locally. Volume-capped
+  // server-side; degrades silently to nothing when unavailable (no creds,
+  // local-only workspace, or a study with no remote figures).
+  function _loadRemoteFigures() {
+    var anchor = document.getElementById('native-gallery-panel');
+    if (!anchor || _remoteFiguresLoaded) return;
+    _remoteFiguresLoaded = true;
+    var slug = studyName();
+    var panel = document.getElementById('remote-figures-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'remote-figures-panel';
+      anchor.parentNode.insertBefore(panel, anchor.nextSibling);
+    }
+    fetch('/api/study-remote-figures?study=' + encodeURIComponent(slug) + '&limit=8')
+      .then(function (r) { return r.ok ? r.json() : { available: false }; })
+      .then(function (d) {
+        if (!d || !d.available || !(d.sims || []).length) {
+          panel.innerHTML = (d && d.reason === 's3-auth-error' && d.total_completed_remote_sims)
+            ? '<p class="muted" style="margin:10px 0">' + d.total_completed_remote_sims
+              + ' completed remote sim(s) have figures on S3, but the server can’t read them '
+              + '— check the workbench host’s AWS credentials.</p>'
+            : '';
+          _remoteFiguresLoaded = false; return;
+        }
+        var enc = encodeURIComponent;
+        var cards = [];
+        (d.sims || []).forEach(function (s) {
+          (s.analyses || []).forEach(function (a) {
+            (a.figures || []).forEach(function (fp) {
+              var url = '/api/remote-analysis-figure?simulation_id=' + enc(s.simulation_id)
+                + '&analysis=' + enc(a.name) + '&path=' + enc(fp);
+              cards.push('<div class="figure-card">'
+                + '<iframe src="' + url + '" loading="lazy" '
+                + 'class="figure-media-frame figure-media-frame--native"></iframe>'
+                + '<div class="figure-caption-row">'
+                + '<span class="figure-source-chip">remote · S3</span>'
+                + '<span class="figure-title">'
+                + escapeHtmlForTests(s.sim_name + ' · ' + fp.replace(/^viz\//, '')) + '</span>'
+                + '<span class="muted" style="margin-left:6px">(' + a.n_figures
+                + ' figs · ' + a.n_ptools + ' ptools)</span>'
+                + '</div></div>');
+            });
+          });
+        });
+        panel.innerHTML =
+          '<div class="figure-section-head" style="font-weight:600;margin:10px 0 6px">'
+          + 'Remote analysis figures (S3) — showing ' + d.shown_sims + ' of '
+          + d.total_completed_remote_sims + ' completed remote sims</div>'
+          + cards.join('');
+        _figuresSourceState.native = true;
+        _updateFiguresEmptyState();
+      })
+      .catch(function () { panel.innerHTML = ''; _remoteFiguresLoaded = false; });
+  }
+  window._loadRemoteFigures = _loadRemoteFigures;
   function _loadNativeGallery() {
     var host = document.getElementById('native-gallery-panel');
     if (!host || _nativeGalleryLoaded) return;
@@ -735,7 +878,7 @@
     }).join(' ');
     return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" ' +
       'style="display:block" aria-hidden="true"><polyline points="' + pts +
-      '" fill="none" stroke="#6366f1" stroke-width="1.5"/></svg>';
+      '" fill="none" style="stroke:var(--chart-series-1)" stroke-width="1.5"/></svg>';
   }
 
   function _resultsFmtNum(v) {
@@ -760,13 +903,22 @@
     if (_resultsPreviewLoaded && !force) return;
     _resultsPreviewLoaded = true;
     var slug = studyName();
-    var path = '/api/study-results?study=' + encodeURIComponent(slug);
-    var url = (window.DataSource && window.DataSource.apiUrl) ? window.DataSource.apiUrl(path) : path;
+    var DS = window.DataSource;
+    // Snapshot mode: DataSource.resultsUrl maps to the baked per-study JSON
+    // (publish.py). Live mode: the ?study= query endpoint. Fall back to the
+    // raw path only if DataSource is somehow unavailable.
+    var url = (DS && DS.resultsUrl)
+      ? DS.apiUrl(DS.resultsUrl(slug))
+      : '/api/study-results?study=' + encodeURIComponent(slug);
     fetch(url).then(function (r) { return r.text(); }).then(function (t) {
       var d = {}; try { d = t ? JSON.parse(t) : {}; } catch (e) {}
       if (!d.present) {
-        mount.innerHTML = '<p class="empty-message">' +
-          escapeHtmlForTests(d.reason || 'No run data to preview yet.') + '</p>';
+        // The preview reads the latest LOCAL run's store; a remote-only study
+        // has none, so don't leave a bare "no runs yet" over a list of remote
+        // runs — point at where the runs actually are.
+        mount.innerHTML = '<p class="empty-message">No local run preview yet — ' +
+          'if this study has remote runs, browse them in <strong>Raw simulation data</strong> ' +
+          'below, or see rendered figures in the <strong>Visualizations</strong> tab.</p>';
         return;
       }
       var stores = d.stores || [];
@@ -781,7 +933,7 @@
         '<p class="muted" style="font-size:0.85em;margin:0 0 8px">From run <code>' +
         escapeHtmlForTests(String(d.run_label || d.run_id || '')) + '</code></p>' +
         '<table style="width:100%;border-collapse:collapse;font-size:0.86em">' +
-        '<thead><tr style="text-align:left;border-bottom:1px solid #e5e7eb">' +
+        '<thead><tr style="text-align:left;border-bottom:1px solid var(--border)">' +
         '<th style="padding:5px 8px">Path</th><th style="padding:5px 8px">dtype</th>' +
         '<th style="padding:5px 8px">Sparkline</th>' +
         '<th style="padding:5px 8px;text-align:right">First</th>' +
@@ -790,7 +942,7 @@
         '<th style="padding:5px 8px;text-align:right">Max</th>' +
         '<th style="padding:5px 8px"></th></tr></thead><tbody>' +
         stores.map(function (s) {
-          return '<tr style="border-bottom:1px solid #f3f4f6">' +
+          return '<tr style="border-bottom:1px solid var(--border-faint)">' +
             '<td style="padding:5px 8px"><code style="font-size:0.85em">' + escapeHtmlForTests(s.path) + '</code></td>' +
             '<td style="padding:5px 8px">' + escapeHtmlForTests(s.dtype || '') + '</td>' +
             '<td style="padding:5px 8px">' + _resultsSparklineSvg(s.sparkline) + '</td>' +
@@ -820,11 +972,12 @@
     _rawDataLoaded = true;
     var bulkBtn = document.getElementById('raw-data-download-all');
     var slug = studyName(), esc = window.SimTable ? window.SimTable.esc : function (x) { return String(x == null ? '' : x); };
-    var path = '/api/simulations?study=' + encodeURIComponent(slug);
-    var url = (window.DataSource && window.DataSource.apiUrl) ? window.DataSource.apiUrl(path) : path;
+    var DS = window.DataSource;
+    var url = (DS && DS.simulationsUrl) ? DS.apiUrl(DS.simulationsUrl(slug))
+      : '/api/simulations?study=' + encodeURIComponent(slug);
     fetch(url).then(function (r) { return r.text(); }).then(function (t) {
       var d = {}; try { d = t ? JSON.parse(t) : {}; } catch (e) {}
-      var rows = d.simulations || [];
+      var rows = (DS && DS.simulationsFilter) ? DS.simulationsFilter(d.simulations || [], slug) : (d.simulations || []);
       if (!rows.length) {
         mount.innerHTML = '<p class="empty-message">No runs with persisted data yet.</p>';
         if (bulkBtn) bulkBtn.style.display = 'none';
@@ -835,18 +988,66 @@
         bulkBtn.style.display = withDataCount ? '' : 'none';
         bulkBtn.textContent = '⬇ Download all raw data (' + withDataCount + ')';
       }
-      mount.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.88em">' +
-        rows.map(function (row) {
-          var runId = row.run_id || '', hasData = !!(row.store_path || row.db_path);
-          var label = row.sim_name || row.label || runId;
-          var loc = window.SimTable ? window.SimTable.location(row) : esc(row.store_path || row.db_path || '');
-          var dl = hasData
-            ? '<a class="action-btn" download href="' + (window.__BASE_PATH__ || "") + '/api/simulation-run-download?run_id=' + encodeURIComponent(runId) + '">⬇ Data</a>'
-            : '<span class="muted" style="font-size:0.82em">no store</span>';
-          return '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:5px 8px"><code style="font-size:0.85em">' + esc(label) + '</code></td>' +
-            '<td style="padding:5px 8px">' + loc + '</td>' +
-            '<td style="padding:5px 8px;text-align:right">' + dl + '</td></tr>';
-        }).join('') + '</table>';
+      // Navigate 100s of runs: fold by launch campaign (the leading simNNN — one
+      // fan-out per campaign), show status, and filter live. Turns a flat dump
+      // into a browsable index.
+      function _campaignOf(row) {
+        var n = String(row.sim_name || row.label || row.run_id || '');
+        var m = n.match(/^(sim\d+)/i);
+        return m ? m[1].toLowerCase() : 'other';
+      }
+      function _statusOf(row) { return String(row.status || '').toLowerCase() || 'unknown'; }
+      function _stColor(st) {
+        return st === 'completed' ? 'var(--success-fg)' : st === 'failed' ? 'var(--danger-fg)'
+          : st === 'running' ? 'var(--link)' : st === 'cancelled' ? 'var(--warning-fg)' : 'var(--text-subtle)';
+      }
+      var byStatus = {};
+      rows.forEach(function (r) { var s = _statusOf(r); byStatus[s] = (byStatus[s] || 0) + 1; });
+      var statusSummary = Object.keys(byStatus).sort().map(function (s) {
+        return '<span style="color:' + _stColor(s) + ';font-weight:600">' + byStatus[s] + '</span> ' + esc(s);
+      }).join(' · ');
+      var groups = {};
+      rows.forEach(function (r) { var c = _campaignOf(r); (groups[c] = groups[c] || []).push(r); });
+      function _rowHtml(row) {
+        var runId = row.run_id || '', hasData = !!(row.store_path || row.db_path);
+        var label = row.sim_name || row.label || runId;
+        var loc = window.SimTable ? window.SimTable.location(row) : esc(row.store_path || row.db_path || '');
+        var st = _statusOf(row);
+        var dl = hasData
+          ? '<a class="action-btn" download href="' + (window.__BASE_PATH__ || "") + '/api/simulation-run-download?run_id=' + encodeURIComponent(runId) + '">⬇ Data</a>'
+          : '<span class="muted" style="font-size:0.82em">no store</span>';
+        return '<tr class="rawrow" data-name="' + esc(label.toLowerCase()) + '" style="border-bottom:1px solid var(--border-faint)">' +
+          '<td style="padding:5px 8px"><code style="font-size:0.85em">' + esc(label) + '</code></td>' +
+          '<td style="padding:5px 8px"><span style="color:' + _stColor(st) + ';font-size:0.8em;font-weight:600">' + esc(st) + '</span></td>' +
+          '<td style="padding:5px 8px">' + loc + '</td>' +
+          '<td style="padding:5px 8px;text-align:right">' + dl + '</td></tr>';
+      }
+      var groupsHtml = Object.keys(groups).sort().map(function (c) {
+        var g = groups[c];
+        var done = g.filter(function (r) { return _statusOf(r) === 'completed'; }).length;
+        return '<details class="rawgroup" open style="margin:6px 0">' +
+          '<summary style="cursor:pointer;font-weight:600;padding:4px 0">' + esc(c) +
+          ' <span class="muted" style="font-weight:400">(' + g.length + ' runs · ' + done + ' complete)</span></summary>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:0.88em">' + g.map(_rowHtml).join('') + '</table>' +
+          '</details>';
+      }).join('');
+      mount.innerHTML =
+        '<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;flex-wrap:wrap">' +
+        '<strong>' + rows.length + ' runs</strong><span class="muted" style="font-size:0.88em">' + statusSummary + '</span>' +
+        '<input id="rawdata-search" placeholder="filter runs…" ' +
+        'style="margin-left:auto;padding:4px 8px;border:1px solid var(--border-2);border-radius:5px;font-size:0.85em">' +
+        '</div>' + groupsHtml;
+      var _search = document.getElementById('rawdata-search');
+      if (_search) _search.addEventListener('input', function () {
+        var q = this.value.toLowerCase();
+        mount.querySelectorAll('tr.rawrow').forEach(function (tr) {
+          tr.style.display = (!q || (tr.getAttribute('data-name') || '').indexOf(q) >= 0) ? '' : 'none';
+        });
+        mount.querySelectorAll('details.rawgroup').forEach(function (grp) {
+          var any = Array.prototype.slice.call(grp.querySelectorAll('tr.rawrow')).some(function (tr) { return tr.style.display !== 'none'; });
+          grp.style.display = any ? '' : 'none';
+        });
+      });
     }).catch(function () {
       mount.innerHTML = '<p class="empty-message">Could not load runs.</p>';
       if (bulkBtn) bulkBtn.style.display = 'none';
@@ -904,16 +1105,106 @@
       fetch(_cfgUrl)
         .then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
         .then(function (res) {
-          if (res.status !== 200 || !res.body || !res.body.parameters) {
+          if (res.status !== 200 || !res.body) {
             mount.innerHTML = '<p class="muted" style="font-size:0.85em;margin:0">No resolvable configuration for this composite.</p>';
             return;
           }
+          mount.innerHTML = '';
           var overrides = {}; try { overrides = JSON.parse(overridesJson); } catch (e) {}
-          _renderModelConfig(mount, res.body.parameters, overrides, esc, composite, baselineName);
+          // Exposed parameters (templated knobs), when the composite declares any.
+          if (res.body.parameters && Object.keys(res.body.parameters).length) {
+            _renderModelConfig(mount, res.body.parameters, overrides, esc, composite, baselineName);
+          }
+          // Full model configuration — each process's config formatted (for a
+          // Smoldyn composite this is the model file: species, reactions, bounds).
+          _renderCompositeSource(mount, res.body.state, esc);
+          if (!mount.innerHTML) {
+            mount.innerHTML = '<p class="muted" style="font-size:0.85em;margin:0">No resolvable configuration for this composite.</p>';
+          }
         }).catch(function () { mount.innerHTML = ''; });
     });
   }
   window._loadModelConfig = _loadModelConfig;
+
+  // Minimal YAML pretty-printer for a config object (objects, arrays, scalars).
+  function _yamlish(v, indent) {
+    indent = indent || 0;
+    var pad = new Array(indent + 1).join('  ');
+    function scalar(x) {
+      if (x === null || x === undefined) return 'null';
+      if (typeof x === 'string') return x;
+      return String(x);
+    }
+    if (Array.isArray(v)) {
+      if (!v.length) return pad + '[]';
+      return v.map(function (item) {
+        if (item && typeof item === 'object') {
+          var inner = _yamlish(item, indent + 1);
+          return pad + '- ' + inner.replace(/^\s+/, '');
+        }
+        return pad + '- ' + scalar(item);
+      }).join('\n');
+    }
+    if (v && typeof v === 'object') {
+      var keys = Object.keys(v);
+      if (!keys.length) return pad + '{}';
+      return keys.map(function (k) {
+        var val = v[k];
+        if (val && typeof val === 'object') {
+          // Empty collections must render literally — never fall through to
+          // scalar(), which stringifies {} to "[object Object]" and [] to "".
+          if (Array.isArray(val)) {
+            if (!val.length) return pad + k + ': []';
+            // inline short arrays of scalars (e.g. bounds [0, 100]) for readability
+            if (val.every(function (x) { return typeof x !== 'object'; })) {
+              return pad + k + ': [' + val.map(scalar).join(', ') + ']';
+            }
+          } else if (!Object.keys(val).length) {
+            return pad + k + ': {}';
+          }
+          return pad + k + ':\n' + _yamlish(val, indent + 1);
+        }
+        return pad + k + ': ' + scalar(val);
+      }).join('\n');
+    }
+    return pad + scalar(v);
+  }
+
+  // Render each process node's config as a formatted block — the model file
+  // (for viva-smoldyn: species / reactions / bounds that generate the run).
+  function _renderCompositeSource(mount, state, esc) {
+    if (!state || typeof state !== 'object') return;
+    var procs = [];
+    (function walk(node, name) {
+      if (!node || typeof node !== 'object') return;
+      // Only surface processes that actually carry config. A whole-cell
+      // composite (ecoli_baseline) exposes bookkeeping steps like global_clock
+      // with an empty {} config; rendering those as "Configuration" is pure
+      // noise (the study's real config is the "Config used" panel above).
+      if (node._type === 'process' && node.config &&
+          typeof node.config === 'object' && Object.keys(node.config).length) {
+        procs.push({ name: name, address: node.address || '', config: node.config });
+      }
+      Object.keys(node).forEach(function (k) {
+        if (k !== 'config') walk(node[k], k);
+      });
+    })(state, 'root');
+    if (!procs.length) return;
+    var html = '<div class="model-source">';
+    procs.forEach(function (p) {
+      var addr = String(p.address).split(':').pop();
+      html += '<div class="model-source-block">' +
+        '<div class="model-source-head"><strong>' + esc(p.name) + '</strong>' +
+        (addr ? ' <span class="muted">— ' + esc(addr) + '</span>' : '') + '</div>' +
+        '<pre class="model-source-pre">' + esc(_yamlish(p.config, 0)) + '</pre>' +
+        '</div>';
+    });
+    html += '</div>';
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    mount.appendChild(wrap);
+  }
+  window._renderCompositeSource = _renderCompositeSource;
 
   // Model tab (study-spine reorg Task 6): the study's ACTUAL composite(s),
   // shown as the SAME rich card the Modules/Composites view uses — full
@@ -928,6 +1219,39 @@
   // route, no new endpoint). One card per unique composite; a study with no
   // declared composite gets a clear empty note instead of a blank panel.
   var _modelCardsLoaded = false;
+  // Render the study's ONE canonical config (source of truth) as a single panel
+  // at the top of the model section, resolved from the config file so every study
+  // displays the same legible config regardless of per-arm mechanics (config_file
+  // fold vs whole_config path vs inlined params). `ref` is study.config, else
+  // three_arm.native_config (the vEcoli source the run_config is generated from).
+  function _renderStudyConfigPanel(mount, ref, esc) {
+    var wrap = document.createElement('div');
+    wrap.className = 'model-study-config';
+    wrap.style.cssText = 'margin:0 0 14px 0';
+    wrap.innerHTML =
+      '<details class="model-config-used" open style="margin:0">' +
+      '<summary class="muted" style="font-size:0.78em;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;cursor:pointer">' +
+      'Config used <span style="font-weight:400;text-transform:none">— source of truth: <code>' + esc(ref) + '</code>, run by both arms</span></summary>' +
+      '<pre class="study-config-pre" style="font-size:0.8em;line-height:1.45;background:var(--surface-2,var(--code-bg));border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:4px 0 0;overflow:auto;max-height:420px">Resolving ' + esc(ref) + ' …</pre></details>';
+    mount.appendChild(wrap);
+    var pre = wrap.querySelector('.study-config-pre');
+    var api = (window.DataSource && window.DataSource.apiUrl)
+      ? window.DataSource.apiUrl.bind(window.DataSource) : function (p) { return p; };
+    fetch(api('/api/study-config-file?study=' + encodeURIComponent(studyName()) +
+              '&ref=' + encodeURIComponent(ref)))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!pre) return;
+        if (!j || !j.content) { pre.textContent = ref + ' (config not resolvable from the workspace)'; return; }
+        // Drop meta keys (_note explaining run_config is generated) — show the
+        // config itself, the experiment definition a reader cares about.
+        var shown = {};
+        Object.keys(j.content).forEach(function (k) { if (k[0] !== '_') shown[k] = j.content[k]; });
+        pre.textContent = _yamlish(shown);
+      })
+      .catch(function () { if (pre) pre.textContent = ref + ' (could not load config)'; });
+  }
+
   function _loadModelCards(force) {
     var mount = document.getElementById('model-composite-cards');
     if (!mount) return;
@@ -976,16 +1300,73 @@
     var modelSection = document.getElementById('model-section');
     if (modelSection) modelSection.style.display = 'none';
     mount.innerHTML = '';
+    // The study's ONE canonical config (source of truth) — the vEcoli config both
+    // model arms derive from (study.config, else three_arm.native_config, surfaced
+    // by the template as data-study-config). Render it ONCE for the whole study so
+    // every study shows the same legible config, instead of each arm's derived
+    // params (run_config vs whole_config vs inlined). Absent → fall back to the
+    // per-arm panels below (a non-comparison / single-model study).
+    var _esc0 = window.SimTable ? window.SimTable.esc : function (s) { return String(s == null ? '' : s); };
+    var _studyCfgRef = (mount.getAttribute('data-study-config') || '').trim();
+    var _hasStudyCfg = !!_studyCfgRef;
+    if (_hasStudyCfg) _renderStudyConfigPanel(mount, _studyCfgRef, _esc0);
     order.forEach(function (id) {
       var entry = byId[id];
       var wrap = document.createElement('div');
       wrap.className = 'model-composite-card-wrap';
       wrap.style.marginBottom = '12px';
       var esc = window.SimTable ? window.SimTable.esc : function (s) { return String(s == null ? '' : s); };
+      // The study's actual config that runs this composite — the run_config
+      // folded into the baseline condition's params (injected_processes,
+      // cache_dir, generations, …). The "Configuration" section below renders
+      // body.state, which IS the config for a model like Smoldyn (state == the
+      // model file) but NOT for ecoli_baseline, whose study-specific config lives
+      // in these overrides. Show it as a "Config used" panel ABOVE the card so a
+      // reader sees which config produced this model without opening the loom.
+      var _cfgObj = {}; try { _cfgObj = JSON.parse(entry.overridesJson || '{}'); } catch (e) {}
+      var _cfgUsedHtml = '';
+      // Suppressed when the study has a canonical config panel above — the arms
+      // both derive from that ONE config, so per-arm param dumps would just be
+      // the same thing shown twice (or the confusing run_config vs whole_config
+      // split). Only shown for single-model studies with no canonical config.
+      if (!_hasStudyCfg && _cfgObj && Object.keys(_cfgObj).length) {
+        _cfgUsedHtml = '<details class="model-config-used" open style="margin:0 0 8px 0">' +
+          '<summary class="muted" style="font-size:0.78em;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;cursor:pointer">Config used</summary>' +
+          '<pre class="model-config-used-pre" style="font-size:0.8em;line-height:1.45;background:var(--surface-2,var(--code-bg));border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:4px 0 0;overflow:auto;max-height:360px">' +
+          esc(_yamlish(_cfgObj)) + '</pre></details>';
+      }
       wrap.innerHTML = '<div class="muted" style="font-size:0.78em;font-weight:600;margin:0 0 4px 2px;text-transform:uppercase;letter-spacing:0.02em">' +
         entry.labels.map(esc).join(' · ') + '</div>' +
+        _cfgUsedHtml +
         '<p class="muted" style="font-size:0.85em;margin:0">Resolving composite…</p>';
       mount.appendChild(wrap);
+      // Expand a config-file reference (the vecoli arm's whole_config, or a
+      // config_file) to the ACTUAL config that runs, so "Config used" shows the
+      // real config instead of a bare path. (ecoli_baseline's config_file is
+      // already folded server-side into params, so this only fires when a path
+      // value survives — e.g. vecoli's whole_config.)
+      var _cfgRef = (typeof _cfgObj.whole_config === 'string' && _cfgObj.whole_config) ||
+                    (typeof _cfgObj.config_file === 'string' && _cfgObj.config_file) || '';
+      if (!_hasStudyCfg && _cfgRef) {
+        var _preEl = wrap.querySelector('.model-config-used-pre');
+        var _cfApi = (window.DataSource && window.DataSource.apiUrl)
+          ? window.DataSource.apiUrl.bind(window.DataSource) : function (p) { return p; };
+        fetch(_cfApi('/api/study-config-file?study=' + encodeURIComponent(studyName()) +
+                     '&ref=' + encodeURIComponent(_cfgRef)))
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (!j || !j.content || !_preEl) return;
+            // Show the config file's contents, then the non-path params (e.g.
+            // variant) that select within it. Drop meta keys (_note) + the path.
+            var merged = {};
+            Object.keys(j.content).forEach(function (k) { if (k[0] !== '_') merged[k] = j.content[k]; });
+            Object.keys(_cfgObj).forEach(function (k) {
+              if (k !== 'whole_config' && k !== 'config_file') merged[k] = _cfgObj[k];
+            });
+            _preEl.textContent = _yamlish(merged);
+          })
+          .catch(function () { /* keep the bare-path fallback already rendered */ });
+      }
       // Snapshot-aware: a read-only bundle has no live /api/composite-resolve,
       // so publish.py bakes the card payload to api/composite-resolve/<id>.json.
       var _mcApi = (window.DataSource && window.DataSource.apiUrl) ? window.DataSource.apiUrl.bind(window.DataSource) : function (p) { return p; };
@@ -1015,7 +1396,36 @@
           // Model tab is the study's model surface, but a study can declare
           // several composites, so eagerly mounting every loom is heavy; the
           // reader opens the one they want.
-          wrap.querySelector('p').replaceWith(cardHost.firstElementChild);
+          var cardEl = cardHost.firstElementChild;
+          wrap.querySelector('p').replaceWith(cardEl);
+          // Seed the Explore loom with the study's config overrides so its
+          // bigraph + Configure resolve CONFIG-APPLIED from the first open —
+          // the injected processes (permeability, gillespie, …), cache_dir, and
+          // knobs from the "Config used" panel above — instead of the bare
+          // composite. The loom embed consumes ._overrides on mount
+          // (_openCompositeLoomInline → ?id=&overrides=); without this seed the
+          // model tab showed the default composite and Apply defaulted to
+          // out/cache. Interactive Apply/Reset inside the card still take over.
+          try {
+            var _ov = (entry.overridesJson && entry.overridesJson !== '{}')
+              ? entry.overridesJson : '';
+            if (_ov && cardEl && cardEl.querySelector) {
+              var _emb = cardEl.querySelector('.ccard-loom-embed');
+              if (_emb) _emb._overrides = _ov;
+            }
+          } catch (e) { /* seeding is best-effort — bare loom still works */ }
+          // The model file — each process's config formatted (for viva-smoldyn:
+          // species / reactions / bounds) — shown ABOVE the loom explorer.
+          var cfgHost = document.createElement('div');
+          _renderCompositeSource(cfgHost, body.state, esc);
+          if (cfgHost.firstChild) {
+            var head = document.createElement('div');
+            head.className = 'muted';
+            head.style.cssText = 'font-size:0.78em;font-weight:600;margin:2px 0 4px 2px;text-transform:uppercase;letter-spacing:0.02em';
+            head.textContent = 'Configuration';
+            wrap.insertBefore(cfgHost, cardEl);
+            wrap.insertBefore(head, cfgHost);
+          }
         })
         .catch(function () {
           var note = document.createElement('p');
@@ -1100,19 +1510,19 @@
           'data-param-type="' + esc(def.type || '') + '" value="' + esc(shown === '—' ? '' : shown) + '" ' +
           'style="width:100%;min-width:80px;font-family:monospace;font-size:0.85em;padding:2px 4px;box-sizing:border-box" />'
         : '<code>' + esc(shown) + '</code>';
-      return '<tr' + (overridden ? ' style="background:#eff6ff"' : '') + '>' +
+      return '<tr' + (overridden ? ' style="background:var(--info-bg)"' : '') + '>' +
         '<td style="padding:3px 8px"><code>' + esc(k) + '</code></td>' +
-        '<td style="padding:3px 8px;color:#6b7280">' + esc(def.type || '') + '</td>' +
+        '<td style="padding:3px 8px;color:var(--text-subtle)">' + esc(def.type || '') + '</td>' +
         '<td style="padding:3px 8px">' + valueCell +
-        (overridden ? ' <span style="color:#2563eb;font-size:0.72em;font-weight:600">override</span>' : '') + '</td>' +
-        '<td style="padding:3px 8px;color:#6b7280">' + esc(def.description || '') + '</td></tr>';
+        (overridden ? ' <span style="color:var(--link);font-size:0.72em;font-weight:600">override</span>' : '') + '</td>' +
+        '<td style="padding:3px 8px;color:var(--text-subtle)">' + esc(def.description || '') + '</td></tr>';
     }).join('');
     mount.innerHTML =
-      '<div style="font-size:0.85em;color:#374151;margin-bottom:4px"><strong>Config that runs</strong> ' +
+      '<div style="font-size:0.85em;color:var(--text);margin-bottom:4px"><strong>Config that runs</strong> ' +
       '<span class="muted">— resolved parameters (composite defaults ⊕ this study\'s overrides)</span></div>' +
       '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85em">' +
       '<thead><tr>' + ['Parameter', 'Type', 'Value', 'Description'].map(function (h) {
-        return '<th style="text-align:left;padding:3px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;">' + h + '</th>';
+        return '<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);color:var(--text-subtle);">' + h + '</th>';
       }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       (editable
         ? '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
@@ -1120,7 +1530,7 @@
           '<span class="model-config-status muted" style="font-size:0.8em"></span></div>'
         : '') +
       '<details style="margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:0.82em">Full resolved config (JSON)</summary>' +
-      '<pre style="font-size:0.78em;background:#f8fafc;padding:8px;border-radius:4px;overflow-x:auto;margin:4px 0 0">' +
+      '<pre style="font-size:0.78em;background:var(--surface-2);padding:8px;border-radius:4px;overflow-x:auto;margin:4px 0 0">' +
       esc(JSON.stringify(effective, null, 2)) + '</pre></details>';
     if (!editable) return;
     mount.querySelectorAll('.model-param-input').forEach(function (input) {
@@ -1147,12 +1557,14 @@
     if (_studySimsLoaded && !force) return;
     _studySimsLoaded = true;
     var slug = studyName();
-    mount.innerHTML = '<p class="muted" style="margin:0">Loading simulations…</p>';
-    var path = '/api/simulations?study=' + encodeURIComponent(slug);
-    var url = (window.DataSource && window.DataSource.apiUrl) ? window.DataSource.apiUrl(path) : path;
+    mount.innerHTML = '<p class="muted" style="margin:0">Loading…</p>';
+    var DS = window.DataSource;
+    var url = (DS && DS.simulationsUrl) ? DS.apiUrl(DS.simulationsUrl(slug))
+      : '/api/simulations?study=' + encodeURIComponent(slug);
     fetch(url).then(function (r) { return r.text(); }).then(function (t) {
       var d = {}; try { d = t ? JSON.parse(t) : {}; } catch (e) { d = {}; }
-      window.SimTable.renderTable(mount, d.simulations || [], { scope: 'study', onRowClick: _showRunDetail });
+      var rows = (DS && DS.simulationsFilter) ? DS.simulationsFilter(d.simulations || [], slug) : (d.simulations || []);
+      window.SimTable.renderTable(mount, rows, { scope: 'study', onRowClick: _showRunDetail });
     }).catch(function () {
       window.SimTable.renderTable(mount, [], { scope: 'study' });
     });
@@ -1182,7 +1594,7 @@
     // composite is a registered composite; otherwise we surface the gap.
     var explore = (runId && row.spec_id && row.composite_registered)
       ? '<a class="action-btn" href="/?focus=composite-explore&id=' + encodeURIComponent(row.spec_id) + '&run_id=' + encodeURIComponent(runId) + '#composite-explore">↗ Open run in Composite Explorer</a>'
-      : '<span style="color:#b91c1c;font-size:0.85em">⚠ ' + (row.spec_id
+      : '<span style="color:var(--danger-fg);font-size:0.85em">⚠ ' + (row.spec_id
           ? 'composite <code>' + e(row.spec_id) + '</code> is not registered — cannot open in the Explorer'
           : 'no composite associated with this run') + '</span>';
     var kv = function (k, v) {
@@ -1279,7 +1691,7 @@
         }
       })
       .catch(function(e) {
-        panel.innerHTML = '<p class="muted" style="color:#dc2626">Chart load failed: ' + (e && e.message || e) + '</p>';
+        panel.innerHTML = '<p class="muted" style="color:var(--danger-fg)">Chart load failed: ' + (e && e.message || e) + '</p>';
         if (panelId === 'viz-charts-panel') {
           _figuresSourceState.charts = false;
           _updateFiguresEmptyState();
@@ -1364,16 +1776,20 @@
 
   // --- Inline-edit (overview fields: objective, conclusion, question, hypothesis, status) ---
   function _saveOverviewField(field, value) {
+    var url = '/api/study/' + encodeURIComponent(studyName());
     if (field === 'objective') {
-      return api('POST', '/api/study-set-objective', {study: studyName(), text: value});
+      return api('PATCH', url, {objective: value});
     }
     if (field === 'conclusion') {
-      return api('POST', '/api/study-set-conclusion', {study: studyName(), text: value});
+      // The consolidated PATCH takes `conclusions` (mirrors study.yaml); the old
+      // study-set-conclusion path silently read `markdown`, so sending `text`
+      // blanked the field — fixed here.
+      return api('PATCH', url, {conclusions: value});
     }
     if (field === 'question' || field === 'hypothesis' || field === 'status') {
-      var body = {investigation: studyName(), fields: {}};
-      body.fields[field] = value;
-      return api('POST', '/api/investigation-set-overview', body);
+      var overview = {};
+      overview[field] = value;
+      return api('PATCH', url, {overview: overview});
     }
     return Promise.resolve();
   }
@@ -1416,10 +1832,8 @@
     if (!path) return;
     var value = el.value;
     el.classList.remove('narrative-saved', 'narrative-error');
-    return api('POST', '/api/study-narrative-set', {
-      study: studyName(),
-      path: path,
-      value: value,
+    return api('PATCH', '/api/study/' + encodeURIComponent(studyName()), {
+      narrative: {path: path, value: value},
     }).then(function(res) {
       // api() returns {status, body}. 200 + body.ok === success.
       if (res && res.status === 200 && res.body && res.body.ok) {
@@ -1545,84 +1959,252 @@
   // published read-only snapshot has no backend to launch against, so both
   // buttons are hidden there (see the snapshot-mode block near the end of
   // this file, mirroring the remote-run-panel hide).
-  // Mode-aware dispatch: ONE button, the actual target decided by deployment
-  // config, never a second button next to it. Items 18/19 exist specifically
-  // to eliminate the "which button do I click" choice, not reintroduce it
-  // under a new name. Remote-pinned deployments (VIVARIUM_WORKBENCH_REMOTE_PINNED,
-  // e.g. the live smscdk prod deployment) dispatch to AWS Batch via
-  // remote-run-submit; everything else keeps the existing local-engine path.
+  // ONE dispatch button. This used to be mode-aware — a remote-pinned
+  // deployment dispatched to AWS Batch, everything else ran on the local
+  // engine — but the remote side retired with the SMS workflow endpoints.
   var _CANCELLED = { status: 0, body: { cancelled: true } };
 
   function _dispatchCurrentSpecBaseline() {
-    return api('GET', '/api/remote-run-config').then(function(cfgRes) {
-      var cfg = (cfgRes.status === 200 && cfgRes.body) || {};
-      if (cfg.pinned && cfg.simulator_id) return _dispatchRemotePinned(cfg);
-      if (!confirm("Run this study's CURRENT baseline spec as a new run?")) return _CANCELLED;
-      return api('POST', '/api/study-run-baseline', { study: studyName() });
+    // This used to resolve a remote-pinned deployment first and dispatch to
+    // AWS Batch through the SMS workflow endpoint. Both routes retired with
+    // that surface, so the baseline always runs here.
+    if (!confirm("Run this study's CURRENT baseline spec as a new run?")) {
+      return Promise.resolve(_CANCELLED);
+    }
+    return api('POST', '/api/study-run-baseline', { study: studyName() });
+  }
+
+  // The composite-dispatch panel: named fields for the common run params plus
+  // a raw-JSON escape hatch. Its dispatch target (the SMS workflow endpoint)
+  // is retired — the panel still renders, and _dispatchRemoteComposite below
+  // reports the retirement rather than posting to a route that is gone.
+  function _compositePanelEl() {
+    var el = document.getElementById('study-composite-panel');
+    if (el) return el;
+    var btn = document.getElementById('study-run-composite');
+    var host = btn && btn.parentNode;
+    if (!host) return null;
+    el = document.createElement('div');
+    el.id = 'study-composite-panel';
+    el.style.cssText = 'display:none;position:absolute;z-index:20;margin-top:6px;padding:12px;'
+      + 'background:var(--panel-bg,var(--surface));border:1px solid var(--border,var(--border));border-radius:6px;'
+      + 'box-shadow:0 4px 16px rgba(0,0,0,0.12);font:12px/1.5 system-ui,-apple-system,sans-serif;'
+      + 'width:360px;right:0;top:100%';
+    el.innerHTML =
+      '<div style="font-weight:600;margin-bottom:8px">Dispatch composite (advanced)</div>'
+      + '<label style="display:block;margin-top:6px">mechanism'
+      + '<select id="cp-mechanism" style="width:100%;box-sizing:border-box;margin-top:2px">'
+      + '<option value="multi_node_dispatch">multi_node_dispatch (lineage_ray_batch, etc.)</option>'
+      + '<option value="mbp_dispatch">mbp_dispatch (run_mbp_tracked.py, e.g. reactor_bird_coupled)</option>'
+      + '<option value="nextflow_dispatch">nextflow_dispatch (workflow_nf: Nextflow head, one Batch task per lineage)</option>'
+      + '</select></label>'
+      + '<div id="cp-mnp-fields">'
+      + '<label style="display:block;margin-top:6px">composite_id'
+      + '<input type="text" id="cp-composite-id" placeholder="v2ecoli.composites.lineage_ray_batch.lineage_ray_batch" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<div style="display:flex;gap:8px;margin-top:6px">'
+      + '<label style="flex:1">num_nodes<input type="number" id="cp-num-nodes" min="1" value="2" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<label style="flex:1">n_seeds<input type="number" id="cp-n-seeds" min="1" value="2" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<label style="flex:1">n_generations<input type="number" id="cp-n-generations" min="1" value="1" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '</div>'
+      + '</div>'
+      + '<div id="cp-mbp-fields" style="display:none">'
+      + '<label style="display:block;margin-top:6px">variant'
+      + '<input type="text" id="cp-mbp-variant" placeholder="reactor_bird_coupled" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<div style="display:flex;gap:8px;margin-top:6px">'
+      + '<label style="flex:1">max_generations<input type="number" id="cp-mbp-max-generations" min="1" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<label style="flex:1">seed<input type="number" id="cp-mbp-seed" min="0" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '</div>'
+      + '</div>'
+      // nextflow_dispatch (viva-api's third dispatch path, docs/plan-nextflow-dispatch.md):
+      // the field set mirrors `atlantis composite nextflow` (app/cli.py
+      // _nf_dispatch_payload/_nf_generator_params) -- composite_id/executor/
+      // launch sit flat on nextflow_dispatch; seeds/generations/cache_uri/
+      // include_analysis/independent_founders live under nextflow_dispatch.params
+      // (the workflow_nf generator's own parameters); task_env is the
+      // per-task environment passthrough (viva-api#568). The two tri-state
+      // selects exist because the CLI OMITS an unset option rather than
+      // sending null (a null would override a deployment-derived default), and
+      // a checkbox cannot express "unset".
+      + '<div id="cp-nf-fields" style="display:none">'
+      + '<label style="display:block;margin-top:6px">composite_id'
+      + '<input type="text" id="cp-nf-composite-id" value="v2ecoli.composites.workflow_nf.workflow_nf" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<div style="display:flex;gap:8px;margin-top:6px">'
+      + '<label style="flex:1">n_seeds<input type="number" id="cp-nf-n-seeds" min="1" value="1" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<label style="flex:1">n_generations<input type="number" id="cp-nf-n-generations" min="1" value="1" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<label style="flex:1">executor<input type="text" id="cp-nf-executor" value="awsbatch" style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '</div>'
+      + '<label style="display:block;margin-top:6px">cache_uri (optional — an s3:// ParCa cache prefix to fetch instead of running ParCa, '
+      + 'e.g. a staged founder or genotype cache)'
+      + '<input type="text" id="cp-nf-cache-uri" placeholder="s3://<bucket>/ray-parca-cache/<commit>/" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<div style="display:flex;gap:8px;margin-top:6px">'
+      + '<label style="flex:1">include_analysis<select id="cp-nf-include-analysis" style="width:100%;box-sizing:border-box;margin-top:2px">'
+      + '<option value="">(unset)</option><option value="true">true</option><option value="false">false</option></select></label>'
+      + '<label style="flex:1">independent_founders<select id="cp-nf-independent-founders" style="width:100%;box-sizing:border-box;margin-top:2px">'
+      + '<option value="">(unset)</option><option value="true">true</option><option value="false">false</option></select></label>'
+      + '<label style="flex:1;align-self:flex-end"><input type="checkbox" id="cp-nf-launch" checked> launch</label>'
+      + '</div>'
+      + '<label style="display:block;margin-top:6px">task_env (optional — NAME=VALUE, one per line; set in every Batch task, '
+      + 'e.g. V2ECOLI_SKIP_CACHE_VERIFY=1 for a cache built at another commit)'
+      + '<textarea id="cp-nf-task-env" rows="2" placeholder="V2ECOLI_SKIP_CACHE_VERIFY=1" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px;font-family:monospace;font-size:11px"></textarea></label>'
+      + '</div>'
+      + '<div id="cp-cache-variant-wrap">'
+      + '<label style="display:block;margin-top:6px">cache_variant (optional — a pre-staged ParCa cache variant; '
+      + 'blank uses the plain per-commit cache)'
+      + '<input type="text" id="cp-cache-variant" placeholder="e.g. cd2-run1-k4-candidate-v1-lambda050" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '</div>'
+      // config_filename sits OUTSIDE cp-cache-variant-wrap: it selects the
+      // simulation config for every mechanism, including nextflow_dispatch,
+      // whereas cache_variant is meaningless on the Nextflow path and is
+      // hidden with the wrap (#1044 added this field; the wrap is this PR's).
+      + '<label style="display:block;margin-top:6px">config_filename (optional — a real '
+      + 'simulation config filename in the target repo)'
+      + '<input type="text" id="cp-config-filename" placeholder="e.g. mecillinam_wellmixed.json" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px"></label>'
+      + '<label style="display:block;margin-top:6px"><span id="cp-params-desc">extra params (raw JSON, merged into multi_node_dispatch.params — '
+      + 'e.g. injected_processes/variants/config_overrides/emitter_arg/cache_dir/out_dir/media)</span>'
+      + '<textarea id="cp-params-json" rows="5" placeholder="{}" '
+      + 'style="width:100%;box-sizing:border-box;margin-top:2px;font-family:monospace;font-size:11px"></textarea></label>'
+      + '<div id="cp-error" style="color:var(--danger-fg);margin-top:4px;display:none"></div>'
+      + '<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">'
+      + '<button type="button" id="cp-cancel" class="btn-mini">Cancel</button>'
+      + '<button type="button" id="cp-dispatch" class="btn-mini">Dispatch</button>'
+      + '</div>';
+    host.style.position = host.style.position || 'relative';
+    host.appendChild(el);
+    el.querySelector('#cp-cancel').addEventListener('click', function () { el.style.display = 'none'; });
+    el.querySelector('#cp-mechanism').addEventListener('change', _updateCompositePanelMechanism);
+    _updateCompositePanelMechanism();
+    // #cp-dispatch's own click is handled by ONE delegated document-level
+    // listener (below, near the other header-button bindings) so the
+    // disable/toast/refresh wrapping lives in exactly one place — binding it
+    // here too would fire _dispatchRemoteComposite twice per click.
+    return el;
+  }
+
+  // Toggles the panel's mechanism-specific field groups and the raw-JSON
+  // description to match -- mbp_dispatch has no nested "params" sub-object
+  // server-side (every field sits flat on mbp_dispatch itself, per
+  // _submit_mbp_tracked_dispatch's real contract), unlike multi_node_dispatch's
+  // params-wrapped shape, so the two raw-JSON boxes genuinely merge into
+  // different places and the label needs to say so, not just the field set.
+  //
+  // nextflow_dispatch is the third shape: composite_id/executor/launch/
+  // resources/work_dir/nextflow_args/task_env sit FLAT on nextflow_dispatch,
+  // while the generator's own knobs (n_seeds/n_generations/cache_uri/
+  // include_analysis/analysis_options/independent_founders/variants/
+  // emit_paths...) live under nextflow_dispatch.params -- so its raw-JSON box
+  // merges flat onto nextflow_dispatch EXCEPT a `params` key, which merges
+  // into nextflow_dispatch.params (see _dispatchRemoteComposite). It has no
+  // cache_variant (the Nextflow path fetches a `cache_uri` instead), so that
+  // shared field is hidden for it rather than silently ignored.
+  function _updateCompositePanelMechanism() {
+    var sel = document.getElementById('cp-mechanism');
+    var mechanism = (sel && sel.value) || 'multi_node_dispatch';
+    var isMnp = mechanism === 'multi_node_dispatch';
+    var isMbp = mechanism === 'mbp_dispatch';
+    var isNf = mechanism === 'nextflow_dispatch';
+    var mnpFields = document.getElementById('cp-mnp-fields');
+    var mbpFields = document.getElementById('cp-mbp-fields');
+    var nfFields = document.getElementById('cp-nf-fields');
+    var cacheVariantWrap = document.getElementById('cp-cache-variant-wrap');
+    var desc = document.getElementById('cp-params-desc');
+    if (mnpFields) mnpFields.style.display = isMnp ? '' : 'none';
+    if (mbpFields) mbpFields.style.display = isMbp ? '' : 'none';
+    if (nfFields) nfFields.style.display = isNf ? '' : 'none';
+    if (cacheVariantWrap) cacheVariantWrap.style.display = isNf ? 'none' : '';
+    if (desc) {
+      desc.textContent = isMnp
+        ? 'extra params (raw JSON, merged into multi_node_dispatch.params — '
+          + 'e.g. injected_processes/variants/config_overrides/emitter_arg/cache_dir/out_dir/media)'
+        : isMbp
+        ? 'extra params (raw JSON, merged directly onto mbp_dispatch — e.g. duration_sec/chunk/'
+          + 'emitter/single_daughters/carbon_exhaustion_arrest/cells_per_agent/initial_glucose_mM/'
+          + 'initial_ammonium_mM/injected_processes/reactor_config/aeration_schedule)'
+        : 'extra params (raw JSON, merged directly onto nextflow_dispatch — e.g. resources/'
+          + 'work_dir/nextflow_args/resume/resume_from; a "params" key merges into '
+          + 'nextflow_dispatch.params — e.g. variants/injected_processes/analysis_options/emit_paths)';
+    }
+  }
+
+  function _cpError(msg) {
+    var e = document.getElementById('cp-error');
+    if (!e) return;
+    if (!msg) { e.style.display = 'none'; e.textContent = ''; return; }
+    e.style.display = ''; e.textContent = msg;
+  }
+
+  // item 20b: async, DOM-based replacement for window.confirm() ahead of a
+  // real AWS Batch dispatch. confirm()/alert()/prompt() are the only
+  // web-platform APIs that synchronously freeze the page's JS -- including
+  // whatever a browser-automation tool injects to read/screenshot the page --
+  // which made the dispatch-confirm dialog impossible to drive through
+  // Claude-in-Chrome during the 2026-09-11 CD2 Vignette-1 UI-verification
+  // push (three real attempts hung on this exact call). A plain DOM modal
+  // keeps item 20a's own safety property (a human must see the resolved
+  // simulator_id/mechanism/params and explicitly click before real spend
+  // happens) without ever blocking the event loop, since it's just elements
+  // in the page rather than a browser-chrome dialog.
+  function _confirmModal(message) {
+    return new Promise(function (resolve) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.35);'
+        + 'display:flex;align-items:center;justify-content:center';
+      var box = document.createElement('div');
+      box.style.cssText = 'background:var(--panel-bg,var(--surface));border:1px solid var(--border,var(--border));'
+        + 'border-radius:6px;box-shadow:0 8px 32px rgba(0,0,0,0.25);padding:16px 20px;'
+        + 'max-width:520px;width:90%;font:12px/1.5 system-ui,-apple-system,sans-serif';
+      var text = document.createElement('div');
+      // textContent, not innerHTML -- message embeds form values the user
+      // typed (variant/config_filename/raw extra-params JSON); confirm()
+      // never interpreted those as markup and this modal must not either.
+      text.style.cssText = 'white-space:pre-wrap;margin-bottom:14px';
+      text.textContent = message;
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      var cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn-mini';
+      cancelBtn.textContent = 'Cancel';
+      var okBtn = document.createElement('button');
+      okBtn.type = 'button';
+      okBtn.className = 'btn-mini';
+      okBtn.textContent = 'OK';
+      actions.appendChild(cancelBtn);
+      actions.appendChild(okBtn);
+      box.appendChild(text);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      function done(result) {
+        document.removeEventListener('keydown', onKey);
+        overlay.remove();
+        resolve(result);
+      }
+      function onKey(ev) { if (ev.key === 'Escape') done(false); }
+      cancelBtn.addEventListener('click', function () { done(false); });
+      okBtn.addEventListener('click', function () { done(true); });
+      overlay.addEventListener('click', function (ev) { if (ev.target === overlay) done(false); });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(overlay);
+      okBtn.focus();
     });
   }
 
-  // item 20: the resolved target (repo/branch/commit/simulator id) is fetched
-  // fresh via /api/remote-run-config immediately above -- never a stale
-  // client-rendered label -- but nothing surfaced it to a human before this
-  // function fired the actual AWS Batch dispatch. Show it and require an
-  // explicit confirm, so a workspace-identity mismatch is caught here, before
-  // money gets spent, not discovered afterward via aws batch describe-jobs.
-  //
-  // Deliberate addition beyond the || 1 removal below: window._study can be a
-  // STALE in-memory copy fetched before a param edit landed server-side (a
-  // confirmed real failure mode, not theoretical -- a tab left open across a
-  // baseline-param save re-dispatched the OLD 1x1 params from memory even
-  // though study.yaml on disk was already correct). Re-fetching via
-  // window.DataSource.loadStudy immediately before reading params closes that
-  // gap; window._study is refreshed too so the rest of the page stops reading
-  // stale state from this point on as well.
-  function _dispatchRemotePinned(cfg) {
-    var slug = studyName();
-    var refetch = (window.DataSource && window.DataSource.loadStudy)
-      ? window.DataSource.loadStudy(slug).catch(function () { return null; })
-      : Promise.resolve(null);
-    return refetch.then(function (freshStudy) {
-      if (freshStudy) window._study = freshStudy;
-      var baseline = (window._study && window._study.baseline) || [];
-      var params = (baseline[0] && baseline[0].params) || {};
-      var numGenerations = params.n_generations;
-      var numSeeds = params.n_seeds;
-      // n_generations/n_seeds directly size a real AWS Batch job -- unlike
-      // ordinary composite params (already correctly default-backed via
-      // /api/composite-resolve, untouched here), an explicit value the user
-      // set must NEVER be silently replaced by a default. An unset value
-      // blocks the dispatch outright rather than falling back to 1x1.
-      var missing = [];
-      if (!numGenerations) missing.push('n_generations');
-      if (!numSeeds) missing.push('n_seeds');
-      if (missing.length) {
-        alert(
-          'Cannot dispatch: ' + missing.join(' and ') +
-          (missing.length > 1 ? ' are' : ' is') + ' not set.\n\n' +
-          'Set ' + (missing.length > 1 ? 'both' : 'it') + ' in the Model tab ' +
-          '(Runnable models → edit ' + missing.join(' / ') + ' → Save parameter changes) before running.'
-        );
-        return _CANCELLED;
-      }
-      var msg = 'Dispatch to AWS Batch:\n\n' +
-        '  repo:    ' + (cfg.repo_url || '(unknown)') + '\n' +
-        '  branch:  ' + (cfg.branch || '(unknown)') + '\n' +
-        '  commit:  ' + ((cfg.commit || '(unknown)').slice(0, 12)) + '\n' +
-        '  simulator id: ' + cfg.simulator_id + '\n' +
-        '  generations:  ' + numGenerations + '\n' +
-        '  seeds:        ' + numSeeds + '\n\n' +
-        'Proceed?';
-      if (!confirm(msg)) return _CANCELLED;
-      return api('POST', '/api/remote-run-submit', {
-        study: slug,
-        simulator_id: cfg.simulator_id,
-        num_generations: numGenerations,
-        num_seeds: numSeeds,
-      });
-    });
+  // Remote composite dispatch ran on the retired SMS workflow endpoint
+  // simulator_id resolved from the retired build registry, posting to a
+  // workflow endpoint that is also gone — so the panel reports the retirement
+  // instead of failing at the network layer.
+  function _dispatchRemoteComposite() {
+    _cpError('Remote composite dispatch is retired. Run the composite locally, '
+             + 'or point a remote Smoldyn run at the viva-smoldyn service.');
+    return Promise.resolve(_CANCELLED);
   }
-  window._dispatchCurrentSpecBaseline = _dispatchCurrentSpecBaseline;
+  window._dispatchRemoteComposite = _dispatchRemoteComposite;
 
   // ─── item 6: real dispatch progress, polling not SSE ───────────────────
   // Alex, 2026-08-17: dispatch a sim, get a toast, then total silence -- the
@@ -1635,6 +2217,14 @@
   var CHAIN_PROGRESS_POLL_MS = 8000;
   var _chainProgressTimer = null;
 
+  // Task 4.1: set to the run_id/simulation_id of a Tests-tab-initiated
+  // baseline dispatch (runStudyTests' no_run branch) right after that
+  // dispatch resolves, so _pollChainProgress's terminal handler knows to
+  // reload the Tests tab once THAT SPECIFIC run finishes -- scoped by id
+  // (not a bare boolean) so an unrelated "Run current spec" / "Reproduce"
+  // click, or a later unrelated run reaching terminal, never triggers it.
+  var _gradeAfterRunId = null;
+
   function _chainProgressEl() {
     var el = document.getElementById('study-chain-progress');
     if (!el) {
@@ -1643,7 +2233,7 @@
       if (!host) return null;
       el = document.createElement('div');
       el.id = 'study-chain-progress';
-      el.style.cssText = 'margin-top:8px; font:12px/1.5 system-ui,-apple-system,sans-serif; color:var(--muted,#8a8fa3)';
+      el.style.cssText = 'margin-top:8px; font:12px/1.5 system-ui,-apple-system,sans-serif; color:var(--text-muted)';
       host.insertBefore(el, btn.nextSibling);
     }
     return el;
@@ -1680,6 +2270,20 @@
         _renderChainProgress(d);
         if (!d.terminal && d.phase !== 'not_a_campaign' && d.phase !== 'not_found') {
           _chainProgressTimer = setTimeout(function () { _pollChainProgress(runId); }, CHAIN_PROGRESS_POLL_MS);
+          return;
+        }
+        // Polling has stopped (real completion, or nothing trackable e.g. a
+        // local-engine run with no AWS chain). Only a genuine terminal
+        // completion (d.terminal) of THIS SAME run (matched by id) warrants
+        // reloading the Tests tab -- a 'not_a_campaign'/'not_found' phase
+        // can fire immediately for a local dispatch, long before that run
+        // actually finishes, so it must clear the flag without triggering a
+        // premature reload; and a terminal event for some OTHER run (e.g. a
+        // plain "Run current spec" click while a graded run is still in
+        // flight, or vice versa) must never trigger this run's reload.
+        if (_gradeAfterRunId != null && String(_gradeAfterRunId) === String(runId)) {
+          _gradeAfterRunId = null;
+          if (d.terminal) _reloadStudyAndTests();
         }
       })
       .catch(function () {
@@ -1714,6 +2318,55 @@
       });
   });
 
+  // "⚙ Dispatch composite" (item 110) — toggles the advanced panel open/closed;
+  // the actual dispatch is wired to the panel's own #cp-dispatch button
+  // (_compositePanelEl, above). A toast + Runs-tab refresh on success mirrors
+  // the two handlers above; unlike them this button itself never disables —
+  // the panel's own Dispatch button owns that during a real in-flight POST.
+  bindAll('#study-run-composite', function (btn) {
+    var panel = _compositePanelEl();
+    if (!panel) return;
+    panel.style.display = (panel.style.display === 'none') ? '' : 'none';
+  });
+
+  // #cp-dispatch's own click (rendered dynamically inside _compositePanelEl,
+  // so bound here via delegation rather than at panel-creation time) with the
+  // same disabled/toast/refresh convention the other two header buttons use.
+  document.addEventListener('click', function (ev) {
+    if (!ev.target || ev.target.id !== 'cp-dispatch') return;
+    var btn = ev.target;
+    if (btn.disabled) return;
+    var orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '… dispatching';
+    var result = _dispatchRemoteComposite();
+    if (!result || typeof result.then !== 'function') {
+      // Validation failed synchronously (_cpError already shown) — nothing to await.
+      btn.disabled = false;
+      btn.textContent = orig;
+      return;
+    }
+    result
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = orig;
+        if (res.body && res.body.cancelled) return;
+        if (res.status === 200 || res.status === 202) {
+          var runId = res.body && (res.body.run_id || res.body.simulation_id);
+          var msg = 'Composite dispatch launched' + (runId ? ' — new run ' + runId : '');
+          if (typeof _showToast === 'function') _showToast(msg); else alert(msg);
+          if (typeof _loadStudySims === 'function') _loadStudySims(true);
+        } else {
+          _cpError('Dispatch failed: ' + ((res.body && res.body.error) || res.status));
+        }
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = orig;
+        _cpError('Dispatch failed: network error — ' + err);
+      });
+  }, true);
+
   // "Reproduce" — replay this study's MOST RECENT run's recorded manifest
   // verbatim (POST /api/study-reproduce) rather than re-deriving from the
   // current study.yaml: a spec edit made after that run never changes what
@@ -1727,10 +2380,13 @@
     var orig = btn.textContent;
     btn.disabled = true;
     btn.textContent = '… reproducing';
-    fetch('/api/simulations?study=' + encodeURIComponent(slug))
+    var _dsR = window.DataSource;
+    var _srUrl = (_dsR && _dsR.simulationsUrl) ? _dsR.apiUrl(_dsR.simulationsUrl(slug))
+      : '/api/simulations?study=' + encodeURIComponent(slug);
+    fetch(_srUrl)
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        var sims = (d && d.simulations) || [];
+        var sims = (_dsR && _dsR.simulationsFilter) ? _dsR.simulationsFilter((d && d.simulations) || [], slug) : ((d && d.simulations) || []);
         var latest = sims.length ? (sims[0].run_id || '') : '';
         if (!latest) throw new Error('no runs recorded yet for this study');
         return api('POST', '/api/study-reproduce', { study: slug, run_id: latest });
@@ -1760,7 +2416,7 @@
     // use different class names so this handler won't fire for those.
     if (!btn.dataset.study) return;
     if (!confirm('Delete this study and all its runs?')) return;
-    api('POST', '/api/study-delete', {name: studyName(), study: studyName()})
+    api('POST', '/api/investigation-delete', {name: studyName()})
       .then(function() { window.location = '/studies'; });
   });
 
@@ -1822,10 +2478,10 @@
 
   // Verdict -> pill colour (matches the behavioral pill palette).
   var _RC_PILL = {
-    within_tol: ['#16a34a', '#fff', 'within tol'],
-    drift:      ['#d97706', '#fff', 'drift'],
-    mismatch:   ['#dc2626', '#fff', 'mismatch'],
-    ungraded:   ['#64748b', '#fff', 'ungraded']
+    within_tol: ['var(--success-fg)', 'var(--bg)', 'within tol'],
+    drift:      ['var(--warning-fg)', 'var(--bg)', 'drift'],
+    mismatch:   ['var(--danger-fg)', 'var(--bg)', 'mismatch'],
+    ungraded:   ['var(--text-muted)', 'var(--bg)', 'ungraded']
   };
 
   // Fill each `kind: report_card` test's mount with the embedded card + verdict.
@@ -1871,10 +2527,10 @@
       return;
     }
     host.innerHTML = '<details open style="margin:0">'
-      + '<summary style="cursor:pointer;font-weight:700;color:#111827;font-size:1.02em">'
+      + '<summary style="cursor:pointer;font-weight:700;color:var(--heading);font-size:1.02em">'
       + 'Interactive comparison — v2ecoli vs vEcoli (plotly)</summary>'
       + '<iframe class="viz-embed" src="' + escapeHtmlForTests(pUrl) + '" loading="lazy" '
-      + 'style="width:100%;height:900px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin-top:8px"></iframe>'
+      + 'style="width:100%;height:900px;border:1px solid var(--border);border-radius:8px;background:var(--surface);margin-top:8px"></iframe>'
       + '</details>';
   }
 
@@ -1902,16 +2558,16 @@
 
   // Verdict vocab: colour + glyph (matches the grade_card / render_html palette).
   var _RC_GL = {
-    within_tol: ['#16a34a', '✓', 'within tol'],
-    drift:      ['#d97706', '≈', 'drift'],
-    mismatch:   ['#dc2626', '✗', 'mismatch'],
-    ungraded:   ['#64748b', '−', 'ungraded']
+    within_tol: ['var(--success-fg)', '✓', 'within tol'],
+    drift:      ['var(--warning-fg)', '≈', 'drift'],
+    mismatch:   ['var(--danger-fg)', '✗', 'mismatch'],
+    ungraded:   ['var(--text-muted)', '−', 'ungraded']
   };
 
   function _rcPill(verdict) {
     var p = _RC_GL[verdict || 'ungraded'] || _RC_GL.ungraded;
     return '<span style="font-size:0.72em;font-family:monospace;padding:2px 10px;'
-      + 'border-radius:9999px;background:' + p[0] + ';color:#fff">' + p[1] + ' ' + p[2] + '</span>';
+      + 'border-radius:9999px;background:' + p[0] + ';color:var(--bg)">' + p[1] + ' ' + p[2] + '</span>';
   }
 
   function _rcCounts(groups) {
@@ -1935,7 +2591,7 @@
   function _rcGroupChip(v, n) {
     var p = _RC_GL[v];
     return '<span style="display:inline-block;padding:2px 9px;border-radius:9999px;background:'
-      + p[0] + ';color:#fff;font-size:0.72em;margin-left:5px">' + p[1] + ' ' + n + ' ' + p[2] + '</span>';
+      + p[0] + ';color:var(--bg);font-size:0.72em;margin-left:5px">' + p[1] + ' ' + n + ' ' + p[2] + '</span>';
   }
 
   // Cross-iteration diff (Slice 3): the since-last-run change for one axis,
@@ -1961,10 +2617,10 @@
   // unchanged are not surfaced here (unchanged is the common case and would
   // just be noise; new/gone axes already read clearly from the table itself).
   var _CHANGE_GL = {
-    fixed:     ['#16a34a', 'fixed'],
-    broke:     ['#dc2626', 'broke'],
-    improved:  ['#0284c7', 'improved'],
-    regressed: ['#d97706', 'regressed']
+    fixed:     ['var(--success-fg)', 'fixed'],
+    broke:     ['var(--danger-fg)', 'broke'],
+    improved:  ['var(--link)', 'improved'],
+    regressed: ['var(--warning-fg)', 'regressed']
   };
 
   function _changeBadge(change) {
@@ -1972,7 +2628,7 @@
     if (!g) return '';
     return '<span class="axis-change-badge axis-change-' + change + '" style="margin-left:6px;'
       + 'font-size:0.68em;font-family:monospace;padding:1px 7px;border-radius:9999px;'
-      + 'background:' + g[0] + ';color:#fff">' + g[1] + '</span>';
+      + 'background:' + g[0] + ';color:var(--bg)">' + g[1] + '</span>';
   }
 
   // Signed margin bar: a.margin (a report_card_verdict/v2 axis extra, in
@@ -1986,15 +2642,15 @@
     var m = Math.max(-1, Math.min(1, a.margin));
     var pct = Math.abs(m) * 50;                    // half-width max, centred
     var soft = (a.severity === 'directional' || a.severity === 'soft');
-    var color = soft ? '#94a3b8' : (_RC_GL[a.verdict] || _RC_GL.ungraded)[0];
+    var color = soft ? 'var(--text-subtle)' : (_RC_GL[a.verdict] || _RC_GL.ungraded)[0];
     var barStyle = 'position:absolute;top:0;bottom:0;background:' + color + ';'
       + (m >= 0 ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%');
     return '<div class="axis-margin-bar-track" style="position:relative;width:100%;'
-      + 'height:' + (soft ? '4px' : '8px') + ';background:#eef2f7;border-radius:3px;overflow:hidden">'
+      + 'height:' + (soft ? '4px' : '8px') + ';background:var(--surface-3);border-radius:3px;overflow:hidden">'
       + '<div class="axis-margin-bar" style="' + barStyle + '"></div>'
-      + '<div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#cbd5e1"></div>'
+      + '<div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border-2)"></div>'
       + '</div>'
-      + '<div style="font-size:0.72em;color:#94a3b8;margin-top:2px">' + m.toFixed(2) + '</div>';
+      + '<div style="font-size:0.72em;color:var(--text-subtle);margin-top:2px">' + m.toFixed(2) + '</div>';
   }
 
   // The graded-scorecard look (dark header + overall pill w/ tally + per-group
@@ -2010,12 +2666,12 @@
     var op = _RC_GL[overall] || _RC_GL.ungraded;
 
     var header =
-      '<div style="background:linear-gradient(135deg,#1f2937,#0b1220);color:#fff;'
+      '<div style="background:linear-gradient(135deg,#1f2937,#0b1220);color:var(--on-fill);'
       + 'padding:14px 18px;border-radius:10px 10px 0 0">'
       + '<div style="font-weight:700;font-size:1.02em;letter-spacing:0.01em">'
       + e(card) + ' — report card</div>'
       + '<div style="margin-top:9px"><span style="display:inline-block;padding:3px 12px;'
-      + 'border-radius:9999px;background:' + op[0] + ';color:#fff;font-weight:700;'
+      + 'border-radius:9999px;background:' + op[0] + ';color:var(--bg);font-weight:700;'
       + 'font-size:0.82em;letter-spacing:0.04em">'
       + String(overall).toUpperCase().replace(/_/g, ' ') + _rcTally(counts) + '</span></div></div>';
 
@@ -2029,23 +2685,23 @@
         var val = (a.value != null && typeof a.value === 'number') ? a.value.toPrecision(4) : '';
         var chg = _axisChange(card, gname, a.id);
         return '<tr class="rc-row-' + (a.verdict || 'ungraded') + '">'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;border-left:3px solid ' + (_RC_GL[a.verdict] || _RC_GL.ungraded)[0] + '">'
-          + '<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;color:#1f2937">'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);border-left:3px solid ' + (_RC_GL[a.verdict] || _RC_GL.ungraded)[0] + '">'
+          + '<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;color:var(--text)">'
           + e(String(a.label || a.id || '')) + '</span>' + _rcPill(a.verdict)
           + (chg ? _changeBadge(chg.change) : '') + '</div></td>'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;font-variant-numeric:tabular-nums;color:#334155">' + e(val) + '</td>'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;color:#475569;font-size:0.9em">' + e(String(meter)) + '</td>'
-          + '<td style="padding:7px 10px;border-bottom:1px solid #eef2f7;min-width:90px">' + _marginBar(a) + '</td>'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);font-variant-numeric:tabular-nums;color:var(--text)">' + e(val) + '</td>'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);color:var(--text-secondary);font-size:0.9em">' + e(String(meter)) + '</td>'
+          + '<td style="padding:7px 10px;border-bottom:1px solid var(--border-faint);min-width:90px">' + _marginBar(a) + '</td>'
           + '</tr>';
       }).join('');
-      return '<section style="background:#fff;border:1px solid #e5e7eb;border-top:0;padding:12px 14px">'
+      return '<section style="background:var(--surface);border:1px solid var(--border);border-top:0;padding:12px 14px">'
         + '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">'
-        + '<h4 style="margin:0;font-size:0.98em;color:#111827">' + e(gname.replace(/_/g, ' ')) + '</h4>'
+        + '<h4 style="margin:0;font-size:0.98em;color:var(--heading)">' + e(gname.replace(/_/g, ' ')) + '</h4>'
         + _rcGroupChip('within_tol', gc.within_tol) + _rcGroupChip('drift', gc.drift)
         + _rcGroupChip('mismatch', gc.mismatch) + _rcGroupChip('ungraded', gc.ungraded) + '</div>'
         + (axes.length
           ? '<table style="width:100%;border-collapse:collapse;font-size:0.9em">'
-            + '<thead><tr style="text-align:left;color:#94a3b8;font-size:0.78em">'
+            + '<thead><tr style="text-align:left;color:var(--text-subtle);font-size:0.78em">'
             + '<th style="padding:4px 10px">Axis</th><th style="padding:4px 10px">Value</th>'
             + '<th style="padding:4px 10px">Summary</th><th style="padding:4px 10px">Δ / Margin</th>'
             + '</tr></thead><tbody>' + rows + '</tbody></table>'
@@ -2114,10 +2770,10 @@
   // honestly mapped.
   var _RIGOR_SEVERITY_PROXY = { ok: 'PASS', warn: 'PARTIAL', gap: 'FAIL', not_applicable: 'SKIP' };
   var _RIGOR_OUTCOME_COLORS = {
-    'met':            { bg: '#d1fae5', fg: '#065f46' },
-    'conditional':    { bg: '#fef3c7', fg: '#92400e' },
-    'not-met':        { bg: '#fee2e2', fg: '#991b1b' },
-    'not-assessable': { bg: '#f1f5f9', fg: '#475569' }
+    'met':            { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    'conditional':    { bg: 'var(--warning-bg)', fg: 'var(--warning-fg)' },
+    'not-met':        { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' },
+    'not-assessable': { bg: 'var(--surface-3)', fg: 'var(--text-secondary)' }
   };
 
   function _renderQualityDimension(d) {
@@ -2130,7 +2786,7 @@
     var oc = _RIGOR_OUTCOME_COLORS[cls] || _RIGOR_OUTCOME_COLORS['not-assessable'];
     var comments = ((d && d.comments) || []).join(' ');
     return '<li class="quality-check-item outcome-' + cls + '" data-severity="' + e(sev) + '" '
-      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #f1f5f9">'
+      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border-faint)">'
       + '<span class="outcome-chip outcome-' + cls + '" title="rigor severity: ' + e(sev || 'unknown') + '" '
       + 'style="font-size:0.75em;font-weight:600;padding:2px 9px;border-radius:9999px;flex-shrink:0;'
       + 'background:' + oc.bg + ';color:' + oc.fg + '">' + glyph + '&nbsp;' + e(label) + '</span>'
@@ -2289,7 +2945,7 @@
     var label = tok ? outcomeLabel(tok) : 'not assessable';
     var oc = _RIGOR_OUTCOME_COLORS[cls] || _RIGOR_OUTCOME_COLORS['not-assessable'];
     return '<li class="audit-check-item outcome-' + cls + '" data-status="' + e(status) + '" '
-      + 'style="display:flex;gap:10px;align-items:flex-start;padding:5px 0 5px 20px;border-top:1px solid #f8fafc">'
+      + 'style="display:flex;gap:10px;align-items:flex-start;padding:5px 0 5px 20px;border-top:1px solid var(--border-faint)">'
       + '<span class="outcome-chip outcome-' + cls + '" title="audit status: ' + e(status || 'unknown') + '" '
       + 'style="font-size:0.72em;font-weight:600;padding:1px 8px;border-radius:9999px;flex-shrink:0;'
       + 'background:' + oc.bg + ';color:' + oc.fg + '">' + glyph + '&nbsp;' + e(label) + '</span>'
@@ -2308,7 +2964,7 @@
     var label = tok ? outcomeLabel(tok) : 'not assessable';
     var oc = _RIGOR_OUTCOME_COLORS[cls] || _RIGOR_OUTCOME_COLORS['not-assessable'];
     return '<li class="audit-level-item outcome-' + cls + '" data-level="' + e(g.level) + '" '
-      + 'style="padding:7px 0;border-top:1px solid #f1f5f9">'
+      + 'style="padding:7px 0;border-top:1px solid var(--border-faint)">'
       + '<div style="display:flex;gap:10px;align-items:center">'
       + '<strong style="min-width:26px">' + e(g.level) + '</strong>'
       + '<span class="outcome-chip outcome-' + cls + '" title="' + e(g.level) + ' status: ' + e(status || 'unknown') + '" '
@@ -2420,7 +3076,7 @@
       });
     }
     return '<li class="audit-axis-item outcome-' + cls + '" data-axis="' + e((ax && ax.id) || '') + '" '
-      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #f1f5f9">'
+      + 'style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border-faint)">'
       + '<span class="outcome-chip outcome-' + cls + '" title="verdict: ' + e((ax && ax.verdict) || 'unknown') + '" '
       + 'style="font-size:0.75em;font-weight:600;padding:2px 9px;border-radius:9999px;flex-shrink:0;'
       + 'background:' + oc.bg + ';color:' + oc.fg + '">' + glyph + '&nbsp;' + e(label) + '</span>'
@@ -2430,9 +3086,9 @@
   }
 
   var _AUDIT_GATE_COLORS = {
-    pass: { bg: '#d1fae5', fg: '#065f46' },
-    warn: { bg: '#fef3c7', fg: '#92400e' },
-    fail: { bg: '#fee2e2', fg: '#991b1b' }
+    pass: { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    warn: { bg: 'var(--warning-bg)', fg: 'var(--warning-fg)' },
+    fail: { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' }
   };
 
   // Returns {state, html} for the #audit-sufficiency mount's INNER content —
@@ -2545,7 +3201,7 @@
     var modules = Array.isArray(sourcing.modules) ? sourcing.modules : [];
     var reqs = Array.isArray(requires) ? requires : [];
     var summary = '<div class="sourcing-decision muted" style="font-size:0.9em;margin:6px 0 2px 0">'
-      + '<strong style="color:#334155">' + e(decision) + '</strong>'
+      + '<strong style="color:var(--text)">' + e(decision) + '</strong>'
       + (modules.length ? ' &middot; ' + e(modules.join(', ')) : '')
       + (reqs.length ? ' &nbsp;<span title="required capabilities">requires: ' + e(reqs.join(', ')) + '</span>' : '')
       + '</div>';
@@ -2618,15 +3274,15 @@
   // current state. GRACEFUL empty state (`present: false`) when a study was
   // never run through /viva-model-build — the common case, not an error.
   var _BUILD_STATE_COLORS = {
-    DONE: { bg: '#d1fae5', fg: '#065f46' },
-    GIVE_UP: { bg: '#fee2e2', fg: '#991b1b' }
+    DONE: { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    GIVE_UP: { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' }
   };
 
   // verdict → colors for per-test margin cells (matches the audit-panel vocabulary)
   var _LOOP_VERDICT_COLORS = {
-    within_tol: { bg: '#d1fae5', fg: '#065f46' },
-    drift: { bg: '#fef3c7', fg: '#92400e' },
-    mismatch: { bg: '#fee2e2', fg: '#991b1b' }
+    within_tol: { bg: 'var(--success-bg)', fg: 'var(--success-fg)' },
+    drift: { bg: 'var(--warning-bg)', fg: 'var(--warning-fg)' },
+    mismatch: { bg: 'var(--danger-bg)', fg: 'var(--danger-fg)' }
   };
 
   // The integrity ribbon — the honesty guarantees at a glance.
@@ -2637,8 +3293,8 @@
     var priorHashes = prereg.prior_hashes || [];
     var rb = function (label, val, ok) {
       return '<span style="font-family:ui-monospace,Menlo,monospace;font-size:0.72rem;padding:3px 9px;'
-        + 'border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b">' + e(label)
-        + ' <strong style="color:' + (ok ? '#059669' : '#0f172a') + '">' + e(val) + '</strong></span>';
+        + 'border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted)">' + e(label)
+        + ' <strong style="color:' + (ok ? 'var(--success-fg)' : 'var(--heading)') + '">' + e(val) + '</strong></span>';
     };
     var reopens = state.reopen_count != null ? state.reopen_count : 0;
     return '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">'
@@ -2647,7 +3303,7 @@
       + rb('reopens', reopens, reopens === 0)
       + (priorHashes.length ? rb('prior hashes', priorHashes.length, false) : '')
       + '<span style="font-family:ui-monospace,Menlo,monospace;font-size:0.72rem;padding:3px 9px;border-radius:8px;'
-      + 'border:1px solid #e2e8f0;background:#fff;color:#64748b" title="locked-tests hash">'
+      + 'border:1px solid var(--border);background:var(--surface);color:var(--text-muted)" title="locked-tests hash">'
       + e((state.locked_tests_hash || 'not locked').slice(0, 20)) + '…</span></div>';
   }
 
@@ -2668,15 +3324,15 @@
     var rows = names.map(function (nm) {
       var cells = history.map(function (h) {
         var t = (h.tests || []).filter(function (x) { return x.name === nm; })[0];
-        if (!t) return '<td style="color:#cbd5e1">—</td>';
-        var c = _LOOP_VERDICT_COLORS[t.verdict] || { bg: '#f8fafc', fg: '#64748b' };
+        if (!t) return '<td style="color:var(--text-disabled)">—</td>';
+        var c = _LOOP_VERDICT_COLORS[t.verdict] || { bg: 'var(--surface-2)', fg: 'var(--text-muted)' };
         var m = (t.margin == null) ? '—' : (t.margin >= 0 ? '+' : '') + Number(t.margin).toFixed(2);
         return '<td style="background:' + c.bg + ';color:' + c.fg + ';font-family:ui-monospace,Menlo,monospace">' + e(m) + '</td>';
       }).join('');
       return '<tr><td style="text-align:left;font-weight:600">' + e(nm) + '</td>' + cells + '</tr>';
     }).join('');
     return '<div style="margin-top:12px"><strong style="font-size:0.9em">Iteration trajectory</strong>'
-      + '<div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;margin-top:6px">'
+      + '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-top:6px">'
       + '<table style="border-collapse:collapse;width:100%;font-size:0.78rem;text-align:center">'
       + '<thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
       + '<p class="muted" style="font-size:0.78rem;margin:6px 0 0">Each cell is the real signed margin to the band edge; green→met, red→missed. Read a row to watch one test converge.</p></div>';
@@ -2690,10 +3346,10 @@
       var md = (h && h.margin_deltas) || {};
       var deltas = Object.keys(md).map(function (k) {
         var v = md[k]; var s = (typeof v === 'number') ? (v >= 0 ? '+' : '') + v.toFixed(2) : v;
-        return '<code style="font-size:0.75rem;background:#f1f5f9;padding:1px 5px;border-radius:4px;margin-right:4px">' + e(k) + ' ' + e(s) + '</code>';
+        return '<code style="font-size:0.75rem;background:var(--surface-3);padding:1px 5px;border-radius:4px;margin-right:4px">' + e(k) + ' ' + e(s) + '</code>';
       }).join('');
-      var g = _LOOP_VERDICT_COLORS[(h && h.gate) === 'pass' ? 'within_tol' : (h && h.gate) === 'warn' ? 'drift' : 'mismatch'] || { bg: '#f1f5f9', fg: '#475569' };
-      return '<li style="padding:8px 0;border-top:1px solid #f1f5f9;font-size:0.86em">'
+      var g = _LOOP_VERDICT_COLORS[(h && h.gate) === 'pass' ? 'within_tol' : (h && h.gate) === 'warn' ? 'drift' : 'mismatch'] || { bg: 'var(--surface-3)', fg: 'var(--text-secondary)' };
+      return '<li style="padding:8px 0;border-top:1px solid var(--border-faint);font-size:0.86em">'
         + '<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
         + '<strong>iter ' + e((h && h.iteration) != null ? h.iteration : '') + '</strong>'
         + '<span>' + e((h && h.edit) || '') + (h && h.target ? ' &rarr; <code>' + e(h.target) + '</code>' : '') + '</span>'
@@ -2713,7 +3369,7 @@
       return '<p class="empty-message">' + e(reason) + '</p>';
     }
     var history = state.history || [];
-    var sc = _BUILD_STATE_COLORS[state.state] || { bg: '#f1f5f9', fg: '#475569' };
+    var sc = _BUILD_STATE_COLORS[state.state] || { bg: 'var(--surface-3)', fg: 'var(--text-secondary)' };
     // header + state chip
     var html = '<div class="check-group-header" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
       + '<strong>Was it earned?</strong> <span class="muted" style="font-size:0.85em">the model-building loop &mdash; '
@@ -2800,8 +3456,328 @@
       });
     }
 
-    host.innerHTML = '<div style="font-weight:600">' + passed + '/' + total + ' gates passed</div>';
+    var e = escapeHtmlForTests;
+    var html = '<div style="font-weight:600">' + passed + '/' + total + ' gates passed</div>';
+
+    // Task 4.2 (fixed): tie Tests to the Decision — a short line naming the
+    // pipeline_gate's proceed condition and the SAME 3-state gate status
+    // (pass/warn/fail) as the severity-gate badge in loadTestsTab, via the
+    // shared _gateStatusInfo — so this line can never contradict that badge
+    // (a `warn` study used to show green "gate passes" here while the badge
+    // showed amber "gate: warn"). Omitted when the study declares no
+    // pipeline_gate (older specs / studies with no downstream dependent).
+    var pg = spec && spec.pipeline_gate;
+    if (pg && pg.proceed_condition) {
+      var cond = String(pg.proceed_condition);
+      if (cond.length > 140) cond = cond.slice(0, 137) + '…';
+      var gateStatus = spec && spec.gate && spec.gate.status;
+      var gi = gateStatus ? _gateStatusInfo(gateStatus) : null;
+      html += '<div class="muted" style="margin-top:4px;font-size:0.85em">'
+        + 'Decision: proceed when <em>' + e(cond) + '</em> — '
+        + (gi
+            ? '<span style="color:' + gi[0] + ';font-weight:600">' + e(gi[2]) + '</span>'
+            : '<span class="muted">gate not yet evaluated</span>')
+        + '</div>';
+    }
+    host.innerHTML = html;
   }
+
+  // Gate status (spec.gate.status: pass/warn/fail) → [color, badge label,
+  // decision-line label] — the SINGLE source both the severity-gate badge
+  // (loadTestsTab) and the tab-header Decision line (_renderTestsGateSummary,
+  // above) read, so the two can never disagree about the same gate.
+  var _GATE_STATUS_GL = {
+    pass: ['var(--success-fg)', '✓ gate: pass', 'gate passes'],
+    warn: ['var(--warning-fg)', '≈ gate: warn', 'gate: warn — proceed with caution'],
+    fail: ['var(--danger-fg)', '✗ gate: fail', 'gate fails']
+  };
+  function _gateStatusInfo(status) {
+    return _GATE_STATUS_GL[status] || ['var(--text-muted)', 'gate: ' + status, 'gate: ' + status];
+  }
+
+  // Verdict-chip vocabulary for a test's graded axis (outcome.axis.verdict) —
+  // wording distinct from the report-card pill (_rcPill) since a test card
+  // reads as a sentence ("within tolerance") rather than a table cell, but
+  // reuses _RC_GL's colours so a test card and a report-card axis row stay
+  // visually consistent across the tab.
+  var _TEST_VERDICT_LABEL = {
+    within_tol: '✓ within tolerance',
+    drift: '≈ drift',
+    mismatch: '✗ mismatch',
+    ungraded: 'pending'
+  };
+
+  // PASS/FAIL/SKIP/PARTIAL pill colours — mirrors the server-rendered
+  // _pill_bg/_pill_fg/_pill_text mapping in study-detail.html (kept in sync
+  // by hand; both read the same closed result vocabulary).
+  var _TEST_RESULT_PILL = {
+    PASS: ['var(--success-bg)', 'var(--success-fg)', '✓ PASS'],
+    FAIL: ['var(--danger-bg)', 'var(--danger-fg)', '✗ FAIL'],
+    SKIP: ['var(--warning-bg)', 'var(--warning-fg)', '⏭ SKIP'],
+    PARTIAL: ['var(--warning-bg)', 'var(--warning-fg)', '◐ PARTIAL']
+  };
+
+  // Classification badge tint — mirrors the four-way border colour the
+  // server template already uses for the <li> left border (primary/
+  // supporting/diagnostic/regression), plus "secondary" (the DATA CONTRACT's
+  // spelling for this task) mapped onto the same blue as "supporting".
+  var _CLASS_BADGE = {
+    primary: ['var(--success-bg)', 'var(--success-fg)'],
+    secondary: ['var(--info-bg)', 'var(--info-fg)'],
+    supporting: ['var(--info-bg)', 'var(--info-fg)'],
+    diagnostic: ['var(--warning-bg)', 'var(--warning-fg)'],
+    regression: ['var(--surface-3)', 'var(--text-secondary)']
+  };
+
+  // Format a number for display: integers print bare, everything else is
+  // rounded to 4 significant figures with trailing zeros trimmed. Pure
+  // display helper — never used for grading.
+  function _fmtNum(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return String(n);
+    if (n % 1 === 0) return String(n);
+    var s = n.toPrecision(4);
+    if (s.indexOf('e') === -1 && s.indexOf('.') !== -1) {
+      s = s.replace(/0+$/, '').replace(/\.$/, '');
+    }
+    return s;
+  }
+
+  // Render a study.yaml `pass_if` block as a human sentence fragment
+  // ("expected within [0.7, 1.0]", "expected ≤ 10", "expected ≈ 5 (±10%)"…).
+  // Covers the closed op vocabulary study_evaluator._expected_from_pass_if
+  // grades (range/band, comparators + synonyms, ==/tolerance, predicate) —
+  // mirrored here for display only; grading itself stays server-side.
+  function _humanPassIf(passIf) {
+    if (!passIf || typeof passIf !== 'object') return '';
+    var op = String(passIf.op || passIf.operator || '').trim();
+    var num = function (k) { var v = passIf[k]; return (typeof v === 'number') ? v : null; };
+    var lo = num('low') != null ? num('low') : num('lo');
+    var hi = num('high') != null ? num('high') : num('hi');
+    if (lo != null && hi != null) {
+      return 'expected within [' + _fmtNum(lo) + ', ' + _fmtNum(hi) + ']';
+    }
+    var target = num('value');
+    if (target == null) target = num('target');
+    if (target == null) target = num('threshold');
+    var tol = num('tolerance');
+    var tolf = num('tolerance_fraction');
+    if (['<=', 'max_le', 'at_most', 'less-than-or-equal'].indexOf(op) !== -1 && target != null) {
+      return 'expected ≤ ' + _fmtNum(target);
+    }
+    if (['<', 'max_lt', 'less-than'].indexOf(op) !== -1 && target != null) {
+      return 'expected < ' + _fmtNum(target);
+    }
+    if (['>=', 'min_ge', 'at_least', 'greater-than-or-equal', 'greater-than'].indexOf(op) !== -1 && target != null) {
+      return 'expected ≥ ' + _fmtNum(target);
+    }
+    if (['>', 'min_gt'].indexOf(op) !== -1 && target != null) {
+      return 'expected > ' + _fmtNum(target);
+    }
+    if (['==', 'eq', 'equals'].indexOf(op) !== -1 && target != null) {
+      if (tolf != null) return 'expected ≈ ' + _fmtNum(target) + ' (±' + (tolf * 100).toFixed(0) + '%)';
+      if (tol != null) return 'expected ≈ ' + _fmtNum(target) + ' (±' + _fmtNum(tol) + ')';
+      return 'expected = ' + _fmtNum(target);
+    }
+    if (passIf.statement) return 'expected ' + String(passIf.statement);
+    if (op) return 'expected ' + op + (target != null ? ' ' + _fmtNum(target) : '');
+    return '';
+  }
+
+  // Meter-normalized margin bar for a test report card: a track with the
+  // pass boundary fixed at 50% and a fill to axis.meter (already computed by
+  // test_contract.check() to be scale-normalized into [0,1], 0.5 = boundary
+  // — see viva_superpowers/test_contract.py _meter/check). Ported from the
+  // server-side reference renderer vivarium_workbench/lib/behavior_test_card.py
+  // _margin_bar_html so the client and the (behavior-tests card's) server
+  // rendering agree pixel-for-pixel on what the bar means. Colored by
+  // axis.verdict via _RC_GL (same palette used everywhere else on this tab).
+  // Returns '' when axis carries no numeric meter — never guesses from
+  // margin, which is a different, unnormalized quantity.
+  function _meterBar(axis) {
+    if (!axis || typeof axis.meter !== 'number' || !isFinite(axis.meter)) return '';
+    var pct = Math.max(0, Math.min(1, axis.meter)) * 100;
+    var color = (_RC_GL[axis.verdict] || _RC_GL.ungraded)[0];
+    var left, width;
+    if (pct >= 50) { left = 50; width = pct - 50; } else { left = pct; width = 50 - pct; }
+    width = Math.max(width, 1.5);
+    var marginLabel = '';
+    if (typeof axis.margin === 'number' && isFinite(axis.margin)) {
+      marginLabel = '<span style="color:var(--text-secondary);font-size:0.82em;font-variant-numeric:tabular-nums">'
+        + 'Δ-to-pass ' + (axis.margin >= 0 ? '+' : '') + axis.margin.toPrecision(3)
+        + (axis.severity ? ' · ' + escapeHtmlForTests(String(axis.severity)) : '') + '</span>';
+    }
+    return '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">'
+      + '<div style="position:relative;height:9px;flex:1;max-width:220px;background:var(--surface-3);'
+        + 'border-radius:5px" title="pass boundary at centre">'
+      + '<div style="position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--border-control)"></div>'
+      + '<div style="position:absolute;left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;'
+        + 'top:0;bottom:0;background:' + color + ';border-radius:5px;opacity:0.85"></div>'
+      + '</div>' + marginLabel + '</div>';
+  }
+
+  // Statuses that count as "completed" for canonical-run selection — mirrors
+  // viva_workspace.outcomes._COMPLETE exactly.
+  var _COMPLETE_RUN_STATUSES = { complete: 1, completed: 1, ran: 1, done: 1 };
+
+  // The canonical run: an explicit canonical:true run (last one wins), else
+  // the newest COMPLETED run by timestamp, else the last run, else null.
+  // Ported verbatim from viva_workspace.outcomes.canonical_run — the SAME
+  // selection spec.latest_outcomes (and so every test card's outcome) is
+  // built from server-side, so the footer run link always points at the run
+  // that actually produced the shown value (fix for a prior version that
+  // picked the array-LAST run merely containing this test's outcome, which
+  // can be a different run than the canonical one).
+  function _canonicalRunForLink() {
+    var runs = ((window._study && window._study.runs) || []).filter(function (r) {
+      return r && typeof r === 'object';
+    });
+    if (!runs.length) return null;
+    var flagged = runs.filter(function (r) { return r.canonical === true; });
+    if (flagged.length) return flagged[flagged.length - 1];
+    var completed = runs.filter(function (r) {
+      return !!_COMPLETE_RUN_STATUSES[String(r.status || '').toLowerCase()];
+    });
+    if (completed.length) {
+      return completed.reduce(function (best, r) {
+        return (String(r.timestamp || '') > String(best.timestamp || '')) ? r : best;
+      }, completed[0]);
+    }
+    return runs[runs.length - 1];
+  }
+
+  // Task 4.2: the redesigned per-test report card — the single, self-
+  // contained rendering of one declared behavior test over its already-
+  // graded outcome. Replaces the plain server-rendered body of each
+  // #bt-<name> <li> (report_card-kind rows are untouched — they keep their
+  // own inline _renderRichReportCard expander). Escapes all interpolated
+  // text via escapeHtmlForTests; reuses _marginBar (margin-bar styling),
+  // _changeBadge (since-last-run badge) and _RC_GL (verdict colours) rather
+  // than re-deriving any of that.
+  function _renderTestReportCard(test, outcome, diff) {
+    var e = escapeHtmlForTests;
+    test = test || {};
+    var name = test.name || '(unnamed)';
+    var cls = test.classification || 'unclassified';
+    var clsColor = _CLASS_BADGE[cls] || ['var(--surface-3)', 'var(--text-secondary)'];
+    var axis = (outcome && outcome.axis && typeof outcome.axis === 'object') ? outcome.axis : null;
+    var vKey = (axis && axis.verdict) || 'ungraded';
+    var vColor = (_RC_GL[vKey] || _RC_GL.ungraded)[0];
+    var vLabel = _TEST_VERDICT_LABEL[vKey] || _TEST_VERDICT_LABEL.ungraded;
+    var resPill = outcome && _TEST_RESULT_PILL[outcome.result];
+
+    // 1. Header — name · classification badge · verdict chip · result pill.
+    var header = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      + '<strong style="font-size:0.95em;color:var(--heading)">' + e(name) + '</strong>'
+      + '<span style="font-size:0.7em;font-weight:600;padding:2px 9px;border-radius:9999px;'
+        + 'background:' + clsColor[0] + ';color:' + clsColor[1] + '">' + e(cls) + '</span>'
+      + '<span style="font-size:0.72em;font-family:monospace;padding:2px 10px;border-radius:9999px;'
+        + 'background:' + vColor + ';color:var(--bg)">' + e(vLabel) + '</span>'
+      + (resPill
+          ? '<span style="font-size:0.72em;font-family:monospace;padding:2px 9px;border-radius:9999px;'
+            + 'background:' + resPill[0] + ';color:' + resPill[1] + '">' + e(resPill[2]) + '</span>'
+          : '')
+      + (test.requires_simulation
+          ? '<span class="muted" style="font-size:0.72em;margin-left:auto">requires: <code>'
+            + e(String(test.requires_simulation)) + '</code></span>'
+          : '')
+      + '</div>';
+
+    // 2. What it checks.
+    var whatItChecks = test.description
+      ? '<div style="margin-top:6px;font-size:0.92em;color:var(--text)">' + e(String(test.description)) + '</div>'
+      : '';
+
+    // 3. Band + measured.
+    var passIf = test.pass_if || test.expect || null;
+    var bandText = _humanPassIf(passIf);
+    var mv = outcome ? outcome.measured_value : null;
+    var mvText;
+    if (mv == null) mvText = '—  (not yet graded)';
+    else if (typeof mv === 'number') mvText = _fmtNum(mv);
+    else if (typeof mv === 'object') { try { mvText = JSON.stringify(mv); } catch (err) { mvText = String(mv); } }
+    else mvText = String(mv);
+    var bandLine = '<div style="margin-top:8px;font-size:0.85em;color:var(--text-secondary)">'
+      + (bandText ? e(bandText) : '<span class="muted">no pass_if band declared</span>')
+      + ' <span style="margin-left:10px"><strong>measured:</strong> ' + e(mvText) + '</span>'
+      + '</div>';
+
+    // 4. Margin bar — fixed: this MUST read axis.meter (check() already
+    // scale-normalizes it to [0,1], boundary at 0.5), NOT axis.margin (a
+    // raw, unnormalized signed value in the test's own physical units —
+    // clamping that straight to [-1,1] saturates or vanishes the bar for
+    // most real tests). _marginBar(axis) reads .margin and is the wrong
+    // helper here; _meterBar(axis) below ports the correct reference
+    // renderer (vivarium_workbench/lib/behavior_test_card.py's
+    // _margin_bar_html) to JS. Omits gracefully when axis.meter is absent.
+    var marginBarHtml = _meterBar(axis);
+
+    // 5. Evidence — basis + cites/calibration_anchor (checked on pass_if
+    // first per the DATA CONTRACT, falling back to the older top-level
+    // b.cites/b.calibration_anchor spelling for older specs).
+    var prov = (passIf && passIf.provenance) || {};
+    var cites = (passIf && passIf.cites) || test.cites || [];
+    var anchor = (passIf && passIf.calibration_anchor) || test.calibration_anchor || null;
+    var evidenceBits = [];
+    if (prov.note) evidenceBits.push('<span class="muted">basis:</span> ' + e(String(prov.note)));
+    if (Array.isArray(cites) && cites.length) {
+      evidenceBits.push('<span class="muted">cites:</span> ' + e(cites.join('; ')));
+    }
+    if (anchor) {
+      var anchorText = (typeof anchor === 'string') ? anchor : JSON.stringify(anchor);
+      evidenceBits.push('<span class="muted">calibration anchor:</span> ' + e(anchorText));
+    }
+    var evidence = evidenceBits.length
+      ? '<div style="margin-top:8px;font-size:0.82em;color:var(--text-secondary);padding:6px 8px;'
+        + 'background:var(--surface-2);border:1px solid var(--border);border-radius:4px">'
+        + evidenceBits.join('<br>') + '</div>'
+      : '';
+
+    // 6. Since last run.
+    var diffLine = '';
+    if (diff && diff.change) {
+      var badge = _changeBadge(diff.change);
+      if (badge) {
+        var mdText = (typeof diff.margin_delta === 'number' && diff.margin_delta !== 0)
+          ? ' <span class="muted" style="font-size:0.78em">(Δmargin '
+            + (diff.margin_delta > 0 ? '+' : '') + diff.margin_delta.toFixed(2) + ')</span>'
+          : '';
+        diffLine = '<div style="margin-top:8px;font-size:0.82em">'
+          + '<span class="muted">since last run:</span> ' + badge + mdText + '</div>';
+      }
+    }
+
+    // 7. Footer — run link + collapsed Assertion. Fixed: attribute the link
+    // to the CANONICAL run (the run latest_outcomes/this outcome actually
+    // came from), not merely the array-last run that happens to mention this
+    // test name — those can differ, which used to point the link at a run
+    // that didn't produce the value shown above it. Only shown when there is
+    // an outcome to attribute (a pending/absent test has no run to link).
+    var runIdent = null;
+    if (outcome) {
+      var _canonRun = _canonicalRunForLink();
+      runIdent = _canonRun ? (_canonRun.run_id || _canonRun.name) : null;
+    }
+    var runLink = runIdent
+      ? '<a href="#run-' + e(runIdent) + '" onclick="_setStudyTab(\'simulate\')" style="color:var(--link)">'
+        + 'from run ' + e(runIdent) + ' ↗</a>'
+      : '<span class="muted">no run recorded yet</span>';
+    var assertionRaw;
+    try {
+      assertionRaw = JSON.stringify({ measure: test.measure || null, pass_if: passIf || test.expect || null }, null, 2);
+    } catch (err) {
+      assertionRaw = String(err);
+    }
+    var footer = '<div style="margin-top:8px;font-size:0.82em">' + runLink + '</div>'
+      + '<details style="margin-top:6px;font-size:0.82em">'
+      + '<summary class="muted" style="cursor:pointer">Assertion</summary>'
+      + '<pre style="background:var(--surface);padding:8px;margin:4px 0 0 0;border:1px solid var(--border);'
+        + 'border-radius:3px;overflow-x:auto">' + e(assertionRaw) + '</pre></details>';
+
+    return '<div class="test-report-card" data-verdict="' + e(vKey) + '">'
+      + header + whatItChecks + bandLine + marginBarHtml + evidence + diffLine + footer
+      + '</div>';
+  }
+  window._renderTestReportCard = _renderTestReportCard;
 
   function loadTestsTab(spec) {
     var cfg = (spec && spec.tests) || {};
@@ -2859,10 +3835,7 @@
     // the per-test-outcome rollup above.
     var _gate = spec && spec.gate;
     if (_gate && _gate.status) {
-      var _gc = {pass: ['#16a34a', '✓ gate: pass'],
-                 warn: ['#d97706', '≈ gate: warn'],
-                 fail: ['#dc2626', '✗ gate: fail']}[_gate.status] ||
-                ['#64748b', 'gate: ' + _gate.status];
+      var _gc = _gateStatusInfo(_gate.status);
       var _nhard = (_gate.gated_by || []).length;
       var _glabel = _gc[1] + (_gate.status === 'fail' && _nhard
         ? ' (' + _nhard + ' hard axis' + (_nhard === 1 ? '' : 'es') + ')' : '');
@@ -2870,10 +3843,64 @@
         ' <span class="study-gate-badge" data-gate="' + _gate.status +
         '" title="severity-aware gate: only hard-severity axis mismatches fail"' +
         ' style="margin-left:8px;padding:1px 7px;border-radius:9px;font-weight:600;' +
-        'color:#fff;background:' + _gc[0] + '">' + _glabel + '</span>');
+        'color:var(--bg);background:' + _gc[0] + '">' + _glabel + '</span>');
+    }
+
+    // --- Task 4.2: per-test report cards ---------------------------------
+    // Enrich each server-rendered #bt-<name> item (behavioral-kind rows only
+    // — report_card-kind rows keep their own inline _renderRichReportCard
+    // expander, untouched) into the full report-card layout, single-sourced
+    // from spec.latest_outcomes (the SAME canonical-run outcome the gate
+    // summary/rollup above reads, so a card can't disagree with the strip)
+    // and spec.test_diff.per — matched via the SAME (card, group, id) triple
+    // _axisChange already uses for report-card axis rows (test_diff.per[]
+    // entries are keyed on that triple, per viva_superpowers/test_diff.py;
+    // matching by id alone risks attaching a same-named axis from an
+    // unrelated card). A plain behavioral test carries no card/group of its
+    // own, so it has no valid triple to match — the badge is then gracefully
+    // omitted (see _diffForBehaviorTest) rather than guessed. Runs BEFORE the
+    // legacy per-test computed-outcomes block below so that block's
+    // insertAdjacentHTML('beforeend', ...) still lands after this card,
+    // inside the same <li> — nothing is duplicated for studies that don't
+    // populate the separate (parallel) computed_outcomes surface.
+    var _btAll = (spec && (spec.behavior_tests || spec.expected_behavior)) || [];
+    if (_btAll.length) {
+      var _latestOutcomes = (spec && spec.latest_outcomes) || {};
+      var _diffForBehaviorTest = function (t) {
+        if (!t || !t.card || !t.group) return null;
+        return _axisChange(t.card, t.group, t.name);
+      };
+      _btAll.forEach(function (t) {
+        if (!t || !t.name) return;
+        if ((t.kind || 'behavioral') === 'report_card') return;
+        var li = document.getElementById('bt-' + t.name);
+        if (!li) return;
+        li.innerHTML = _renderTestReportCard(t, _latestOutcomes[t.name] || null, _diffForBehaviorTest(t));
+      });
+      // Grouped: primary tests first, then secondary, then everything else —
+      // a DOM reorder of the existing <li> nodes (moves, doesn't recreate),
+      // so #bt-<name> anchors and any bound listeners survive untouched.
+      var _testsList = document.getElementById('tests-list');
+      if (_testsList && _testsList.classList.contains('expected-behavior-list')) {
+        var _clsOrder = { primary: 0, secondary: 1 };
+        Array.prototype.slice.call(_testsList.children).sort(function (a, b) {
+          var ca = a.getAttribute('data-classification') || 'unclassified';
+          var cb = b.getAttribute('data-classification') || 'unclassified';
+          var ra = _clsOrder.hasOwnProperty(ca) ? _clsOrder[ca] : 2;
+          var rb = _clsOrder.hasOwnProperty(cb) ? _clsOrder[cb] : 2;
+          return ra - rb;
+        }).forEach(function (li) { _testsList.appendChild(li); });
+      }
     }
 
     // --- Per-test code-computed outcomes (spine B3) ---------------------
+    // NOTE (Task 4.2): this is a SEPARATE, parallel data surface
+    // (runs[].computed_outcomes — the code-vs-authored reconciliation
+    // ledger) from the graded outcomes/axis the report card above renders.
+    // Kept as-is (not retired) because tests/test_spine_present_b_outcomes.py
+    // asserts _renderComputedOutcomeRow and its markup are still present;
+    // it only appends anything when a run actually carries computed_outcomes,
+    // which the report card above does not otherwise surface.
     // Render each test's LATEST code-computed outcome (measured_value /
     // result / operator / evaluated_by) connected to the run that produced
     // it and the pass_if band it was judged against — with the code-computed
@@ -2984,8 +4011,8 @@
     codeBits.push('by <code>' + e(String(c.evaluated_by || '?')) + '</code>');
     var codeChip =
       '<span class="outcome-chip outcome-chip-computed" ' +
-      'style="display:inline-block;padding:4px 8px;border-radius:4px;background:#eef2ff;' +
-      'border:1px solid #c7d2fe;color:#3730a3;font-size:0.82em">' +
+      'style="display:inline-block;padding:4px 8px;border-radius:4px;background:var(--active);' +
+      'border:1px solid var(--active-indicator);color:var(--active-fg);font-size:0.82em">' +
       '<span class="muted" style="font-size:0.85em">code computed</span> ' +
       codeBits.join(' · ') + '</span>';
 
@@ -2994,23 +4021,23 @@
     if (a && (a.result != null)) {
       authoredChip =
         ' <span class="outcome-chip outcome-chip-authored" ' +
-        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:#f8fafc;' +
-        'border:1px solid #e2e8f0;color:#475569;font-size:0.82em">' +
+        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:var(--surface-2);' +
+        'border:1px solid var(--border);color:var(--text-secondary);font-size:0.82em">' +
         '<span class="muted" style="font-size:0.85em">authored</span> ' +
         '<strong>' + e(String(a.result)) + '</strong></span>';
     }
 
     var divBadge = divergent
       ? ' <span class="reconcile-divergent" ' +
-        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:#fee2e2;' +
-        'border:1px solid #fca5a5;color:#991b1b;font-weight:600;font-size:0.82em">' +
+        'style="display:inline-block;padding:4px 8px;border-radius:4px;background:var(--danger-bg);' +
+        'border:1px solid var(--danger-border);color:var(--danger-fg);font-weight:600;font-size:0.82em">' +
         '⚠ reconcile: divergent</span>'
       : '';
 
     var runLink = runIdent
       ? '<div class="muted small" style="margin-top:4px">from run ' +
         '<a href="#run-' + e(runIdent) + '" onclick="_setStudyTab(\'simulate\')" ' +
-        'style="color:#3b82f6">' + e(runIdent) + '</a></div>'
+        'style="color:var(--link)">' + e(runIdent) + '</a></div>'
       : '';
 
     var bandLine = passIf
@@ -3023,8 +4050,8 @@
       : '';
 
     return '<div class="computed-outcome-row" ' +
-      'style="margin-top:6px;padding:8px 10px;background:#fff;border:1px solid ' +
-      (divergent ? '#fca5a5' : '#e2e8f0') + ';border-radius:4px;font-size:0.85em">' +
+      'style="margin-top:6px;padding:8px 10px;background:var(--surface);border:1px solid ' +
+      (divergent ? 'var(--danger-border)' : 'var(--border)') + ';border-radius:4px;font-size:0.85em">' +
       '<div><strong>measured_value:</strong> <code>' + e(mvStr) + '</code></div>' +
       '<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
       codeChip + authoredChip + divBadge + '</div>' +
@@ -3074,12 +4101,31 @@
     }
   }
 
+  // Task 4.1: re-fetch the study spec and re-render the Tests tab from it --
+  // reused after a study-grade success AND after a Tests-tab-initiated
+  // baseline run completes (see _gradeAfterRunId / _pollChainProgress above).
+  // Reuses window.DataSource.loadStudy (the page's existing study-reload
+  // path) rather than a bespoke fetch.
+  function _reloadStudyAndTests() {
+    var slug = studyName();
+    var reload = (window.DataSource && window.DataSource.loadStudy)
+      ? window.DataSource.loadStudy(slug)
+      : fetch('/api/study/' + encodeURIComponent(slug)).then(function(r) { return r.json(); });
+    return reload.then(function(spec) {
+      window._study = spec;
+      _loadTestsPanel(spec);   // _renderTestsGateSummary + report cards + loadTestsTab
+    }).catch(function(err) {
+      alert('Reload failed: ' + (err && err.message ? err.message : err));
+    });
+  }
+  window._reloadStudyAndTests = _reloadStudyAndTests;
+
   function runStudyTests() {
     var btn = document.getElementById('run-tests-btn');
     if (!btn) return;
     btn.disabled = true;
-    btn.textContent = 'Running…';
-    fetch('/api/study-tests-run', {
+    btn.textContent = 'Grading…';
+    fetch('/api/study-grade', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({study: studyName()}),
@@ -3087,13 +4133,49 @@
       return resp.json().then(function(d) { return {status: resp.status, body: d}; });
     }).then(function(r) {
       if (r.status !== 200) {
-        alert('Test run failed: ' + (r.body && r.body.error || r.status));
+        alert('Grade failed: ' + (r.body && r.body.error || r.status));
         return;
       }
-      renderTestResults(r.body);
+      if (r.body.graded) { _reloadStudyAndTests(); return; }
+      // graded:false carries one of SIX reasons: no_run, run_not_found,
+      // no_tests, store_unresolved, evaluator_unavailable:…, runner_error:….
+      // Only no_run means "nothing to grade yet -- simulate". Every other
+      // reason means a run exists but can't be graded for some OTHER cause
+      // that a new simulation can't fix (missing tests, unresolved store,
+      // evaluator down, etc.) -- dispatching a costly baseline there would
+      // silently paper over the real problem, so just surface it.
+      if (r.body.reason !== 'no_run') {
+        alert('Cannot grade: ' + (r.body.reason || 'unknown') + '. No usable run to grade.');
+        return;
+      }
+      // No run yet -- run the study's CURRENT baseline spec (its flush
+      // auto-evaluates), then reload once that specific run reaches a real
+      // terminal state. Returned (not fire-and-forget) so the outer chain's
+      // finally-handler below waits for the dispatch itself to settle --
+      // confirm dialog included -- before re-enabling the button; otherwise
+      // a second click during "Simulating…" could launch a duplicate run.
+      btn.textContent = 'Simulating…';
+      return _dispatchCurrentSpecBaseline().then(function(res) {
+        if (res && res.body && res.body.cancelled) return;
+        if (res && (res.status === 200 || res.status === 202)) {
+          var runId = res.body && (res.body.run_id || res.body.simulation_id);
+          if (runId) {
+            if (typeof _loadStudySims === 'function') _loadStudySims(true);
+            _gradeAfterRunId = runId;   // scope the reload to THIS run only
+            _pollChainProgress(runId);
+          }
+        } else {
+          alert('Run failed: ' + (res && res.body && res.body.error || (res && res.status)));
+        }
+      }).catch(function(err) {
+        alert('Run failed: network error — ' + err);
+      });
     }).catch(function(err) {
-      alert('Test run error: ' + err);
+      alert('Grade error: ' + err);
     }).then(function() {
+      // Reached only once grading -- and, when it happened, the dispatch
+      // itself -- has settled (success, cancel, or error alike): safe to
+      // hand control back to the user either way.
       btn.disabled = false;
       btn.textContent = 'Run tests';
     });
@@ -3101,7 +4183,14 @@
 
   var runBtn = document.getElementById('run-tests-btn');
   if (runBtn) {
-    runBtn.addEventListener('click', runStudyTests);
+    // Snapshot/read-only bundle: no live backend to grade or dispatch a run
+    // against -- hide it, mirroring how #study-reproduce / #study-run-current-spec
+    // are hidden for the same reason (study-detail.html's snapshot-mode block).
+    if (_isSnapshot()) {
+      runBtn.style.display = 'none';
+    } else {
+      runBtn.addEventListener('click', runStudyTests);
+    }
   }
 
   // ── Stage-3c: Tracked Feedback panel ─────────────────────────────────────
@@ -3133,9 +4222,9 @@
 
     // Status badge colours
     var badgeCss = {
-      open:      'background:#fef3c7;color:#92400e;',
-      addressed: 'background:#d1fae5;color:#065f46;',
-      dismissed: 'background:#f1f5f9;color:#64748b;text-decoration:line-through;',
+      open:      'background:var(--warning-bg);color:var(--warning-fg);',
+      addressed: 'background:var(--success-bg);color:var(--success-fg);',
+      dismissed: 'background:var(--surface-3);color:var(--text-muted);text-decoration:line-through;',
     };
 
     var itemsHtml = '';
@@ -3171,20 +4260,20 @@
         // .responded_at, same source). Always rendered — "unattributed" when
         // no responder is recorded, never silently omitted.
         responseHtml =
-          '<div style="margin:6px 0 0 0;padding:8px 12px;background:#f0fdf4;' +
-          'border-left:3px solid #10b981;border-radius:4px;font-size:0.88em">' +
-          '<strong style="font-size:0.85em;color:#065f46">Response — ' +
+          '<div style="margin:6px 0 0 0;padding:8px 12px;background:var(--success-bg);' +
+          'border-left:3px solid var(--success-fg);border-radius:4px;font-size:0.88em">' +
+          '<strong style="font-size:0.85em;color:var(--success-fg)">Response — ' +
           '<span class="actor-glyph" title="actor kind: ' + _esc(actorKind(item.responded_by)) + '">' +
           actorGlyph(item.responded_by) + '</span> ' +
           _esc(attributionText(item.responded_by, item.responded_at)) +
           ':</strong>' +
           '<pre style="white-space:pre-wrap;margin:4px 0 0 0;font-family:inherit;' +
-          'font-size:0.92em;color:#374151">' + _esc(item.response) + '</pre>' +
+          'font-size:0.92em;color:var(--text)">' + _esc(item.response) + '</pre>' +
           '</div>';
       }
 
       itemsHtml +=
-        '<div style="padding:10px 14px;border-bottom:1px solid #f1f5f9">' +
+        '<div style="padding:10px 14px;border-bottom:1px solid var(--border-faint)">' +
         '<div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">' +
         badgeHtml + metaHtml +
         '</div>' +
@@ -3195,9 +4284,9 @@
 
     var summaryHtml =
       '<span style="font-size:0.9em">' +
-      '<span style="color:#92400e">' + openCt + ' open</span>' +
-      ' / <span style="color:#065f46">' + addrCt + ' addressed</span>' +
-      ' / <span style="color:#64748b">' + disCt + ' dismissed</span>' +
+      '<span style="color:var(--warning-fg)">' + openCt + ' open</span>' +
+      ' / <span style="color:var(--success-fg)">' + addrCt + ' addressed</span>' +
+      ' / <span style="color:var(--text-muted)">' + disCt + ' dismissed</span>' +
       ' <span class="muted">(' + total + ' total)</span>' +
       '</span>';
 
@@ -3211,7 +4300,7 @@
       '<div class="overview-section" style="margin-top:18px">' +
       '<h2 class="overview-label">Expert Feedback</h2>' +
       '<div style="margin-bottom:10px">' + summaryHtml + '</div>' +
-      '<div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">' +
+      '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">' +
       itemsHtml +
       '</div>' +
       actionsSectionHtml +
@@ -3226,10 +4315,10 @@
   // are no actions to show. Pure render — escapes all text.
   function _actionBadgeCss(status) {
     return ({
-      open:      'background:#fef3c7;color:#92400e;',
-      applied:   'background:#d1fae5;color:#065f46;',
-      dismissed: 'background:#f1f5f9;color:#64748b;text-decoration:line-through;',
-    })[status] || 'background:#fef3c7;color:#92400e;';
+      open:      'background:var(--warning-bg);color:var(--warning-fg);',
+      applied:   'background:var(--success-bg);color:var(--success-fg);',
+      dismissed: 'background:var(--surface-3);color:var(--text-muted);text-decoration:line-through;',
+    })[status] || 'background:var(--warning-bg);color:var(--warning-fg);';
   }
 
   function _renderFeedbackActionsSection() {
@@ -3249,7 +4338,7 @@
         'font-family:ui-monospace,monospace;margin-right:6px">' +
         _esc(status) + '</span>';
       var kindChip =
-        '<code style="font-size:0.82em;background:#eef2ff;color:#3730a3;' +
+        '<code style="font-size:0.82em;background:var(--active);color:var(--active-fg);' +
         'padding:1px 6px;border-radius:4px">' + _esc(action.kind || '') + '</code>';
       var target = action.target_finding
         ? ' <span class="muted" style="font-size:0.82em">→ ' + _esc(action.target_finding) + '</span>'
@@ -3257,15 +4346,15 @@
       var applyBtn = (status === 'open')
         ? '<button type="button" class="feedback-apply-btn" data-item-id="' +
           _esc(it.item_id) + '" style="margin-left:auto;padding:2px 10px;' +
-          'font-size:0.82em;border:1px solid #6366f1;background:#eef2ff;' +
-          'color:#3730a3;border-radius:4px;cursor:pointer">Apply</button>'
+          'font-size:0.82em;border:1px solid var(--active-indicator);background:var(--active);' +
+          'color:var(--active-fg);border-radius:4px;cursor:pointer">Apply</button>'
         : '';
       rows +=
-        '<div style="padding:8px 14px;border-bottom:1px solid #f1f5f9">' +
+        '<div style="padding:8px 14px;border-bottom:1px solid var(--border-faint)">' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
         badge + kindChip + target + applyBtn +
         '</div>' +
-        '<p style="margin:4px 0 0 0;font-size:0.9em;color:#374151">' +
+        '<p style="margin:4px 0 0 0;font-size:0.9em;color:var(--text)">' +
         _esc(action.proposed_text || '') + '</p>' +
         '<p class="muted" style="margin:2px 0 0 0;font-size:0.78em">' +
         _esc((it.text || '').slice(0, 140)) + '</p>' +
@@ -3274,8 +4363,8 @@
 
     return (
       '<div style="margin-top:12px">' +
-      '<h3 style="font-size:0.9em;color:#475569;margin:0 0 6px 0">Proposed Actions</h3>' +
-      '<div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">' +
+      '<h3 style="font-size:0.9em;color:var(--text-secondary);margin:0 0 6px 0">Proposed Actions</h3>' +
+      '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">' +
       rows +
       '</div>' +
       '</div>'
@@ -3298,9 +4387,9 @@
           .then(function(res) {
             if (res.ok && (res.j.applied || res.j.already_applied)) {
               btn.textContent = 'Applied';
-              btn.style.borderColor = '#10b981';
-              btn.style.background = '#d1fae5';
-              btn.style.color = '#065f46';
+              btn.style.borderColor = 'var(--success-fg)';
+              btn.style.background = 'var(--success-bg)';
+              btn.style.color = 'var(--success-fg)';
             } else {
               btn.disabled = false;
               btn.textContent = 'Apply';
@@ -3324,7 +4413,7 @@
   function _showStudyLoadError(e) {
     var el = document.getElementById('study-root') || document.body;
     el.innerHTML =
-      '<div style="padding:2rem;color:#dc2626">' +
+      '<div style="padding:2rem;color:var(--danger-fg)">' +
       'Could not load study data: ' + String(e && e.message || e) +
       '</div>';
   }
@@ -3368,8 +4457,8 @@
       explanatory_gain: { result: 'GAP' }
     };
     var colors = {
-      PASS: ['#dcfce7', '#166534'], PARTIAL: ['#fef3c7', '#92400e'],
-      FAIL: ['#fee2e2', '#991b1b'], GAP: ['#f1f5f9', '#475569'], PENDING: ['#f1f5f9', '#475569']
+      PASS: ['var(--success-bg)', 'var(--success-fg)'], PARTIAL: ['var(--warning-bg)', 'var(--warning-fg)'],
+      FAIL: ['var(--danger-bg)', 'var(--danger-fg)'], GAP: ['var(--surface-3)', 'var(--text-secondary)'], PENDING: ['var(--surface-3)', 'var(--text-secondary)']
     };
     badges.forEach(function(el) {
       var track = el.getAttribute('data-verdict-track');
@@ -3416,9 +4505,9 @@
         });
         var gaps = sev.error + sev.warning;
         var head, col;
-        if (!findings.length) { head = '✓ ready'; col = '#166534'; }
-        else if (gaps) { head = '⚠ ' + gaps + ' readiness gap' + (gaps === 1 ? '' : 's'); col = '#92400e'; }
-        else { head = 'ℹ ' + sev.info + ' note' + (sev.info === 1 ? '' : 's'); col = '#1e40af'; }
+        if (!findings.length) { head = '✓ ready'; col = 'var(--success-fg)'; }
+        else if (gaps) { head = '⚠ ' + gaps + ' readiness gap' + (gaps === 1 ? '' : 's'); col = 'var(--warning-fg)'; }
+        else { head = 'ℹ ' + sev.info + ' note' + (sev.info === 1 ? '' : 's'); col = 'var(--info-fg)'; }
 
         if (!findings.length) {
           container.innerHTML = '<span class="readiness-inline" style="font-size:0.85em;color:' + col + '" '
@@ -3433,7 +4522,7 @@
         var groups = checks.map(function (c) {
           var items = byCheck[c].map(function (f) {
             var s = f.severity || 'info';
-            var dot = s === 'error' ? '#dc2626' : (s === 'warning' ? '#f59e0b' : '#3b82f6');
+            var dot = s === 'error' ? 'var(--danger-fg)' : (s === 'warning' ? 'var(--warning-fg)' : 'var(--link)');
             return '<li style="margin-top:3px"><span style="color:' + dot + ';font-weight:700">●</span> ' + _esc(f.message || '') + '</li>';
           }).join('');
           return '<div style="margin-top:9px"><code>' + _esc(c) + '</code> '
@@ -3444,7 +4533,7 @@
           '<details class="readiness-inline">'
           + '<summary style="font-size:0.85em;color:' + col + ';cursor:pointer;list-style:none;outline:none" '
           + 'title="code-computed by the report linter (deterministic) — click to expand">' + head + '</summary>'
-          + '<div style="margin-top:6px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85em" class="readiness-inline-body">'
+          + '<div style="margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:0.85em" class="readiness-inline-body">'
           + '<div class="muted" style="font-size:0.9em">' + breakdown + '</div>'
           + groups
           + '</div>'
@@ -3476,7 +4565,7 @@
       _setStudyTab('simulate');
       if (h.indexOf('#run-') === 0) {
         var el = document.getElementById(h.slice(1));  // id="run-<runId>"
-        if (el && el.scrollIntoView) { try { el.scrollIntoView({block: 'center'}); el.style.outline = '2px solid #2b6cb0'; } catch (e) {} }
+        if (el && el.scrollIntoView) { try { el.scrollIntoView({block: 'center'}); el.style.outline = '2px solid var(--link)'; } catch (e) {} }
       }
     }
   }
